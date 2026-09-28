@@ -1,11 +1,25 @@
 /* ============================================================================
    ROOTREALM — DESIGN TOKENS / TYPOGRAPHY
-   Source of truth: docs/DESIGN_SYSTEM.md §5 (Typography).
+   Source of truth: docs/DESIGN_SYSTEM.md §5 (Typography) and §29 (Responsive).
 
-   Token layer only. Responsive scaling, usage rules and composed text
-   components are Task 1.2.
+   The six roles are the whole hierarchy — nothing else is a text style:
+     display      large section titles and identity moments
+     heading      screen and section titles
+     subheading   supporting section hierarchy
+     body         descriptions and normal content
+     caption      metadata, timestamps and supporting information
+     label        buttons, filters, tabs and status indicators
 
-   Hierarchy: display / heading / subheading / body / caption / label.
+   The scale is mobile-first. The values in `@theme static` are the
+   375 × 812 / 390 × 844 targets; the media queries at the bottom of this file
+   lift the three largest roles at 768 / 1024 / 1280 and hold those values at
+   1440+. `body`, `caption` and `label` deliberately do not change with the
+   viewport: reading text and metadata should not inflate on desktop.
+
+   Tokens are consumed as utilities (`text-heading`, `text-caption`, ...) or
+   through the `Text` primitive (components/ui/text.tsx). No component should
+   ever name a font size, weight, tracking or leading value directly.
+
    Font families come from the font variables set up in `app/layout.tsx`.
    ========================================================================== */
 
@@ -37,23 +51,24 @@
   --leading-snug: 1.35;
   --leading-normal: 1.6;
 
-  /* --- Type scale ------------------------------------------------------ */
+  /* --- Type scale (mobile-first: 375 × 812 / 390 × 844) ---------------- */
   /* Sub-tokens (line-height / letter-spacing / font-weight) travel with the
-     size utility, e.g. `text-body` sets size + leading + tracking + weight. */
+     size utility, e.g. `text-body` sets size + leading + tracking + weight.
+     Sizes are rem so they follow the user's font-size preference. */
   --text-*: initial;
 
-  --text-display: 2.25rem; /* 36px */
-  --text-display--line-height: 1.05;
+  --text-display: 1.75rem; /* 28px */
+  --text-display--line-height: 1.1; /* wraps safely on a 375px screen */
   --text-display--letter-spacing: -0.03em;
   --text-display--font-weight: 600;
 
-  --text-heading: 1.5rem; /* 24px */
-  --text-heading--line-height: 1.15;
+  --text-heading: 1.25rem; /* 20px */
+  --text-heading--line-height: 1.2;
   --text-heading--letter-spacing: -0.02em;
   --text-heading--font-weight: 600;
 
-  --text-subheading: 1.125rem; /* 18px */
-  --text-subheading--line-height: 1.3;
+  --text-subheading: 1rem; /* 16px */
+  --text-subheading--line-height: 1.35;
   --text-subheading--letter-spacing: -0.01em;
   --text-subheading--font-weight: 500;
 
@@ -71,4 +86,36 @@
   --text-label--line-height: 1.2;
   --text-label--letter-spacing: 0.12em;
   --text-label--font-weight: 500;
+}
+
+/* ---------------------------------------------------------------------------
+   Responsive steps (DESIGN_SYSTEM §29)
+   The windows are the documented support targets: 375/390 first, then
+   768, 1024, 1280 and 1440+. Breakpoints follow the Tailwind defaults so a
+   token step and a `md:` / `lg:` / `xl:` utility change at the same width.
+   These blocks are unlayered on purpose, so they win over `@layer theme`
+   without touching the theme namespace.
+   ------------------------------------------------------------------------ */
+
+/* Tablet — 768+ : section hierarchy becomes a little more generous. */
+@media (min-width: 48rem) {
+  :root {
+    --text-display: 2rem; /* 32px */
+    --text-heading: 1.5rem; /* 24px */
+    --text-subheading: 1.125rem; /* 18px */
+  }
+}
+
+/* Desktop — 1024+ : identity typography grows, nothing else changes. */
+@media (min-width: 64rem) {
+  :root {
+    --text-display: 2.25rem; /* 36px */
+  }
+}
+
+/* Large displays — 1280+, the maximum step (holds at 1440+). */
+@media (min-width: 80rem) {
+  :root {
+    --text-display: 2.5rem; /* 40px */
+  }
 }

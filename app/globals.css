@@ -25,6 +25,49 @@
     line-height: var(--text-body--line-height);
   }
 
+  /* -------------------------------------------------------------------------
+     Semantic typography defaults (Task 1.2)
+     Plain semantic HTML lands on the correct typography role without a class,
+     so a heading can never silently sit at body size. Components should still
+     prefer the `Text` primitive or the `text-*` utilities; because utilities
+     live in the `utilities` layer they always override the rules below.
+     `p` is intentionally not mapped — paragraph text inherits the size of its
+     context, which is what caption/subheading regions rely on.
+     ---------------------------------------------------------------------- */
+
+  h1 {
+    font-size: var(--text-display);
+    line-height: var(--text-display--line-height);
+    letter-spacing: var(--text-display--letter-spacing);
+    font-weight: var(--text-display--font-weight);
+  }
+
+  h2 {
+    font-size: var(--text-heading);
+    line-height: var(--text-heading--line-height);
+    letter-spacing: var(--text-heading--letter-spacing);
+    font-weight: var(--text-heading--font-weight);
+  }
+
+  /* The scale has three heading roles; deeper heading levels use the
+     smallest of them (docs/DESIGN_SYSTEM.md §5). */
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-size: var(--text-subheading);
+    line-height: var(--text-subheading--line-height);
+    letter-spacing: var(--text-subheading--letter-spacing);
+    font-weight: var(--text-subheading--font-weight);
+  }
+
+  /* Fine print — timestamps, footnotes, disclaimers. */
+  small {
+    font-size: var(--text-caption);
+    line-height: var(--text-caption--line-height);
+    letter-spacing: var(--text-caption--letter-spacing);
+  }
+
   ::selection {
     background-color: var(--color-state-selected);
     color: var(--color-text-primary);

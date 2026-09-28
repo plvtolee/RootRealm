@@ -45,3 +45,58 @@ Rules:
    monochrome by default.
 5. `docs/DESIGN_SYSTEM.md` remains the source of truth for the visual language.
 
+---
+
+# RootRealm — Typography (Task 1.2)
+
+The hierarchy is exactly six roles (`docs/DESIGN_SYSTEM.md` §5). There are no
+other text styles:
+
+| role         | use                                              | token           |
+| ------------ | ------------------------------------------------ | --------------- |
+| `display`    | large section titles and identity moments        | `text-display`  |
+| `heading`    | screen and section titles                        | `text-heading`  |
+| `subheading` | supporting section hierarchy                     | `text-subheading` |
+| `body`       | descriptions and normal content                  | `text-body`     |
+| `caption`    | metadata, timestamps and supporting information   | `text-caption`  |
+| `label`      | buttons, filters, tabs and status indicators      | `text-label`    |
+
+Files:
+
+- `styles/tokens/typography.css` — families, weights, tracking, leading and the
+  six roles, including the responsive steps. The only place a size exists.
+- `components/ui/text.tsx` — typed `Text` primitive
+  (`variant`, `as`, `className` + native props).
+- `app/globals.css` — base defaults mapping `h1`/`h2`/`h3`–`h6`/`small` onto
+  roles so plain semantic HTML is already correct.
+- `lib/cn.ts` — dependency-free class joiner used by UI primitives.
+
+Rules:
+
+1. Use `<Text variant="…">` or the matching `text-*` utility. Never write a
+   font size, weight, tracking or leading value in a component.
+2. Exactly one typography role per element. Do not override a role with another
+   `text-*` size utility, and do not reach for responsive font-size overrides —
+   the roles scale themselves (see below). Change the `variant` instead.
+3. Colours are a separate axis: `Text` sets no colour. Pick `text-text-primary`,
+   `text-text-secondary`, `text-text-muted` or an accent explicitly. Use weight
+   and spacing for hierarchy before colour (DESIGN_SYSTEM §5).
+4. Choose elements semantically (`docs/DESIGN_SYSTEM.md` §31). `Text` defaults to
+   `display` → `h1`, `heading` → `h2`, `subheading` → `h3`, `body` → `p`,
+   `caption`/`label` → `span`; pass `as` to match the document outline, and keep
+   one `h1` per screen.
+5. `label` is not uppercased by the token layer. Add `uppercase` where the
+   eyebrow style is wanted; the wide tracking is already in the token.
+6. `--font-mono` exists but is not one of the six roles. Use it only for code,
+   identifiers and tabular values.
+
+Responsive scaling (DESIGN_SYSTEM §29, mobile-first):
+
+- base = the 375 × 812 / 390 × 844 target, stepped at 768 (`md`), 1024 (`lg`)
+  and 1280 (`xl`, the maximum; holds at 1440+).
+- `display` 28 → 32 → 36 → 40px, `heading` 20 → 24px, `subheading` 16 → 18px.
+- `body` (15px), `caption` (13px) and `label` (12px) are fixed at every width:
+  reading text and metadata must not inflate with the viewport, and all sizes
+  are rem-based so user font-size preferences are respected.
+
+
