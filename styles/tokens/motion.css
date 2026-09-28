@@ -1,0 +1,55 @@
+/* ============================================================================
+   ROOTREALM — DESIGN TOKENS / MOTION
+   Source of truth: docs/DESIGN_SYSTEM.md §11 (Motion) and §12 (Reduced Motion).
+
+   Duration scale: 150 / 200 / 250 / 400 / 600 / 900.
+   Normal UI transitions use the fast end; reward and progression reveals use
+   the slow end.
+
+   Usage:
+     - utilities:    `duration-(--motion-base)` / `ease-standard`
+     - plain CSS:    `transition-duration: var(--motion-base)`
+     - GSAP / SVG:   read the same custom property from the DOM (no duplicated
+                     numbers in JavaScript)
+
+   Reduced motion collapses reveal durations to the fast end rather than
+   removing transitions entirely, so information still appears.
+   ========================================================================== */
+
+:root {
+  /* --- Layer 1: duration primitives ------------------------------------- */
+  --rr-duration-150: 150ms;
+  --rr-duration-200: 200ms;
+  --rr-duration-250: 250ms;
+  --rr-duration-400: 400ms;
+  --rr-duration-600: 600ms;
+  --rr-duration-900: 900ms;
+
+  /* --- Layer 2: semantic motion ---------------------------------------- */
+  --motion-fast: var(--rr-duration-150); /* hover, press, focus */
+  --motion-base: var(--rr-duration-200); /* default UI transition */
+  --motion-medium: var(--rr-duration-250); /* larger UI transitions */
+  --motion-slow: var(--rr-duration-400); /* standard reveal */
+  --motion-reveal: var(--rr-duration-600); /* unlock / achievement */
+  --motion-ceremonial: var(--rr-duration-900); /* rare progression moment */
+}
+
+@theme static {
+  /* --- Easing (restricted set) ----------------------------------------- */
+  --ease-*: initial;
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-entrance: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-exit: cubic-bezier(0.4, 0, 1, 1);
+
+  /* --- Transition defaults --------------------------------------------- */
+  --default-transition-duration: var(--rr-duration-200);
+  --default-transition-timing-function: cubic-bezier(0.2, 0, 0, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --motion-slow: var(--rr-duration-150);
+    --motion-reveal: var(--rr-duration-150);
+    --motion-ceremonial: var(--rr-duration-150);
+  }
+}

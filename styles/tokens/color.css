@@ -1,0 +1,79 @@
+/* ============================================================================
+   ROOTREALM — DESIGN TOKENS / COLOR
+   Source of truth: docs/DESIGN_SYSTEM.md §3 (Base, Default Accent, Optional
+   Accents) and §4 (Semantic Color Roles).
+
+   Two layers, one direction of dependency:
+
+     Layer 1 — primitives (`--rr-*`, plain CSS custom properties)
+       Raw brand values. Never referenced by components directly.
+
+     Layer 2 — semantic tokens (`--color-*`, Tailwind theme namespace)
+       The only color names components, utilities and future cosmetic themes
+       are allowed to use.
+
+   The Tailwind default palette is cleared so off-brand values cannot be
+   reached by accident (`bg-zinc-800`, `text-red-500`, ...).
+   ========================================================================== */
+
+:root {
+  /* --- Layer 1: base palette (DESIGN_SYSTEM §3) ------------------------- */
+  --rr-bg: #0b0c0e; /* background */
+  --rr-surface: #131518; /* elevated surface */
+  --rr-surface-2: #1b1d22; /* secondary surface */
+  --rr-border: #2b2e35; /* hairline border */
+  --rr-text-primary: #f1f1f4; /* primary text */
+  --rr-text-secondary: #9a9da6; /* secondary text */
+  --rr-accent: #b49af7; /* default accent — soft violet */
+
+  /* --- Layer 1: optional accents (DESIGN_SYSTEM §3) --------------------- */
+  --rr-cyan: #6fd0e3;
+  --rr-teal: #5ecbb5;
+  --rr-emerald: #5fcb8a;
+  --rr-amber: #e2b45f;
+  --rr-crimson: #e06a6f;
+
+  /* --- Layer 1: derived helper values ----------------------------------- */
+  /* Only for emphasis/states that the approved palette does not cover
+     directly. Not new brand colors. */
+  --rr-border-strong: #3a3e47; /* hovered / selected hairline */
+  --rr-text-muted: #6b6e76; /* low-emphasis metadata */
+  --rr-text-disabled: #4a4d55; /* disabled labels */
+}
+
+@theme static {
+  /* Remove the Tailwind default color palette. */
+  --color-*: initial;
+
+  /* --- Layer 2: semantic roles (DESIGN_SYSTEM §4) ----------------------- */
+  --color-bg: var(--rr-bg);
+  --color-surface: var(--rr-surface);
+  --color-surface-secondary: var(--rr-surface-2);
+  --color-text-primary: var(--rr-text-primary);
+  --color-text-secondary: var(--rr-text-secondary);
+  --color-text-muted: var(--rr-text-muted);
+  --color-text-disabled: var(--rr-text-disabled);
+  --color-border: var(--rr-border);
+  --color-border-strong: var(--rr-border-strong);
+  --color-accent: var(--rr-accent);
+
+  /* --- Layer 2: optional accents --------------------------------------- */
+  --color-accent-cyan: var(--rr-cyan);
+  --color-accent-teal: var(--rr-teal);
+  --color-accent-emerald: var(--rr-emerald);
+  --color-accent-amber: var(--rr-amber);
+  --color-accent-crimson: var(--rr-crimson);
+
+  /* --- Layer 2: semantic states ---------------------------------------- */
+  --color-success: var(--rr-emerald);
+  --color-warning: var(--rr-amber);
+  --color-danger: var(--rr-crimson);
+  --color-info: var(--rr-cyan);
+  --color-focus: var(--rr-accent);
+
+  /* Interaction state layers (used on top of surfaces). */
+  --color-state-hover: rgb(241 241 244 / 0.06);
+  --color-state-active: rgb(241 241 244 / 0.1);
+  --color-state-selected: rgb(180 154 247 / 0.14);
+  --color-scrim: rgb(11 12 14 / 0.72);
+}

@@ -1,0 +1,32 @@
+/* ============================================================================
+   ROOTREALM — DESIGN TOKENS / SPACING
+   Source of truth: docs/DESIGN_SYSTEM.md §6 (Spacing) and §29 (Responsive).
+
+   The only spacing values in the system: 4 / 8 / 12 / 16 / 24 / 32 / 48 / 64.
+   Token names keep Tailwind's conventional index so `p-4` still means 16px.
+
+   The default dynamic spacing scale is cleared, so off-scale steps
+   (`p-5`, `gap-7`, `mt-14`, ...) cannot be generated at all. When a component
+   genuinely needs a size outside this scale (for example a 44px touch target),
+   add a named token for it instead of an arbitrary value.
+
+   Values are expressed in rem so they follow the user's font-size
+   preference; the px equivalent is the default-browser-size result.
+   ========================================================================== */
+
+@theme static {
+  /* Remove the Tailwind default spacing scale. */
+  --spacing: initial;
+  --spacing-*: initial;
+
+  --spacing-0: 0; /* 0px */
+  --spacing-1: 0.25rem; /* 4px */
+  --spacing-2: 0.5rem; /* 8px */
+  --spacing-3: 0.75rem; /* 12px */
+  --spacing-4: 1rem; /* 16px */
+  --spacing-6: 1.5rem; /* 24px */
+  --spacing-8: 2rem; /* 32px */
+  --spacing-12: 3rem; /* 48px */
+  --spacing-16: 4rem; /* 64px */
+  --spacing-px: 1px; /* hairline offsets only */
+}

@@ -1,0 +1,25 @@
+/* ============================================================================
+   ROOTREALM — DESIGN TOKENS / SHAPE (RADIUS + BORDERS)
+   Source of truth: docs/DESIGN_SYSTEM.md §7 (Radius) and §8 (Borders).
+
+   Radius stays inside the documented 4–14px range. Larger, "mobile SaaS"
+   radii are removed from the theme so they cannot be used by accident.
+   Borders are hairline-first: emphasis is reserved for focus/selected states.
+   ========================================================================== */
+
+@theme static {
+  /* --- Radius ---------------------------------------------------------- */
+  --radius-*: initial;
+
+  --radius-xs: 0.25rem; /* 4px  — badges, small chips */
+  --radius-sm: 0.5rem; /* 8px  — compact controls */
+  --radius-md: 0.625rem; /* 10px — buttons, inputs */
+  --radius-lg: 0.875rem; /* 14px — cards, panels */
+  --radius-pill: 999px; /* pill shapes and tag capsules */
+
+  /* --- Border width ---------------------------------------------------- */
+  --border-width-*: initial;
+
+  --border-width-hairline: 1px; /* default 1px hairline (DESIGN_SYSTEM §8) */
+  --border-width-emphasis: 2px; /* selected or focused elements only */
+}

@@ -1,0 +1,23 @@
+/* ============================================================================
+   ROOTREALM — DESIGN TOKENS / ELEVATION
+   Source of truth: docs/DESIGN_SYSTEM.md §9 (Elevation) and §10 (Glow).
+
+   Depth is communicated by surface contrast and hairline borders first.
+   Shadows stay subtle. Glow is a semantic (not decorative) treatment and is
+   only available as an explicit token — there is no global glow.
+   ========================================================================== */
+
+@theme static {
+  /* --- Shadows --------------------------------------------------------- */
+  --shadow-*: initial;
+
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.32);
+  --shadow-md: 0 8px 24px -12px rgb(0 0 0 / 0.55);
+  --shadow-lg: 0 24px 64px -24px rgb(0 0 0 / 0.65);
+
+  /* --- Semantic glow --------------------------------------------------- */
+  /* Reserved for: unlocked skill nodes, rare achievements, selected nodes,
+     equipped avatar frames. Never for buttons, cards, icons or navigation. */
+  --shadow-glow-accent:
+    0 0 0 1px rgb(180 154 247 / 0.35), 0 0 18px -6px rgb(180 154 247 / 0.45);
+}

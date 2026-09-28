@@ -1,0 +1,24 @@
+/* ============================================================================
+   ROOTREALM — DESIGN TOKENS
+   Single entry point for the whole token system. Imported once by
+   `app/globals.css`; nothing else should import individual token files.
+
+   Layers:
+     color.css        base palette, semantic color roles, semantic states
+     typography.css   families, weights, tracking, leading, type scale
+     space.css        the only spacing scale (4 … 64)
+     shape.css        radius and border widths
+     elevation.css    shadows and semantic glow
+     motion.css       durations, easings, reduced-motion behaviour
+
+   Rules (docs/DESIGN_SYSTEM.md):
+     - components consume semantic tokens, never primitives or raw values
+     - no component should hard-code a hex value, duration or spacing value
+   ========================================================================== */
+
+@import "./color.css";
+@import "./typography.css";
+@import "./space.css";
+@import "./shape.css";
+@import "./elevation.css";
+@import "./motion.css";

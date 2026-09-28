@@ -1,0 +1,74 @@
+/* ============================================================================
+   ROOTREALM — DESIGN TOKENS / TYPOGRAPHY
+   Source of truth: docs/DESIGN_SYSTEM.md §5 (Typography).
+
+   Token layer only. Responsive scaling, usage rules and composed text
+   components are Task 1.2.
+
+   Hierarchy: display / heading / subheading / body / caption / label.
+   Font families come from the font variables set up in `app/layout.tsx`.
+   ========================================================================== */
+
+@theme static {
+  /* --- Families --------------------------------------------------------- */
+  --font-sans:
+    var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system, "Segoe UI",
+    sans-serif;
+  --font-mono:
+    var(--font-geist-mono), ui-monospace, "SFMono-Regular", Menlo, monospace;
+
+  /* --- Weights (restricted set) ---------------------------------------- */
+  --font-weight-*: initial;
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+
+  /* --- Tracking -------------------------------------------------------- */
+  --tracking-*: initial;
+  --tracking-tight: -0.02em;
+  --tracking-normal: 0em;
+  --tracking-wide: 0.04em;
+  --tracking-label: 0.12em; /* eyebrow / label / status text */
+
+  /* --- Leading --------------------------------------------------------- */
+  --leading-*: initial;
+  --leading-tight: 1.1;
+  --leading-snug: 1.35;
+  --leading-normal: 1.6;
+
+  /* --- Type scale ------------------------------------------------------ */
+  /* Sub-tokens (line-height / letter-spacing / font-weight) travel with the
+     size utility, e.g. `text-body` sets size + leading + tracking + weight. */
+  --text-*: initial;
+
+  --text-display: 2.25rem; /* 36px */
+  --text-display--line-height: 1.05;
+  --text-display--letter-spacing: -0.03em;
+  --text-display--font-weight: 600;
+
+  --text-heading: 1.5rem; /* 24px */
+  --text-heading--line-height: 1.15;
+  --text-heading--letter-spacing: -0.02em;
+  --text-heading--font-weight: 600;
+
+  --text-subheading: 1.125rem; /* 18px */
+  --text-subheading--line-height: 1.3;
+  --text-subheading--letter-spacing: -0.01em;
+  --text-subheading--font-weight: 500;
+
+  --text-body: 0.9375rem; /* 15px */
+  --text-body--line-height: 1.6;
+  --text-body--letter-spacing: 0em;
+  --text-body--font-weight: 400;
+
+  --text-caption: 0.8125rem; /* 13px */
+  --text-caption--line-height: 1.45;
+  --text-caption--letter-spacing: 0.01em;
+  --text-caption--font-weight: 400;
+
+  --text-label: 0.75rem; /* 12px */
+  --text-label--line-height: 1.2;
+  --text-label--letter-spacing: 0.12em;
+  --text-label--font-weight: 500;
+}
