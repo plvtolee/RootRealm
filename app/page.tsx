@@ -58,7 +58,8 @@ export default function Home() {
           <Text as="li" variant="body" className="text-text-secondary">
             Bottom navigation — Home, Skill Tree, Achievements, Shop and
             Profile, fixed below the content with the selected destination in
-            accent; the desktop pattern follows in Task 1.6.
+            accent; from 1024px up the same destinations move into the desktop
+            header.
           </Text>
         </ul>
       </Card>

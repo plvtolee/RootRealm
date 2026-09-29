@@ -9,7 +9,7 @@
      space.css        the only spacing scale (4 … 64)
      shape.css        radius and border widths
      component.css    named component sizes (controls, icons, avatars, badges)
-     layout.css       shell content width and side padding, per breakpoint
+     layout.css       shell content width, side padding and desktop header height
      elevation.css    shadows and semantic glow
      motion.css       durations, easings, reduced-motion behaviour
 

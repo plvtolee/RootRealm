@@ -104,6 +104,14 @@ export type NavItem = {
   label: string;
   /** Geometric icon rendered by the nav bars; the bar owns its size. */
   icon: ComponentType<NavIconProps>;
+  /**
+   * The signed-in account destination. Exactly one item carries it: the
+   * desktop header (Task 1.6) renders it as the avatar affordance on the
+   * right — as `references/approved-ui/` does — instead of a text link, while
+   * the mobile bar still shows it as a regular cell. The flag chooses the
+   * presentation only; the route table stays one list.
+   */
+  account?: boolean;
 };
 
 export const NAV_ITEMS: readonly NavItem[] = [
@@ -111,7 +119,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { href: "/skill-tree", label: "Skill Tree", icon: SkillTreeIcon },
   { href: "/achievements", label: "Achievements", icon: AwardIcon },
   { href: "/shop", label: "Shop", icon: ShoppingBagIcon },
-  { href: "/profile", label: "Profile", icon: UserIcon },
+  { href: "/profile", label: "Profile", icon: UserIcon, account: true },
 ];
 
 /**

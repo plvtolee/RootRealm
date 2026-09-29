@@ -2,10 +2,10 @@
    ROOTREALM — DESIGN TOKENS / LAYOUT
    Source of truth: docs/DESIGN_SYSTEM.md §27 (Backgrounds) and §29 (Responsive).
 
-   The shell's structural values: how wide the content region may become and how
-   much air it keeps at the sides. They are tokens rather than literals because
-   every screen and both navigations (Tasks 1.5 / 1.6) depend on the same two
-   numbers and must not restate them.
+   The shell's structural values: how wide the content region may become, how
+   much air it keeps at the sides, and how tall the desktop header is. They are
+   tokens rather than literals because every screen and both navigations
+   (Tasks 1.5 / 1.6) depend on the same numbers and must not restate them.
 
    Breakpoints are the documented support targets — 375 × 812 / 390 × 844 first,
    then 768 / 1024 / 1280 / 1440+ — and match the widths the typography scale
@@ -28,6 +28,14 @@
 :root {
   --layout-content-max: 100%;
   --layout-padding-x: var(--spacing-4); /* 16px */
+
+  /* Desktop header height (Task 1.6). The header only renders from `lg` up
+     (components/layout/top-navigation.tsx), so one value is enough: 64px is
+     the 44px control height plus the spacing scale's air around it, and it
+     clears the tallest child — the account avatar at `md` — with room to
+     spare. Content never needs to offset for it: the header is sticky and
+     stays in the layout flow. */
+  --layout-header-height: var(--spacing-16); /* 64px */
 }
 
 /* Tablet — 768+ : the region stops stretching, which is what keeps a readable

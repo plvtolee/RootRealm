@@ -4,6 +4,7 @@ import { cn } from "@/lib/cn";
 
 import { BottomNavigation } from "./bottom-navigation";
 import { Container } from "./container";
+import { TopNavigation } from "./top-navigation";
 
 export type AppShellProps = {
   children: ReactNode;
@@ -30,14 +31,14 @@ export type AppShellProps = {
  * Notes:
  * - it is rendered once by the root layout, so it is server-rendered and never
  *   remounts on navigation. Only the page inside it animates (app/template.tsx)
- * - it owns five things and nothing else: the global background, the skip link,
- *   the `<main>` landmark, the content container with the page rhythm, and the
- *   bottom navigation (Task 1.5) — chrome belongs in the layout, not inside a
- *   page, because a fixed element rendered within the template's animated
- *   transform would stop being viewport-fixed (see the note in
+ * - it owns six things and nothing else: the global background, the skip link,
+ *   the desktop header navigation (Task 1.6), the `<main>` landmark, the content
+ *   container with the page rhythm, and the bottom navigation (Task 1.5) —
+ *   chrome belongs in the layout, not inside a page, because a fixed element
+ *   rendered within the template's animated transform would stop being
+ *   viewport-fixed (see the note in
  *   components/layout/bottom-navigation.tsx)
- * - it knows nothing about the product. Screens, desktop navigation (Task 1.6)
- *   and data arrive in later tasks
+ * - it knows nothing about the product. Screens and data arrive in later tasks
  */
 export function AppShell({ children, contained = true, className }: AppShellProps) {
   /*
@@ -71,6 +72,17 @@ export function AppShell({ children, contained = true, className }: AppShellProp
         aria-hidden="true"
         className="pointer-events-none fixed inset-0 bg-bg bg-linear-to-b from-bg-wash to-transparent"
       />
+
+      {/*
+        Desktop navigation (TASKS §1.6, DESIGN_SYSTEM §29): a sticky header bar
+        from `lg` up — the pattern the approved references show. It sits before
+        `<main>` so the reading order is header, then content, and like the
+        bottom bar it is chrome, so it belongs to the layout rather than the
+        animated template. Below `lg` it is display:none and the bottom bar
+        takes over; only one of the two is ever exposed (see the note in
+        components/layout/top-navigation.tsx).
+      */}
+      <TopNavigation />
 
       {/*
         `tabIndex={-1}` lets the skip link move focus here, which is what makes
