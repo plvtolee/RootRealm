@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 
 import { cn } from "@/lib/cn";
 
+import { BottomNavigation } from "./bottom-navigation";
 import { Container } from "./container";
 
 export type AppShellProps = {
@@ -29,20 +30,27 @@ export type AppShellProps = {
  * Notes:
  * - it is rendered once by the root layout, so it is server-rendered and never
  *   remounts on navigation. Only the page inside it animates (app/template.tsx)
- * - it owns four things and nothing else: the global background, the skip link,
- *   the `<main>` landmark, and the content container with the page rhythm
- * - it knows nothing about the product. Screens, navigation and data arrive in
- *   later tasks; navigation belongs in the layout, not inside a page (see the
- *   containing-block note in AGENTS.md)
+ * - it owns five things and nothing else: the global background, the skip link,
+ *   the `<main>` landmark, the content container with the page rhythm, and the
+ *   bottom navigation (Task 1.5) — chrome belongs in the layout, not inside a
+ *   page, because a fixed element rendered within the template's animated
+ *   transform would stop being viewport-fixed (see the note in
+ *   components/layout/bottom-navigation.tsx)
+ * - it knows nothing about the product. Screens, desktop navigation (Task 1.6)
+ *   and data arrive in later tasks
  */
 export function AppShell({ children, contained = true, className }: AppShellProps) {
+  /*
+    `pb-16` (64px) reserves the strip the fixed bottom bar occupies — the bar
+    itself is ~53px tall — so the end of the page is never hidden underneath
+    it. From `lg` the bar is gone and the space returns to the content.
+  */
   return (
-    <div className={cn("relative flex min-h-dvh flex-col", className)}>
+    <div className={cn("relative flex min-h-dvh flex-col pb-16 lg:pb-0", className)}>
       {/*
-        Keyboard users reach the content without walking the navigation that
-        Tasks 1.5 and 1.6 add. It is translated above the viewport — not
-        `sr-only` — so it can slide into place as a normal element on focus
-        (DESIGN_SYSTEM §31: keyboard traversal).
+        Keyboard users reach the content straight away. It is translated above
+        the viewport — not `sr-only` — so it can slide into place as a normal
+        element on focus (DESIGN_SYSTEM §31: keyboard traversal).
       */}
       <a
         href="#main-content"
@@ -81,6 +89,17 @@ export function AppShell({ children, contained = true, className }: AppShellProp
           children
         )}
       </main>
+
+      {/*
+        Primary navigation (TASKS §1.5, DESIGN_SYSTEM §22): fixed to the
+        viewport below the content and hidden from `lg` up, where Task 1.6's
+        desktop navigation takes over. It sits in the shell — outside the
+        page — so app/template.tsx's animated transform can never become its
+        containing block; the strip it covers is reserved by the shell's
+        `pb-16`. It is placed after `<main>` so the DOM order matches the
+        reading order (content first, the bar at the visual bottom).
+      */}
+      <BottomNavigation />
     </div>
   );
 }

@@ -52,7 +52,13 @@ export default function Home() {
 
           <Text as="li" variant="body" className="text-text-secondary">
             Skip link — the first tab stop, so keyboard users reach content
-            without walking the navigation that Tasks 1.5 and 1.6 add.
+            straight away (DESIGN_SYSTEM §31).
+          </Text>
+
+          <Text as="li" variant="body" className="text-text-secondary">
+            Bottom navigation — Home, Skill Tree, Achievements, Shop and
+            Profile, fixed below the content with the selected destination in
+            accent; the desktop pattern follows in Task 1.6.
           </Text>
         </ul>
       </Card>
