@@ -1,33 +1,63 @@
+import { Badge } from "@/components/ui/badge";
+import { Card } from "@/components/ui/card";
+import { Text } from "@/components/ui/text";
+
 /**
- * TEMPORARY placeholder.
+ * Home — the Task 1.4 shell placeholder.
  *
- * It exists only because the create-next-app boilerplate relied on the
- * Tailwind default palette, which the RootRealm token layer intentionally
- * removes. It verifies that the token layer renders in the browser and will be
- * replaced by the application shell in Task 1.4.
- *
- * This is not product UI and contains no progression logic.
+ * It is not product UI. It exists so the shell can be inspected at the
+ * supported viewports (375 × 812, 390 × 844, tablet, desktop) and so the
+ * container, the background and the page entrance are visible in a real route.
+ * Phase 2 replaces this with the profile screen; no XP, no quests, no GitHub
+ * data may be invented here.
  */
 export default function Home() {
   return (
-    <main className="flex flex-1 flex-col items-center justify-center gap-6 px-4 py-16">
-      <p className="text-label uppercase text-text-secondary">RootRealm</p>
+    <div className="flex flex-col gap-6">
+      <header className="flex flex-col items-start gap-3">
+        <Badge variant="neutral">Phase 1</Badge>
 
-      <h1 className="text-display text-text-primary">Design tokens active</h1>
+        <Text variant="label" className="uppercase text-text-secondary">
+          RootRealm
+        </Text>
 
-      <p className="max-w-md text-center text-body text-text-secondary">
-        Phase 1 — UI foundation. Colors, typography, spacing, shape, elevation
-        and motion now resolve from a single token source.
-      </p>
+        <Text variant="display">Application shell</Text>
 
-      <div className="w-full max-w-md rounded-lg border border-border bg-surface p-6 shadow-md">
-        <p className="text-label uppercase text-text-muted">Token layer</p>
-        <p className="mt-3 text-caption text-text-secondary">
-          Semantic surfaces, hairlines and restrained elevation resolve from
-          styles/tokens. No accent color is applied globally.
-        </p>
-      </div>
-    </main>
+        <Text variant="body" className="text-text-secondary">
+          An RPG-inspired developer identity and progression platform. The shell
+          is in place; the screens that fill it arrive with Phase 2.
+        </Text>
+      </header>
+
+      <Card className="flex flex-col gap-3">
+        <Text variant="label" className="uppercase text-text-muted">
+          What the shell provides
+        </Text>
+
+        <ul className="flex flex-col gap-2">
+          <Text as="li" variant="body" className="text-text-secondary">
+            Global background — near-black with one extremely subtle neutral
+            wash; no accent, no glow.
+          </Text>
+
+          <Text as="li" variant="body" className="text-text-secondary">
+            Content container — full width on the primary mobile targets, capped
+            and centred from 768px up.
+          </Text>
+
+          <Text as="li" variant="body" className="text-text-secondary">
+            Page entrance — a short fade, and a fade without movement when
+            reduced motion is requested.
+          </Text>
+
+          <Text as="li" variant="body" className="text-text-secondary">
+            Skip link — the first tab stop, so keyboard users reach content
+            without walking the navigation that Tasks 1.5 and 1.6 add.
+          </Text>
+        </ul>
+      </Card>
+    </div>
   );
 }
+
 

@@ -76,4 +76,10 @@
   --color-state-active: rgb(241 241 244 / 0.1);
   --color-state-selected: rgb(180 154 247 / 0.14);
   --color-scrim: rgb(11 12 14 / 0.72);
+
+  /* Background wash: an extremely subtle neutral highlight at the top of the
+     viewport, the one optional background treatment DESIGN_SYSTEM §27 allows.
+     Neutral on purpose — §10 forbids accent glow as background decoration, and
+     §33 keeps the interface monochrome at rest. Used only by the shell. */
+  --color-bg-wash: rgb(241 241 244 / 0.035);
 }

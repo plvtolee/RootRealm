@@ -44,6 +44,46 @@
   /* --- Transition defaults --------------------------------------------- */
   --default-transition-duration: var(--rr-duration-200);
   --default-transition-timing-function: cubic-bezier(0.2, 0, 0, 1);
+
+  /* --- Animation -------------------------------------------------------- */
+  /* The shell's page entrance (app/template.tsx), used as `animate-page-enter`.
+     Normal UI, not a reward reveal, so it sits in the 150–250ms band (§11).
+     The keyframes are declared outside `@theme` below, so that the
+     reduced-motion variant can reference its own keyframes without depending on
+     which ones a usage scan decides to keep. */
+  --animate-page-enter: page-enter var(--motion-medium) var(--ease-entrance);
+}
+
+/* ---------------------------------------------------------------------------
+   Keyframes
+   Declared as plain CSS (unlayered, like the typography steps) so both variants
+   always ship; they are a handful of bytes and can never be tree-shaken away by
+   a class scan that only sees the default one.
+   ------------------------------------------------------------------------ */
+
+/* The page arrives from slightly below. The movement is deliberately small —
+   the content appears, it does not fly in. */
+@keyframes page-enter {
+  from {
+    opacity: 0;
+    transform: translateY(var(--spacing-1));
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* The same entrance with the movement removed. */
+@keyframes page-fade {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -51,5 +91,9 @@
     --motion-slow: var(--rr-duration-150);
     --motion-reveal: var(--rr-duration-150);
     --motion-ceremonial: var(--rr-duration-150);
+
+    /* The page still arrives, it just stops moving (DESIGN_SYSTEM §12:
+       replace animated reveals with fades or instant state changes). */
+    --animate-page-enter: page-fade var(--motion-fast) var(--ease-standard);
   }
 }

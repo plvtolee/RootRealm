@@ -1,0 +1,62 @@
+/* ============================================================================
+   ROOTREALM — DESIGN TOKENS / LAYOUT
+   Source of truth: docs/DESIGN_SYSTEM.md §27 (Backgrounds) and §29 (Responsive).
+
+   The shell's structural values: how wide the content region may become and how
+   much air it keeps at the sides. They are tokens rather than literals because
+   every screen and both navigations (Tasks 1.5 / 1.6) depend on the same two
+   numbers and must not restate them.
+
+   Breakpoints are the documented support targets — 375 × 812 / 390 × 844 first,
+   then 768 / 1024 / 1280 / 1440+ — and match the widths the typography scale
+   already steps at (48rem / 64rem / 80rem), so a token step and a `md:`/`lg:`/
+   `xl:` utility change at the same viewport. The 1440+ step is the only one
+   with no Tailwind equivalent, so it is written as `90rem`.
+
+   Declared in a plain `:root` (like component.css) because they are consumed
+   through arbitrary-value utilities — `max-w-(--layout-content-max)` and
+   `px-(--layout-padding-x)` — rather than a Tailwind theme namespace.
+
+   Rules:
+     - the content region is never narrower than the screen it is on, so the
+       mobile steps stay full width and the side padding does the work
+     - side padding stays on the spacing scale (space.css): 16 / 24 / 32
+     - the platform stops growing at 1440+: larger displays get more margin,
+       not longer lines
+   ========================================================================== */
+
+:root {
+  --layout-content-max: 100%;
+  --layout-padding-x: var(--spacing-4); /* 16px */
+}
+
+/* Tablet — 768+ : the region stops stretching, which is what keeps a readable
+   measure on a tablet, and the side padding grows with the screen. */
+@media (min-width: 48rem) {
+  :root {
+    --layout-content-max: 48rem; /* 768px — full width at the breakpoint */
+    --layout-padding-x: var(--spacing-6); /* 24px */
+  }
+}
+
+/* Desktop — 1024+ : the first genuinely wider layout (DESIGN_SYSTEM §29). */
+@media (min-width: 64rem) {
+  :root {
+    --layout-content-max: 64rem; /* 1024px */
+    --layout-padding-x: var(--spacing-8); /* 32px */
+  }
+}
+
+/* Large displays — 1280+. */
+@media (min-width: 80rem) {
+  :root {
+    --layout-content-max: 72rem; /* 1152px */
+  }
+}
+
+/* 1440+ — the documented maximum step. */
+@media (min-width: 90rem) {
+  :root {
+    --layout-content-max: 80rem; /* 1280px */
+  }
+}
