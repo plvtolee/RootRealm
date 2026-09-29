@@ -99,4 +99,85 @@ Responsive scaling (DESIGN_SYSTEM §29, mobile-first):
   reading text and metadata must not inflate with the viewport, and all sizes
   are rem-based so user font-size preferences are respected.
 
+---
+
+# RootRealm — Base UI Primitives (Task 1.3)
+
+The reusable low-level primitives live in `components/ui/`. They are not
+screens: nothing here may know about XP, quests, achievements, CodeCoins,
+GitHub, rarity or attributes — a primitive takes typed props and paints
+semantic tokens.
+
+| primitive     | file                            | use                                    |
+| ------------- | ------------------------------- | -------------------------------------- |
+| `Button`      | `button.tsx`                    | labelled action, four variants         |
+| `IconButton`  | `icon-button.tsx`               | icon-only action, `label` required     |
+| `Card`        | `card.tsx`                      | restrained surface container           |
+| `Badge`       | `badge.tsx`                     | status chip, semantic tones            |
+| `Divider`     | `divider.tsx`                   | hairline separator                     |
+| `Input`       | `input.tsx`                     | labelled text field with error state   |
+| `ProgressBar` | `progress-bar.tsx`              | progress with `progressbar` semantics  |
+| `Avatar`      | `avatar.tsx`                    | image with initials fallback           |
+| `Text`        | `text.tsx`                      | the six typography roles (Task 1.2)    |
+
+Shared constants (internal, renders nothing): `components/ui/control.ts` — the
+control heights, radii, icon sizes and variant treatment used by `Button` and
+`IconButton`, so the two cannot drift apart.
+
+Sizes:
+
+- named component sizes live in `styles/tokens/component.css`
+  (`--control-height-sm|md|lg`, `--icon-size-sm|md|lg`,
+  `--avatar-size-sm|md|lg|xl`, `--badge-height-sm|md`,
+  `--control-opacity-disabled`). A primitive never writes a height, icon size or
+  avatar size as a number.
+- the spacing scale in `space.css` remains the source for padding, gaps,
+  progress heights and the hit-area halo. No new spacing values were added.
+- `md` is the default size everywhere, and it is the 44px touch target
+  (DESIGN_SYSTEM §30). `sm` (36px) is a dense desktop size; only `IconButton`
+  earns its touch area back with `CONTROL_HIT_AREA` (an invisible 4px halo).
+
+Rules:
+
+1. One utility per CSS property per element. `cn` has no conflict resolution
+   (no `clsx`, no `tailwind-merge`) and Tailwind emits conflicting utilities in
+   stylesheet order, not class order — so a variant must be the single source of
+   truth for the properties it owns, and a `className` passed by a caller must
+   not restate a variant's colour, border or hover.
+2. Variants paint semantic tokens only. The accent is deliberately not a button
+   fill: the primary button is the light-on-dark monochrome treatment from
+   `references/approved-ui/`, and accent stays reserved for focus, selection and
+   progression (DESIGN_SYSTEM §24, §33).
+3. Accessibility invariants — keep them when extending a primitive:
+   - `Button` and `IconButton` are always real `<button>` elements and default
+     to `type="button"`, so no primitive ever submits a form by accident.
+   - `IconButton` requires `label` and removes `aria-label` from its props, so
+     an icon-only control always has exactly one source for its name.
+   - `Input` requires `label`, binds it with `for`/`id` (generated with `useId`
+     when none is passed) and wires `hint`/`error` through `aria-describedby`
+     plus `aria-invalid`.
+   - `Card interactive` renders a `<button>` by default (or the caller's `a`),
+     so a clickable card is never an unreachable `<div>`.
+   - `Avatar` requires `alt` whenever `src` is given, and exposes `name` through
+     `role="img"` in the fallback; without either it is `aria-hidden`.
+   - `ProgressBar` exposes `role="progressbar"` with `aria-valuemin`,
+     `aria-valuemax` and `aria-valuenow`, and clamps its value; it needs a name
+     (`label` or `aria-labelledby`).
+   - focus is visible through the global `:focus-visible` outline in
+     `app/globals.css`, plus the input's own accent hairline. Don't remove it.
+4. Loading is a `Button` state, not a `disabled` button: it sets `aria-busy` and
+   `aria-disabled` and swallows the click, so the control keeps focus while the
+   action settles. That click interception is why `button.tsx` is a client
+   component; the other primitives are not.
+5. `Badge` accepts semantic tones (`default`, `neutral`, `accent`, `success`,
+   `warning`, `danger`) and nothing else. Rarity, attribute and rank vocabularies
+   belong to the screens that own them, which then map onto a tone — do not add
+   product words to the primitive.
+6. Avatar frames, glows and decorative effects are out of scope
+   (DESIGN_SYSTEM §13, §14). No primitive uses `--shadow-glow-accent`, and none
+   adds animation beyond interaction state changes.
+7. No new dependencies. Primitives use `lib/cn.ts`; the only graphic in the
+   primitives (the button spinner) is an inline SVG in `currentColor`.
+8. A new primitive is added to the table above in the same change.
+
 

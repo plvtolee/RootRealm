@@ -1,0 +1,51 @@
+/* ============================================================================
+   ROOTREALM — DESIGN TOKENS / COMPONENT SIZES
+   Source of truth: docs/DESIGN_SYSTEM.md §24 (Buttons), §25 (Inputs),
+   §26 (Icons), §30 (Touch Targets) and §13 (Avatar System).
+
+   The spacing scale (space.css) is still the default source for padding, gaps
+   and progress heights. This file only holds the named sizes that scale cannot
+   express: control heights, icon optical sizes, avatar sizes, badge heights and
+   the disabled emphasis shared by the primitives in `components/ui/`.
+
+   Declared in a plain `:root` (like the motion tokens) because they are
+   consumed through arbitrary-value utilities — `h-(--control-height-md)` —
+   rather than through a Tailwind theme namespace.
+
+   Values are rem-based so they follow the user's font-size preference; the px
+   equivalent is the default-browser-size result.
+
+   Rules:
+     - a component never writes a height, icon size or avatar size as a number;
+       it uses one of these names
+     - 44px is the floor for anything a thumb has to hit on mobile
+       (DESIGN_SYSTEM §30), so every `*-md` size is the default
+     - this file introduces no colors: color roles stay in color.css
+   ========================================================================== */
+
+:root {
+  /* --- Control heights (button, icon button, input) --------------------- */
+  --control-height-sm: 2.25rem; /* 36px — dense desktop rows only */
+  --control-height-md: 2.75rem; /* 44px — default, meets the touch target */
+  --control-height-lg: 3rem; /* 48px — one prominent action */
+
+  /* --- Icon optical sizes (DESIGN_SYSTEM §26) --------------------------- */
+  --icon-size-sm: 1rem; /* 16px — inside badges, chips and dense rows */
+  --icon-size-md: 1.25rem; /* 20px — default control icon */
+  --icon-size-lg: 1.5rem; /* 24px — standalone icon button */
+
+  /* --- Avatar sizes (DESIGN_SYSTEM §13) -------------------------------- */
+  --avatar-size-sm: 2rem; /* 32px — list rows */
+  --avatar-size-md: 2.75rem; /* 44px — default header avatar */
+  --avatar-size-lg: 3.5rem; /* 56px — profile summary block */
+  --avatar-size-xl: 5rem; /* 80px — identity moment */
+
+  /* --- Badge heights ---------------------------------------------------- */
+  /* Fixed so status chips keep one height wherever they are used. */
+  --badge-height-sm: 1.5rem; /* 24px */
+  --badge-height-md: 1.75rem; /* 28px — default status chip */
+
+  /* --- Disabled emphasis ------------------------------------------------ */
+  /* Disabled controls lose contrast and stay still (DESIGN_SYSTEM §24). */
+  --control-opacity-disabled: 0.5;
+}

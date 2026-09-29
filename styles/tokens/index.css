@@ -8,6 +8,7 @@
      typography.css   families, weights, tracking, leading, type scale
      space.css        the only spacing scale (4 … 64)
      shape.css        radius and border widths
+     component.css    named component sizes (controls, icons, avatars, badges)
      elevation.css    shadows and semantic glow
      motion.css       durations, easings, reduced-motion behaviour
 
@@ -20,5 +21,6 @@
 @import "./typography.css";
 @import "./space.css";
 @import "./shape.css";
+@import "./component.css";
 @import "./elevation.css";
 @import "./motion.css";
