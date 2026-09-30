@@ -1,20 +1,19 @@
 import type { Metadata } from "next";
 
-import { RoutePlaceholder } from "../_components/route-placeholder";
+import { MOCK_PROFILE } from "@/components/profile/profile-data";
+import { ProfileScreen } from "@/components/profile/profile-screen";
 
 export const metadata: Metadata = {
   title: "Profile",
 };
 
 /**
- * Profile — the Task 1.5 navigation placeholder. The static profile screen
- * arrives with Phase 2 (TASKS §2.1).
+ * Profile — the static Phase 2 profile screen (TASKS §2.1).
+ *
+ * The route stays thin: it selects the typed mock object and hands it to the
+ * presentational screen. There is no backend, no GitHub call and no scoring
+ * behind anything it renders (`components/profile/profile-data.ts`).
  */
 export default function ProfilePage() {
-  return (
-    <RoutePlaceholder
-      title="Profile"
-      note="This route exists so the navigation has a destination with a verifiable active state. The profile screen itself arrives with Phase 2."
-    />
-  );
+  return <ProfileScreen profile={MOCK_PROFILE} />;
 }
