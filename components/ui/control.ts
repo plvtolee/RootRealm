@@ -33,6 +33,26 @@ export const CONTROL_SQUARE: Record<ControlSize, string> = {
 };
 
 /**
+ * Horizontal padding for the labelled control, keyed by size. Every value is
+ * a spacing-scale step (space.css) and mirrors the Card padding steps
+ * (3 / 4 / 6), so a button's inset grows with its box instead of its label
+ * touching the border.
+ *
+ * Only `Button` consumes this: `IconButton` is a fixed square whose icon is
+ * centred, so it has no inset of its own. The vertical axis needs none —
+ * `CONTROL_HEIGHT` fixes the height and the content is centred.
+ *
+ * Added in Task 2.2 after the browser audit showed the labelled Button
+ * rendering at `padding: 0` (Task 1.3 shipped height, radius, variant and
+ * transition but no padding, so "Edit Profile" sat flush against its border).
+ */
+export const CONTROL_PADDING: Record<ControlSize, string> = {
+  sm: "px-3", /* 12px */
+  md: "px-4", /* 16px */
+  lg: "px-6", /* 24px */
+};
+
+/**
  * Radius per size. Compact controls tighten to 8px; buttons and inputs use the
  * 10px button radius (docs/DESIGN_SYSTEM.md §7).
  */

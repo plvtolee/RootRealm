@@ -9,6 +9,7 @@ import {
   CONTROL_DISABLED,
   CONTROL_HEIGHT,
   CONTROL_ICON,
+  CONTROL_PADDING,
   CONTROL_RADIUS,
   CONTROL_VARIANT,
   INTERACTION_TRANSITION,
@@ -78,6 +79,9 @@ export type ButtonProps = {
  * - it knows nothing about the product. No XP, quests, achievements,
  *   CodeCoins or GitHub concepts may be added here
  * - the label is required, so the control always has an accessible name
+ * - horizontal padding is size-keyed from `CONTROL_PADDING` (the spacing
+ *   scale), so the inset cannot be forgotten per call — do not restate
+ *   padding through `className` (`cn` cannot resolve conflicts)
  * - colour, border and hover all come from the variant; do not override them
  *   through `className` (`cn` cannot resolve conflicts — see lib/cn.ts)
  */
@@ -119,6 +123,7 @@ export function Button({
       className={cn(
         "inline-flex items-center justify-center gap-2 text-label whitespace-nowrap select-none",
         CONTROL_HEIGHT[size],
+        CONTROL_PADDING[size],
         CONTROL_RADIUS[size],
         CONTROL_VARIANT[variant],
         INTERACTION_TRANSITION,
