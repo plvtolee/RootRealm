@@ -10,9 +10,9 @@
 
 import { ATTRIBUTE_LABEL, type AttributeKey } from "@/lib/attributes";
 import { cn } from "@/lib/cn";
+import { ATTRIBUTE_GLYPH } from "@/components/attributes/attribute-glyphs";
 
 import type { SkillTreeState } from "./skill-tree-logic";
-import { SkillGlyph } from "./skill-tree-glyphs";
 import { BRANCH_TEXT_CLASS } from "./skill-tree-presentation";
 
 export const BRANCH_RAIL_ORDER: readonly AttributeKey[] = [
@@ -23,16 +23,6 @@ export const BRANCH_RAIL_ORDER: readonly AttributeKey[] = [
   "maintainer",
   "architect",
 ];
-
-/** Glyph per branch — the first glyph of each branch's roots node. */
-const BRANCH_GLYPH: Record<AttributeKey, string> = {
-  builder: "hammer",
-  debugger: "bug",
-  scholar: "book",
-  collaborator: "ear",
-  maintainer: "broom",
-  architect: "blueprint",
-};
 
 function branchLearnedCount(state: SkillTreeState, branch: AttributeKey): number {
   let count = 0;
@@ -85,7 +75,10 @@ export function SkillBranchRail({ state, activeBranch, onSelectBranch }: SkillBr
             )}
           >
             <span aria-hidden="true" className={cn("size-(--icon-size-md)", BRANCH_TEXT_CLASS[branch])}>
-              <SkillGlyph name={BRANCH_GLYPH[branch]} />
+              {(() => {
+                const AttributeGlyph = ATTRIBUTE_GLYPH[branch];
+                return <AttributeGlyph className="h-full w-full" />;
+              })()}
             </span>
             {ATTRIBUTE_LABEL[branch]}
             <span className="ml-auto text-caption text-text-muted">{learned}/5</span>
