@@ -86,47 +86,149 @@
   }
 }
 
-/* Avatar-frame effects animate only the frame overlay, never its portrait. */
+/* ---------------------------------------------------------------------------
+   Avatar Frame Effects
+   All effects animate the frame ring only — never the portrait inside.
+   Strength is driven by `--avatar-frame-strength` (0–1 from the component's
+   `intensity` prop). Duration is driven by `--avatar-frame-duration` (defaults
+   to --motion-ceremonial). Both are CSS custom properties so they can be
+   live-tweaked in DevTools without a re-render.
+   ------------------------------------------------------------------------ */
+
+/* Base state: the energy ring is fully visible at full strength,
+   the glow ring is at 40% opacity. This is the resting state when the
+   animation isn't running or at 0% keyframe. */
 .avatar-frame-energy {
-  opacity: calc(var(--avatar-frame-strength, 0) * 0.45);
+  opacity: calc(var(--avatar-frame-strength, 0) * 0.9);
+  animation-duration: var(--avatar-frame-duration, var(--motion-ceremonial));
 }
 
 .avatar-frame-glow {
-  opacity: calc(var(--avatar-frame-strength, 0) * 0.32);
+  opacity: calc(var(--avatar-frame-strength, 0) * 0.45);
+  animation-duration: var(--avatar-frame-duration, var(--motion-ceremonial));
 }
 
+/* Mode activation: the data attributes are set by the component */
 [data-avatar-frame-mode="pulse"] .avatar-frame-energy {
-  animation: avatar-frame-pulse var(--motion-ceremonial) ease-in-out infinite;
+  animation-name: avatar-frame-pulse;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
 }
 
 [data-avatar-frame-mode="haze"] .avatar-frame-glow {
-  animation: avatar-frame-haze var(--motion-ceremonial) ease-in-out infinite alternate;
+  animation-name: avatar-frame-haze;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+  animation-direction: alternate;
 }
 
 [data-avatar-frame-mode="trail"] .avatar-frame-energy {
-  animation: avatar-frame-trail var(--motion-ceremonial) ease-in-out infinite alternate;
+  animation-name: avatar-frame-trail;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+  animation-direction: alternate;
 }
 
+/* ===== Pulse: breathing ring with subtle scale ===== */
 @keyframes avatar-frame-pulse {
-  0%, 100% { opacity: calc(var(--avatar-frame-strength, 0) * 0.18); }
-  50% { opacity: calc(var(--avatar-frame-strength, 0) * 0.68); }
+  0%, 100% {
+    opacity: calc(var(--avatar-frame-strength, 0) * 0.35);
+    transform: scale(1);
+  }
+  50% {
+    opacity: calc(var(--avatar-frame-strength, 0) * 0.95);
+    transform: scale(1.03);
+  }
 }
 
+/* ===== Haze: expanding/contracting glow ===== */
 @keyframes avatar-frame-haze {
-  from { opacity: calc(var(--avatar-frame-strength, 0) * 0.16); }
-  to { opacity: calc(var(--avatar-frame-strength, 0) * 0.44); }
+  from {
+    opacity: calc(var(--avatar-frame-strength, 0) * 0.25);
+    filter: drop-shadow(0 0 0 var(--color-accent));
+  }
+  to {
+    opacity: calc(var(--avatar-frame-strength, 0) * 0.65);
+    filter: drop-shadow(0 0 12px var(--color-accent));
+  }
 }
 
+/* ===== Trail: rotating sweep with opacity swing ===== */
 @keyframes avatar-frame-trail {
-  from { opacity: calc(var(--avatar-frame-strength, 0) * 0.18); transform: rotate(-8deg); }
-  to { opacity: calc(var(--avatar-frame-strength, 0) * 0.72); transform: rotate(8deg); }
+  from {
+    opacity: calc(var(--avatar-frame-strength, 0) * 0.3);
+    transform: rotate(-15deg) scale(1);
+  }
+  to {
+    opacity: calc(var(--avatar-frame-strength, 0) * 0.85);
+    transform: rotate(15deg) scale(1.02);
+  }
 }
 
+/* ---------------------------------------------------------------------------
+   Skill Unlock Animations (Task 3.3)
+   - Branch stroke draws in (--motion-slow, 400ms)
+   - Node reveals with scale + glow pulse (--motion-base + --motion-slow, delay --motion-slow)
+   ------------------------------------------------------------------------ */
+
+.skill-branch-unlock {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: skill-branch-unlock var(--motion-slow) ease-entrance both;
+}
+
+.skill-node-unlock {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: skill-node-unlock calc(var(--motion-base) + var(--motion-slow)) ease-entrance var(--motion-slow) both;
+}
+
+@keyframes skill-branch-unlock {
+  to {
+    stroke-dashoffset: 0;
+    stroke: var(--skill-unlock-stroke);
+  }
+}
+
+@keyframes skill-node-unlock {
+  0% {
+    opacity: 0;
+    transform: scale(0.85);
+    filter: none;
+  }
+  40% {
+    opacity: 1;
+    transform: scale(1.08);
+    filter: var(--skill-node-glow, none);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(1.02);
+    filter: var(--skill-node-glow, none);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+    filter: none;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Reduced Motion
+   - All animated surfaces stop moving
+   - Durations collapse to fast (150ms)
+   - Page entrance becomes a fade only
+   ------------------------------------------------------------------------ */
 @media (prefers-reduced-motion: reduce) {
   .avatar-frame-energy,
   .avatar-frame-glow {
     animation: none !important;
     transition: none !important;
+  }
+
+  .skill-branch-unlock,
+  .skill-node-unlock {
+    animation: none !important;
   }
 
   :root {
