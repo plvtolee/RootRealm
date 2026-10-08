@@ -48,4 +48,71 @@
   /* --- Disabled emphasis ------------------------------------------------ */
   /* Disabled controls lose contrast and stay still (DESIGN_SYSTEM §24). */
   --control-opacity-disabled: 0.5;
+
+  /* --- Skill tree canvas (TASKS §2.3) ---------------------------------- */
+  /* The canvas is a region rather than a control, and its height decides how
+     much of the tree is visible before the user pans, so it steps with the
+     layout breakpoints (48rem / 64rem) instead of following the spacing scale —
+     which stops at 64px.
+
+     It also has to fit around the screen's panel stack: the header panel (title
+     plus the branch chips), this tree panel, and the selection panel. The
+     subtractions below are that stack, the shell's own vertical padding and the
+     reserved bottom-bar strip. They do **not** land the whole screen in one
+     viewport — the tree keeps the height it needs instead, and the screen scrolls
+     the small remainder. Nothing is ever hidden by that scroll: the shell's
+     `pb-16` reserves the fixed bottom bar's strip in the flow.
+
+     Which limit binds depends on the step, and it is not always height:
+
+     - **below 48rem** the canvas is narrow (a phone has ~343px of content width),
+       so the fit is limited by the tree's *width* once the canvas is tall enough.
+       Past that threshold extra height buys no bigger nodes — only more scrolling.
+       34rem is the smallest height at that ceiling: measured on a 375 × 812
+       target, 28rem is still height-bound (nodes at 0.098 of canvas width against
+       a ceiling of 0.104) while 34rem reaches the ceiling.
+     - **from 48rem up** the canvas is wide and short next to a tree that is taller
+       than it is wide, so the fit is limited by the tree's *height*. There canvas
+       height *is* node size, which is why the steps below hand the canvas the
+       height the viewport has to spare.
+
+     The node size is *not* a token: a hexagon is drawing geometry, so it lives
+     with the rest of the canvas geometry in
+     `components/skill-tree/skill-tree-geometry.ts`, the same way the achievement
+     hexagon clip lives with its tile
+     (components/profile/recent-achievements.tsx). */
+  --skill-canvas-height: 34rem; /* 544px — mobile */
+  --skill-tree-rail-width: 15rem; /* branch selector on wide screens */
+  --skill-node-size: 3.5rem; /* full map node drawing size */
+  --skill-node-size-compact: 2.75rem; /* tablet map node drawing size */
+  --skill-node-size-mobile: 2rem; /* phone map node drawing size */
+  --skill-parallax-range: 1.25rem; /* pointer travel across the map */
+
+  /* The canvas mini-map (lower-left corner of the tree). Region sizes like the
+     canvas height, so they are tokens rather than values on the spacing scale. */
+  --skill-minimap-width: 9rem; /* 144px */
+  --skill-minimap-height: 7rem; /* 112px */
+}
+
+/* Tablet — height-bound, so this is where node size is bought. The preferred
+   value is the viewport minus the measured chrome (≈28rem: the panel stack,
+   `md:py-8` and the reserved bottom-bar strip), held between a floor that keeps
+   the tree hittable and a ceiling that keeps it a framed region rather than a
+   column of empty canvas. A short tablet sits on the floor and the screen scrolls
+   the difference; a tall one gets the space it has. */
+@media (min-width: 48rem) {
+  :root {
+    --skill-canvas-height: clamp(32rem, calc(100dvh - 28rem), 40rem);
+  }
+}
+
+/* Desktop — height-bound too, and the bottom bar is gone from `lg`, so the
+   preferred value is the viewport minus ≈27rem (the panel stack plus the shell's
+   `py-12`). The floor is what runs on a standard 900px display, where the screen
+   scrolls about 67px below the tree; from roughly 1190px of viewport height the
+   stack fits inside one screen with nothing left over. */
+@media (min-width: 64rem) {
+  :root {
+    --skill-canvas-height: clamp(34rem, calc(100dvh - 27rem), 60rem);
+  }
 }

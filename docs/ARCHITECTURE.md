@@ -79,10 +79,6 @@ UI / Motion:
 - SVG
 - GSAP where required
 
-Skill Tree:
-
-- React Flow for graph interaction
-- Custom SVG geometry where organic branch visuals are required
 
 Persistence:
 

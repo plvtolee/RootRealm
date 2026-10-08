@@ -409,10 +409,6 @@ Mastery / Canopy
 
 Branches should feel organic while remaining precise and readable.
 
-Use SVG for branch geometry.
-
-Nodes use consistent geometric language.
-
 ---
 
 # 17. Skill Node States

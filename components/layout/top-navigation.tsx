@@ -106,6 +106,15 @@ export function TopNavigation({ className }: TopNavigationProps) {
           </ul>
         </nav>
 
+        <div className="ml-auto flex items-center gap-4">
+          <div
+            aria-label="6 stars"
+            className="flex h-(--control-height-md) items-center gap-2 rounded-pill border border-border px-4 text-label text-text-secondary"
+          >
+            <span aria-hidden="true" className="text-accent-amber">*</span>
+            <span>6</span>
+          </div>
+
         {/*
           The account destination from the same table. The avatar is an empty
           neutral circle until Phase 2 supplies an identity — inventing a
@@ -120,13 +129,14 @@ export function TopNavigation({ className }: TopNavigationProps) {
             title={account.label}
             aria-current={isNavActive(pathname, account.href) ? "page" : undefined}
             className={cn(
-              "ml-auto flex items-center self-center rounded-pill p-1 transition-colors duration-(--motion-base) ease-standard motion-reduce:transition-none",
+              "flex items-center self-center rounded-pill p-1 transition-colors duration-(--motion-base) ease-standard motion-reduce:transition-none",
               isNavActive(pathname, account.href) && "bg-state-selected",
             )}
           >
             <Avatar size="md" />
           </Link>
         ) : null}
+        </div>
       </Container>
     </header>
   );

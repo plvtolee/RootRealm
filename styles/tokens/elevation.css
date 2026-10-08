@@ -16,8 +16,28 @@
   --shadow-lg: 0 24px 64px -24px rgb(0 0 0 / 0.65);
 
   /* --- Semantic glow --------------------------------------------------- */
-  /* Reserved for: unlocked skill nodes, rare achievements, selected nodes,
-     equipped avatar frames. Never for buttons, cards, icons or navigation. */
+  /* Reserved for: rare achievements, selected nodes, equipped avatar frames.
+     Never for buttons, cards, icons or navigation. */
   --shadow-glow-accent:
     0 0 0 1px rgb(180 154 247 / 0.35), 0 0 18px -6px rgb(180 154 247 / 0.45);
+
+  /* Per-branch glows for the skill tree (TASKS §2.3, DESIGN_SYSTEM §17).
+   *
+     `box-shadow` paints nothing on a `<path>` or a `<g>`, so the skill tree's
+     nodes (TASKS §2.3, DESIGN_SYSTEM §17) cannot use the token above; these are
+     the same idea as a `drop-shadow` filter, and the `drop-shadow-*` utility
+     wraps each in `drop-shadow(...)`. Values are the filter's own arguments.
+   *
+     Same reservation as above: a node that is actually lit, and the selected
+     one. Bright enough to read as light on the near-black canvas at the node
+     sizes the tree draws, and held to a single soft halo — the reference's
+     light is a bloom around the shell, not a neon outline. One node's glow at a
+     time, which is what keeps the tree monochrome at rest (§33). */
+  --drop-shadow-glow-builder: 0 0 12px rgb(240 189 74 / 0.42);
+  --drop-shadow-glow-debugger: 0 0 12px rgb(232 134 58 / 0.42);
+  --drop-shadow-glow-scholar: 0 0 12px rgb(62 198 221 / 0.42);
+  --drop-shadow-glow-collaborator: 0 0 12px rgb(127 178 239 / 0.42);
+  --drop-shadow-glow-maintainer: 0 0 12px rgb(226 87 75 / 0.42);
+  --drop-shadow-glow-architect: 0 0 12px rgb(216 151 60 / 0.42);
 }
+

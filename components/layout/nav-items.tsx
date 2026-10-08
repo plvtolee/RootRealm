@@ -55,7 +55,6 @@ function HomeIcon({ className }: NavIconProps) {
   );
 }
 
-/** Branching tree: one root splitting upward into two nodes (DESIGN_SYSTEM §16). */
 function SkillTreeIcon({ className }: NavIconProps) {
   return (
     <NavGlyph className={className}>

@@ -33,6 +33,26 @@
   --rr-amber: #e2b45f;
   --rr-crimson: #e06a6f;
 
+  /* --- Layer 1: skill branch accents ------------------------------------ */
+  /* One hue per skill branch, taken from the approved reference
+     (`references/approved-ui/skill-tree.png`) and kept identical to the
+     per-branch glow filters in styles/tokens/elevation.css, so a lit node and
+     its shell always read as the same colour: Builder gold, Debugger orange,
+     Scholar cyan, Collaborator blue, Maintainer red, Architect bronze.
+
+     These live inside DESIGN_SYSTEM §3's documented accent range rather than
+     extending the palette, and they are used the way §3 requires — one branch
+     at a time, on that branch's own chip, node marks and lit node borders, and
+     nowhere else. Everything else in the tree stays monochrome (§33). There is
+     deliberately no single "tree" hue: the tree's identity *is* its six
+     branches, the way the profile screen's identity is its six attributes. */
+  --rr-branch-builder: #f0bd4a;
+  --rr-branch-debugger: #e8863a;
+  --rr-branch-scholar: #3ec6dd;
+  --rr-branch-collaborator: #7fb2ef;
+  --rr-branch-maintainer: #e2574b;
+  --rr-branch-architect: #d8973c;
+
   /* --- Layer 1: derived helper values ----------------------------------- */
   /* Only for emphasis/states that the approved palette does not cover
      directly. Not new brand colors. */
@@ -63,6 +83,16 @@
   --color-accent-emerald: var(--rr-emerald);
   --color-accent-amber: var(--rr-amber);
   --color-accent-crimson: var(--rr-crimson);
+
+  /* --- Layer 2: skill branch accents ------------------------------------ */
+  /* One hue per skill branch, from the approved reference. Consumed by the
+     skill tree's branch rail and node marks (TASKS §2.3). */
+  --color-branch-builder: var(--rr-branch-builder);
+  --color-branch-debugger: var(--rr-branch-debugger);
+  --color-branch-scholar: var(--rr-branch-scholar);
+  --color-branch-collaborator: var(--rr-branch-collaborator);
+  --color-branch-maintainer: var(--rr-branch-maintainer);
+  --color-branch-architect: var(--rr-branch-architect);
 
   /* --- Layer 2: semantic states ---------------------------------------- */
   --color-success: var(--rr-emerald);
