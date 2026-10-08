@@ -12,6 +12,7 @@
 
 import { useMemo, useState } from "react";
 
+import { Button } from "@/components/ui/button";
 import type { AttributeKey } from "@/lib/attributes";
 import { cn } from "@/lib/cn";
 import { Badge } from "@/components/ui/badge";
@@ -31,6 +32,7 @@ import { learnNode } from "./skill-tree-logic";
 import { refundNode } from "./skill-tree-logic";
 
 type ViewMode = "map" | "list";
+type UnlockEvent = { nodeId: string; fromId: string; revision: number };
 
 function nodeLabel(node: SkillNode, status: string): string {
   return `${node.title} — ${status}`;
@@ -41,6 +43,8 @@ export function SkillTreeScreen() {
   const [selectedId, setSelectedId] = useState<string | null>("origin");
   const [activeBranch, setActiveBranch] = useState<AttributeKey | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>("map");
+  const [unlockEvent, setUnlockEvent] = useState<UnlockEvent | null>(null);
+  const [unlockDuration, setUnlockDuration] = useState<string>("var(--motion-slow)");
 
   const state = useMemo(() => computeSkillTreeState(learnedIds), [learnedIds]);
   const selectedView = selectedId ? (state.nodes.get(selectedId) ?? null) : null;
@@ -51,7 +55,21 @@ export function SkillTreeScreen() {
 
   function handleLearn(id: string) {
     const next = learnNode(state, id);
-    if (next) setLearnedIds(next);
+    if (!next) return;
+
+    const view = state.nodes.get(id);
+    const fromId = view?.node.prerequisiteIds.find((prerequisiteId) => state.learnedIds.has(prerequisiteId));
+    setLearnedIds(next);
+
+    if (viewMode === "map" && fromId && !window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      setUnlockEvent((current) => ({
+        nodeId: id,
+        fromId,
+        revision: (current?.revision ?? 0) + 1,
+      }));
+    } else {
+      setUnlockEvent(null);
+    }
   }
 
   function handleRefund(id: string) {
@@ -99,6 +117,23 @@ export function SkillTreeScreen() {
             </button>
           ))}
         </div>
+
+        {/* Animation speed selector */}
+        <div role="group" aria-label="Choose the unlock animation speed" className="flex flex-wrap items-center gap-2">
+          <Text variant="label" className="uppercase text-text-muted">
+            Animation speed
+          </Text>
+          {(["slow", "medium", "fast"] as const).map((speed) => (
+            <Button
+              key={speed}
+              size="sm"
+              variant={unlockDuration === `var(--motion-${speed})` ? "primary" : "secondary"}
+              onClick={() => setUnlockDuration(`var(--motion-${speed})`)}
+            >
+              {speed.charAt(0).toUpperCase() + speed.slice(1)}
+            </Button>
+          ))}
+        </div>
       </header>
 
       <div className="grid gap-4 lg:grid-cols-[15rem_1fr] xl:grid-cols-[15rem_1fr_22rem]">
@@ -115,6 +150,11 @@ export function SkillTreeScreen() {
               previewIds={previewIds}
               selectedId={selectedId}
               activeBranch={activeBranch}
+              unlockEvent={unlockEvent}
+              unlockDuration={unlockDuration}
+              onUnlockAnimationEnd={(revision) => {
+                setUnlockEvent((current) => current?.revision === revision ? null : current);
+              }}
               onSelect={setSelectedId}
             />
           ) : (

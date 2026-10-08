@@ -32,6 +32,11 @@
   --motion-slow: var(--rr-duration-400); /* standard reveal */
   --motion-reveal: var(--rr-duration-600); /* unlock / achievement */
   --motion-ceremonial: var(--rr-duration-900); /* rare progression moment */
+
+  /* --- Unlock motion ---------------------------------------------------- */
+  /* Big, satisfying progression reveals. Defaults to the standard reveal
+     token; callers may override per-action for a faster/slower pace. */
+  --motion-unlock: var(--motion-slow);
 }
 
 @theme static {
@@ -167,41 +172,61 @@
 
 /* ---------------------------------------------------------------------------
    Skill Unlock Animations (Task 3.3)
-   - Branch stroke draws in (--motion-slow, 400ms)
-   - Node reveals with scale + glow pulse (--motion-base + --motion-slow, delay --motion-slow)
+   Big, satisfying progression reveals:
+
+   - The branch stroke draws in along its path (`--motion-unlock`, default
+     400ms), thickening as it travels and settling on the branch accent
+     (`--skill-unlock-stroke`, set per branch by the canvas).
+   - The node pops after the stroke arrives: a scale burst to 1.18 with a
+     doubled branch glow (`--skill-node-glow` + a `--skill-unlock-boost`
+     second layer), then settles. The glow is brighter at the burst peak
+     and fades with the animation.
+
+   Duration is driven by `--motion-unlock` so callers can pick a different
+   pace without touching the keyframes; the node burst re-uses the same
+   token so the two halves stay in sync.
    ------------------------------------------------------------------------ */
 
 .skill-branch-unlock {
   stroke-dasharray: 1;
   stroke-dashoffset: 1;
-  animation: skill-branch-unlock var(--motion-slow) ease-entrance both;
+  animation: skill-branch-unlock var(--motion-unlock) ease-entrance both;
 }
 
 .skill-node-unlock {
   transform-box: fill-box;
   transform-origin: center;
-  animation: skill-node-unlock calc(var(--motion-base) + var(--motion-slow)) ease-entrance var(--motion-slow) both;
+  animation: skill-node-unlock calc(var(--motion-base) + var(--motion-unlock)) ease-entrance var(--motion-unlock) both;
 }
 
 @keyframes skill-branch-unlock {
+  from {
+    stroke-width: 1;
+  }
+
+  40% {
+    stroke-width: 5;
+  }
+
   to {
     stroke-dashoffset: 0;
-    stroke: var(--skill-unlock-stroke);
+    stroke: var(--skill-unlock-stroke, var(--color-accent));
+    stroke-width: 4;
   }
 }
 
 @keyframes skill-node-unlock {
   0% {
     opacity: 0;
-    transform: scale(0.85);
+    transform: scale(0.8);
     filter: none;
   }
-  40% {
+  35% {
     opacity: 1;
-    transform: scale(1.08);
-    filter: var(--skill-node-glow, none);
+    transform: scale(1.18);
+    filter: var(--skill-node-glow, none) drop-shadow(var(--skill-unlock-boost, 0 0 0 transparent));
   }
-  60% {
+  55% {
     opacity: 1;
     transform: scale(1.02);
     filter: var(--skill-node-glow, none);
@@ -209,7 +234,7 @@
   100% {
     opacity: 1;
     transform: scale(1);
-    filter: none;
+    filter: var(--skill-node-glow, none);
   }
 }
 
@@ -218,6 +243,7 @@
    - All animated surfaces stop moving
    - Durations collapse to fast (150ms)
    - Page entrance becomes a fade only
+   - Unlock animations collapse to instant state (stroke drawn, node at 1)
    ------------------------------------------------------------------------ */
 @media (prefers-reduced-motion: reduce) {
   .avatar-frame-energy,
@@ -231,10 +257,23 @@
     animation: none !important;
   }
 
+  .skill-branch-unlock {
+    stroke-dashoffset: 0 !important;
+    stroke: var(--skill-unlock-stroke, var(--color-accent)) !important;
+    stroke-width: 4 !important;
+  }
+
+  .skill-node-unlock {
+    opacity: 1 !important;
+    transform: scale(1) !important;
+    filter: var(--skill-node-glow, none) !important;
+  }
+
   :root {
     --motion-slow: var(--rr-duration-150);
     --motion-reveal: var(--rr-duration-150);
     --motion-ceremonial: var(--rr-duration-150);
+    --motion-unlock: var(--rr-duration-150);
 
     /* The page still arrives, it just stops moving (DESIGN_SYSTEM §12:
        replace animated reveals with fades or instant state changes). */
