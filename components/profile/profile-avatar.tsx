@@ -1,5 +1,6 @@
 import { Avatar } from "@/components/ui/avatar";
 import { cn } from "@/lib/cn";
+import { AvatarFrame } from "./avatar-frame";
 
 export type ProfileAvatarProps = {
   /** Handle shown as the avatar's accessible name (initials fallback). */
@@ -33,9 +34,14 @@ export function ProfileAvatar({ username, className }: ProfileAvatarProps) {
         {/* The frame: an 8px ring gap (p-2 from the spacing scale) around the
             avatar, painted with the emphasis border width so it reads as the
             reference's strong monochrome ring without a glow. */}
-        <span className="flex rounded-pill border-emphasis border-text-secondary p-2">
+        <AvatarFrame
+          mode="pulse"
+          intensity={30}
+          glow
+          className="border-emphasis border-text-secondary p-2 text-text-secondary"
+        >
           <Avatar size="xl" name={username} />
-        </span>
+        </AvatarFrame>
 
         {/* Diamond ornaments sitting on the ring at 12 and 6 o'clock, exactly
             as the approved reference draws them. Decorative only. */}

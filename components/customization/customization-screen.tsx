@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Text } from "@/components/ui/text";
+import { AvatarFrame, type AvatarFrameMode } from "@/components/profile/avatar-frame";
 import { cn } from "@/lib/cn";
 
 import {
@@ -46,6 +47,8 @@ function PreviewCard({
   selectedTitle,
   selectedTheme,
   selectedEffect,
+  frameIntensity,
+  frameGlow,
 }: {
   selectedAvatar: string;
   selectedFrame: string;
@@ -53,6 +56,8 @@ function PreviewCard({
   selectedTitle: string;
   selectedTheme: string;
   selectedEffect: string;
+  frameIntensity: number;
+  frameGlow: boolean;
 }) {
   const banner = BANNER_OPTIONS.find((option) => option.id === selectedBanner) ?? BANNER_OPTIONS[0];
   const theme = THEME_OPTIONS.find((option) => option.id === selectedTheme) ?? THEME_OPTIONS[0];
@@ -89,9 +94,14 @@ function PreviewCard({
       </div>
 
       <div className="flex items-center gap-4 px-4 py-6">
-        <div className={cn("relative flex items-center justify-center rounded-full border-2 p-1", ACCENT_CLASS[frame.accent ?? "slate"])}>
+        <AvatarFrame
+          mode={selectedEffect as AvatarFrameMode}
+          intensity={frameIntensity}
+          glow={frameGlow}
+          className={cn("border-2 p-1", ACCENT_CLASS[frame.accent ?? "slate"])}
+        >
           <Avatar name="plvtolee" initials="PL" size="xl" className="border border-border" />
-        </div>
+        </AvatarFrame>
 
         <div className="space-y-1">
           <Text variant="heading" as="h3" className="text-text-primary">
@@ -109,6 +119,8 @@ function PreviewCard({
 export function CustomizationScreen() {
   const [section, setSection] = useState<CustomizationSection>("Avatar");
   const [selected, setSelected] = useState(MOCK_CUSTOMIZATION_STATE);
+  const [frameIntensity, setFrameIntensity] = useState(50);
+  const [frameGlow, setFrameGlow] = useState(true);
   const [message, setMessage] = useState<string | null>(null);
 
   const activeOptions = useMemo(() => OPTION_GROUPS[section], [section]);
@@ -204,7 +216,36 @@ export function CustomizationScreen() {
             selectedTitle={selected.title}
             selectedTheme={selected.theme}
             selectedEffect={selected.effect}
+            frameIntensity={frameIntensity}
+            frameGlow={frameGlow}
           />
+
+          <Card className="border-border bg-surface-secondary p-4">
+            <div className="flex items-center justify-between gap-3">
+              <label htmlFor="frame-intensity" className="text-label text-text-primary">Frame intensity</label>
+              <Text variant="caption" className="text-text-secondary">{frameIntensity}%</Text>
+            </div>
+            <input
+              id="frame-intensity"
+              type="range"
+              min={0}
+              max={100}
+              step={25}
+              value={frameIntensity}
+              onChange={(event) => setFrameIntensity(Number(event.currentTarget.value))}
+              aria-valuetext={`${frameIntensity} percent`}
+              className="mt-3 w-full accent-accent"
+            />
+            <label className="mt-4 flex items-center gap-3 text-label text-text-secondary">
+              <input
+                type="checkbox"
+                checked={frameGlow}
+                onChange={(event) => setFrameGlow(event.currentTarget.checked)}
+                className="size-4 accent-accent"
+              />
+              Frame glow
+            </label>
+          </Card>
 
           <Card className="border-border bg-surface-secondary p-4">
             <Text variant="subheading" as="h3" className="mb-3 text-text-primary">
@@ -227,6 +268,8 @@ export function CustomizationScreen() {
                 size="sm"
                 onClick={() => {
                   setSelected(MOCK_CUSTOMIZATION_STATE);
+                  setFrameIntensity(50);
+                  setFrameGlow(true);
                   setMessage("Customization reset.");
                 }}
               >

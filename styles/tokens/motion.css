@@ -86,7 +86,49 @@
   }
 }
 
+/* Avatar-frame effects animate only the frame overlay, never its portrait. */
+.avatar-frame-energy {
+  opacity: calc(var(--avatar-frame-strength, 0) * 0.45);
+}
+
+.avatar-frame-glow {
+  opacity: calc(var(--avatar-frame-strength, 0) * 0.32);
+}
+
+[data-avatar-frame-mode="pulse"] .avatar-frame-energy {
+  animation: avatar-frame-pulse var(--motion-ceremonial) ease-in-out infinite;
+}
+
+[data-avatar-frame-mode="haze"] .avatar-frame-glow {
+  animation: avatar-frame-haze var(--motion-ceremonial) ease-in-out infinite alternate;
+}
+
+[data-avatar-frame-mode="trail"] .avatar-frame-energy {
+  animation: avatar-frame-trail var(--motion-ceremonial) ease-in-out infinite alternate;
+}
+
+@keyframes avatar-frame-pulse {
+  0%, 100% { opacity: calc(var(--avatar-frame-strength, 0) * 0.18); }
+  50% { opacity: calc(var(--avatar-frame-strength, 0) * 0.68); }
+}
+
+@keyframes avatar-frame-haze {
+  from { opacity: calc(var(--avatar-frame-strength, 0) * 0.16); }
+  to { opacity: calc(var(--avatar-frame-strength, 0) * 0.44); }
+}
+
+@keyframes avatar-frame-trail {
+  from { opacity: calc(var(--avatar-frame-strength, 0) * 0.18); transform: rotate(-8deg); }
+  to { opacity: calc(var(--avatar-frame-strength, 0) * 0.72); transform: rotate(8deg); }
+}
+
 @media (prefers-reduced-motion: reduce) {
+  .avatar-frame-energy,
+  .avatar-frame-glow {
+    animation: none !important;
+    transition: none !important;
+  }
+
   :root {
     --motion-slow: var(--rr-duration-150);
     --motion-reveal: var(--rr-duration-150);
