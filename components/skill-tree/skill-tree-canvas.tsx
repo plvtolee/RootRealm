@@ -188,6 +188,7 @@ function TreeEdges({
           className={edge.animate ? "skill-branch-unlock" : undefined}
           style={edge.animate && edge.branch ? {
             "--skill-unlock-stroke": `var(--color-branch-${edge.branch})`,
+            "--skill-unlock-boost": `drop-shadow(var(--drop-shadow-glow-${edge.branch}))`,
             ...(unlockDuration ? { "--motion-unlock": unlockDuration } : null),
           } as CSSProperties : undefined}
         />
@@ -249,6 +250,16 @@ function NodeShell({
           : {}),
       } as CSSProperties}
     >
+      {animating && node.branch ? (
+        <circle
+          cx={node.visualX}
+          cy={node.visualY}
+          r={radius}
+          fill="none"
+          stroke={`var(--color-branch-${node.branch})`}
+          className="skill-ripple-unlock"
+        />
+      ) : null}
       <path
         d={hexPath(node.visualX, node.visualY, radius)}
         fill={learned ? "var(--color-surface-secondary)" : "var(--color-bg)"}

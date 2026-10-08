@@ -34,9 +34,10 @@
   --motion-ceremonial: var(--rr-duration-900); /* rare progression moment */
 
   /* --- Unlock motion ---------------------------------------------------- */
-  /* Big, satisfying progression reveals. Defaults to the standard reveal
-     token; callers may override per-action for a faster/slower pace. */
-  --motion-unlock: var(--motion-slow);
+  /* Big, satisfying progression reveals. Defaults to the reveal token
+     (the "unlock / achievement" duration); callers may override for a
+     faster/slower pace. */
+  --motion-unlock: var(--motion-reveal);
 }
 
 @theme static {
@@ -172,69 +173,85 @@
 
 /* ---------------------------------------------------------------------------
    Skill Unlock Animations (Task 3.3)
-   Big, satisfying progression reveals:
+   Dramatic, visible-at-any-zoom progression reveals:
 
-   - The branch stroke draws in along its path (`--motion-unlock`, default
-     400ms), thickening as it travels and settling on the branch accent
-     (`--skill-unlock-stroke`, set per branch by the canvas).
-   - The node pops after the stroke arrives: a scale burst to 1.18 with a
-     doubled branch glow (`--skill-node-glow` + a `--skill-unlock-boost`
-     second layer), then settles. The glow is brighter at the burst peak
-     and fades with the animation.
+   1. Branch stroke: a thick glowing line *travels* from the learned
+      prerequisite toward the new node (stroke-dashoffset 1 → 0). It's 8px
+      wide with the branch accent + glow, so it reads as a beam, not a
+      hairline. At the end it settles to the normal lit 4px line.
 
-   Duration is driven by `--motion-unlock` so callers can pick a different
-   pace without touching the keyframes; the node burst re-uses the same
-   token so the two halves stay in sync.
+   2. Node burst: the hexagon explodes 0.6 → 1.35 → 0.95 → 1 with an
+      entrance curve, and a stacked glow that peaks at the overshoot.
+      The node is visible at final scale the whole time — it doesn't fade in.
+
+   3. Ripple ring: a new expanding circle emits from the node center,
+      stroke 4px → 0, opacity 1 → 0, radius 0 → 60px over the same
+      duration. This is the "ping" you can see even when zoomed out.
+
+   All driven by `--motion-unlock` (defaults to --motion-reveal = 600ms).
    ------------------------------------------------------------------------ */
 
 .skill-branch-unlock {
   stroke-dasharray: 1;
   stroke-dashoffset: 1;
+  stroke-width: 8;
+  filter: drop-shadow(var(--skill-unlock-boost, 0 0 0 transparent));
   animation: skill-branch-unlock var(--motion-unlock) ease-entrance both;
 }
 
 .skill-node-unlock {
   transform-box: fill-box;
   transform-origin: center;
-  animation: skill-node-unlock calc(var(--motion-base) + var(--motion-unlock)) ease-entrance var(--motion-unlock) both;
+  animation: skill-node-unlock var(--motion-unlock) ease-entrance both;
+}
+
+.skill-ripple-unlock {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: skill-ripple-unlock var(--motion-unlock) ease-exit both;
 }
 
 @keyframes skill-branch-unlock {
   from {
-    stroke-width: 1;
+    stroke-dashoffset: 1;
+    stroke: var(--skill-unlock-stroke, var(--color-accent));
+    filter: drop-shadow(var(--skill-unlock-boost, 0 0 0 transparent));
   }
-
-  40% {
-    stroke-width: 5;
-  }
-
   to {
     stroke-dashoffset: 0;
     stroke: var(--skill-unlock-stroke, var(--color-accent));
-    stroke-width: 4;
+    filter: none;
   }
 }
 
 @keyframes skill-node-unlock {
   0% {
-    opacity: 0;
-    transform: scale(0.8);
-    filter: none;
+    transform: scale(0.6);
+    filter: var(--skill-node-glow, none) drop-shadow(var(--skill-unlock-boost, 0 0 0 transparent));
   }
-  35% {
-    opacity: 1;
-    transform: scale(1.18);
+  30% {
+    transform: scale(1.35);
     filter: var(--skill-node-glow, none) drop-shadow(var(--skill-unlock-boost, 0 0 0 transparent));
   }
   55% {
-    opacity: 1;
-    transform: scale(1.02);
-    filter: var(--skill-node-glow, none);
+    transform: scale(0.95);
   }
   100% {
-    opacity: 1;
     transform: scale(1);
     filter: var(--skill-node-glow, none);
+  }
+}
+
+@keyframes skill-ripple-unlock {
+  from {
+    r: 0;
+    stroke-width: 5;
+    opacity: 1;
+  }
+  to {
+    r: 70;
+    stroke-width: 0;
+    opacity: 0;
   }
 }
 
@@ -253,7 +270,8 @@
   }
 
   .skill-branch-unlock,
-  .skill-node-unlock {
+  .skill-node-unlock,
+  .skill-ripple-unlock {
     animation: none !important;
   }
 
@@ -264,9 +282,14 @@
   }
 
   .skill-node-unlock {
-    opacity: 1 !important;
     transform: scale(1) !important;
     filter: var(--skill-node-glow, none) !important;
+  }
+
+  .skill-ripple-unlock {
+    r: 70 !important;
+    stroke-width: 0 !important;
+    opacity: 0 !important;
   }
 
   :root {

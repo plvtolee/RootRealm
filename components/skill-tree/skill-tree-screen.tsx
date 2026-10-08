@@ -12,7 +12,6 @@
 
 import { useMemo, useState } from "react";
 
-import { AvatarFrame } from "@/components/profile/avatar-frame";
 import { Button } from "@/components/ui/button";
 import type { AttributeKey } from "@/lib/attributes";
 import { cn } from "@/lib/cn";
@@ -134,16 +133,6 @@ export function SkillTreeScreen() {
               {speed.charAt(0).toUpperCase() + speed.slice(1)}
             </Button>
           ))}
-        </div>
-
-        {/* Avatar frame motion preview */}
-        <div className="flex items-center gap-3">
-          <AvatarFrame mode="pulse" intensity={60}>
-            <div className="h-6 w-6 rounded-full bg-surface-secondary" />
-          </AvatarFrame>
-          <Text variant="caption" className="text-text-muted">
-            Frame motion preview — pulse · 60%
-          </Text>
         </div>
       </header>
 
