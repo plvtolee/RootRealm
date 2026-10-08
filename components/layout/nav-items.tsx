@@ -14,8 +14,8 @@ import type { ComponentType, ReactNode } from "react";
  * | ------------ | --------------- |
  * | Home         | `/`             |
  * | Skill Tree   | `/skill-tree`   |
- * | Achievements | `/achievements` |
  * | Shop         | `/shop`         |
+ * | Leaderboard  | `/leaderboard`  |
  * | Profile      | `/profile`      |
  *
  * Icons are inline SVG rather than a dependency: the project has no icon
@@ -68,11 +68,19 @@ function SkillTreeIcon({ className }: NavIconProps) {
   );
 }
 
-function AwardIcon({ className }: NavIconProps) {
+function ProfileIcon({ className }: NavIconProps) {
   return (
     <NavGlyph className={className}>
-      <circle cx="12" cy="8" r="6" />
-      <path d="m15.5 12.9 1.5 9.1-5-3-5 3 1.5-9.1" />
+      <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" />
+      <circle cx="12" cy="7" r="4" />
+    </NavGlyph>
+  );
+}
+
+function LeaderboardIcon({ className }: NavIconProps) {
+  return (
+    <NavGlyph className={className}>
+      <path d="M4 20V10h4v10zM10 20V4h4v16zM16 20v-7h4v7z" />
     </NavGlyph>
   );
 }
@@ -116,9 +124,9 @@ export type NavItem = {
 export const NAV_ITEMS: readonly NavItem[] = [
   { href: "/", label: "Home", icon: HomeIcon },
   { href: "/skill-tree", label: "Skill Tree", icon: SkillTreeIcon },
-  { href: "/achievements", label: "Achievements", icon: AwardIcon },
   { href: "/shop", label: "Shop", icon: ShoppingBagIcon },
-  { href: "/profile", label: "Profile", icon: UserIcon, account: true },
+  { href: "/leaderboard", label: "Leaderboard", icon: LeaderboardIcon },
+  { href: "/profile", label: "Profile", icon: ProfileIcon },
 ];
 
 /**

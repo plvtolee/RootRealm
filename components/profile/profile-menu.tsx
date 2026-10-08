@@ -75,6 +75,32 @@ export function ProfileMenu({ className }: ProfileMenuProps) {
         </li>
 
         <li>
+          <Link
+            href="/quests"
+            className={cn(
+              ROW,
+              "rounded-md text-text-primary transition-colors duration-(--motion-fast) ease-standard hover:bg-state-hover motion-reduce:transition-none",
+            )}
+          >
+            <ActivityGlyph className="size-4 shrink-0 text-text-secondary" />
+            Quests
+          </Link>
+        </li>
+
+        <li>
+          <Link
+            href="/customization"
+            className={cn(
+              ROW,
+              "rounded-md text-text-primary transition-colors duration-(--motion-fast) ease-standard hover:bg-state-hover motion-reduce:transition-none",
+            )}
+          >
+            <BarsGlyph className="size-4 shrink-0 text-text-secondary" />
+            Customization
+          </Link>
+        </li>
+
+        <li>
           <span
             aria-disabled="true"
             className={cn(ROW, "text-text-secondary")}

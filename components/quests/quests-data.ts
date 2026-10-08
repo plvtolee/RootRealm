@@ -10,6 +10,7 @@ export type Quest = {
   reward: string;
   status: "active" | "completed" | "ready";
   dueLabel: string;
+  rewardPreview: string;
 };
 
 export const QUESTS: readonly Quest[] = [
@@ -21,6 +22,7 @@ export const QUESTS: readonly Quest[] = [
     progress: 2,
     target: 3,
     reward: "150 XP",
+    rewardPreview: "150 XP and daily progress credit",
     status: "active",
     dueLabel: "Ends in 6h",
   },
@@ -32,6 +34,7 @@ export const QUESTS: readonly Quest[] = [
     progress: 1,
     target: 2,
     reward: "400 XP",
+    rewardPreview: "400 XP and weekly milestone credit",
     status: "active",
     dueLabel: "Ends in 3d",
   },
@@ -43,7 +46,8 @@ export const QUESTS: readonly Quest[] = [
     progress: 64,
     target: 80,
     reward: "750 XP",
-    status: "ready",
+    rewardPreview: "750 XP for reaching your coverage goal",
+    status: "active",
     dueLabel: "Target milestone",
   },
 ];
