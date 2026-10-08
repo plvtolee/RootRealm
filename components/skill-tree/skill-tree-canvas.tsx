@@ -90,7 +90,7 @@ function MapBackdrop({ gridId }: { gridId: string }) {
 
 /** Right-hand tier axis: dotted line with named stops. */
 function TierAxis() {
-  const axisX = SKILL_TREE_VIEWBOX.x + SKILL_TREE_VIEWBOX.width - 170;
+  const axisX = SKILL_TREE_VIEWBOX.x + SKILL_TREE_VIEWBOX.width - 60;
   return (
     <g aria-hidden="true">
       <line
