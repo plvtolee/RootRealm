@@ -58,11 +58,19 @@ function AchievementCard({ achievement, index }: { achievement: Achievement; ind
       <div className="space-y-2">
         <Text variant="subheading" as="h3" className="text-text-primary">{achievement.title}</Text>
         <Text variant="body" className="text-text-secondary">{achievement.description}</Text>
+        <Text variant="caption" className="text-text-muted">Criteria: {achievement.criteria}</Text>
       </div>
 
       <div className="mt-auto pt-6">
         <div className="mb-3 flex items-center justify-between gap-2 border-t border-border pt-3">
-          <Text variant="caption" className="truncate text-text-muted">{achievement.source}</Text>
+          <a
+            href={achievement.evidenceHref}
+            target="_blank"
+            rel="noreferrer"
+            className="truncate text-caption text-accent underline underline-offset-4"
+          >
+            Evidence: {achievement.source}
+          </a>
           <Text variant="caption" className="shrink-0 text-text-secondary">+{achievement.skillPoints} SP</Text>
         </div>
         <div className="flex items-center gap-2 text-text-muted">

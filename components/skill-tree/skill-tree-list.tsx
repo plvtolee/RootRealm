@@ -2,9 +2,9 @@
  * RootRealm — skill tree list fallback (TASKS §2.6, DESIGN_SYSTEM §30).
  *
  * The accessible alternative to the canvas: every node as a full-size row
- * grouped by branch, each with its status badge and cost, driving the same
- * selection as the map. This is the precise-navigation path on mobile and
- * the keyboard / screen-reader path everywhere.
+ * grouped by branch, each with its status, progress, requirements and rewards,
+ * driving the same selection as the map. This is the precise-navigation path
+ * on mobile and the keyboard / screen-reader path everywhere.
  */
 
 import { ATTRIBUTE_LABEL, type AttributeKey } from "@/lib/attributes";
@@ -68,20 +68,35 @@ export function SkillTreeList({ state, selectedId, onSelect, nodeLabel }: SkillT
                     aria-pressed={selected}
                     aria-label={nodeLabel(view.node)}
                     className={cn(
-                      "flex w-full items-center gap-3 rounded-lg border px-4 text-left transition-colors duration-(--motion-fast) ease-standard",
-                      "h-(--control-height-md)",
+                      "flex w-full items-start gap-3 rounded-lg border px-4 py-3 text-left transition-colors duration-(--motion-fast) ease-standard",
                       selected
                         ? "border-border-strong bg-surface-secondary text-text-primary"
                         : "border-border bg-surface text-text-secondary hover:border-border-strong hover:text-text-primary",
                     )}
                   >
-                    <span className="min-w-0 flex-1 truncate text-body">{view.node.title}</span>
-                    <Badge variant={STATUS_BADGE_VARIANT[view.status]} size="sm">
-                      {STATUS_LABEL[view.status]}
-                    </Badge>
-                    <Text variant="caption" className="shrink-0 text-text-muted">
-                      {view.node.cost} pts
-                    </Text>
+                    <span className="min-w-0 flex-1">
+                      <span className="flex flex-wrap items-center gap-2">
+                        <Text variant="body" as="span" className="font-medium text-text-primary">
+                          {view.node.title}
+                        </Text>
+                        <Badge variant={STATUS_BADGE_VARIANT[view.status]} size="sm">
+                          {STATUS_LABEL[view.status]}
+                        </Badge>
+                      </span>
+                      <Text variant="caption" className="mt-1 block text-text-muted">
+                        Progress: {view.node.progress}/{view.node.requiredProgress} · Cost: {view.node.cost} points
+                      </Text>
+                      <Text variant="caption" className="mt-1 block text-text-secondary">
+                        Requirements: {view.node.prerequisiteIds.length === 0
+                          ? "None"
+                          : view.node.prerequisiteIds
+                              .map((id) => state.nodes.get(id)?.node.title ?? id)
+                              .join(" or ")}
+                      </Text>
+                      <Text variant="caption" className="mt-1 block text-text-secondary">
+                        Rewards: {view.node.effects.join("; ")}; +{view.node.xpReward} XP; +{view.node.codeCoinReward} CodeCoins
+                      </Text>
+                    </span>
                   </button>
                 </li>
               );
