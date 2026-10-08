@@ -16,14 +16,16 @@
  *   real API data later is a type-level change, not a rewrite
  */
 
-/** The six character attributes — DATA_CONTRACT §14 `AttributeType`. */
-export type AttributeKey =
-  | "builder"
-  | "debugger"
-  | "scholar"
-  | "collaborator"
-  | "maintainer"
-  | "architect";
+import { ATTRIBUTE_LABEL, type AttributeKey } from "@/lib/attributes";
+
+/**
+ * The six character attributes — DATA_CONTRACT §14 `AttributeType`. The union
+ * and its display names live in `lib/attributes.ts`, because the skill tree
+ * branches by the same vocabulary (TASKS §2.3, DATA_CONTRACT §16
+ * `SkillNode.category`); they are re-exported here so every existing profile
+ * import keeps working unchanged.
+ */
+export type { AttributeKey };
 
 /** One attribute summary tile: the contract's `AttributeProgress.value`. */
 export type ProfileAttribute = {
@@ -105,12 +107,12 @@ export const MOCK_PROFILE: MockProfile = {
   xpCurrent: 3240,
   xpToNextLevel: 5000,
   attributes: [
-    { attribute: "builder", label: "Builder", value: 72 },
-    { attribute: "debugger", label: "Debugger", value: 58 },
-    { attribute: "scholar", label: "Scholar", value: 64 },
-    { attribute: "collaborator", label: "Collaborator", value: 76 },
-    { attribute: "maintainer", label: "Maintainer", value: 61 },
-    { attribute: "architect", label: "Architect", value: 83 },
+    { attribute: "builder", label: ATTRIBUTE_LABEL.builder, value: 72 },
+    { attribute: "debugger", label: ATTRIBUTE_LABEL.debugger, value: 58 },
+    { attribute: "scholar", label: ATTRIBUTE_LABEL.scholar, value: 64 },
+    { attribute: "collaborator", label: ATTRIBUTE_LABEL.collaborator, value: 76 },
+    { attribute: "maintainer", label: ATTRIBUTE_LABEL.maintainer, value: 61 },
+    { attribute: "architect", label: ATTRIBUTE_LABEL.architect, value: 83 },
   ],
   featuredProject: {
     name: "RootRealm",
