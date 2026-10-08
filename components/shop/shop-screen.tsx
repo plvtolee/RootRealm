@@ -1,11 +1,19 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ComponentType } from "react";
 
 import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import {
+  CoinGlyph,
+  GridGlyph,
+  SparkleGlyph,
+  StarGlyph,
+  TagGlyph,
+  type GlyphProps,
+} from "@/components/ui/content-glyphs";
 import { Text } from "@/components/ui/text";
 import { cn } from "@/lib/cn";
 
@@ -28,11 +36,17 @@ const RARITY_TONE: Record<ShopItem["rarity"], "neutral" | "accent" | "warning"> 
   epic: "warning",
 };
 
+const CATEGORY_GLYPH: Record<ShopCategory, ComponentType<GlyphProps>> = {
+  Frames: StarGlyph,
+  Banners: GridGlyph,
+  Titles: TagGlyph,
+  Effects: SparkleGlyph,
+  Themes: GridGlyph,
+};
+
 function ItemGlyph({ item, large = false }: { item: ShopItem; large?: boolean }) {
   const style = ACCENT_STYLE[item.accent];
-  const categoryMark: Record<ShopCategory, string> = {
-    Frames: "◉", Banners: "▱", Titles: "⌘", Effects: "✳", Themes: "◐",
-  };
+  const CategoryGlyph = CATEGORY_GLYPH[item.category];
 
   if (item.category === "Frames") {
     return (
@@ -49,7 +63,7 @@ function ItemGlyph({ item, large = false }: { item: ShopItem; large?: boolean })
 
   return (
     <div className={cn("flex items-center justify-center rounded-md border border-border", style.wash, large ? "size-(--shop-glyph-size-lg)" : "size-(--avatar-size-xl)")}>
-      <span className={cn("text-display", style.text)} aria-hidden="true">{categoryMark[item.category]}</span>
+      <CategoryGlyph className={cn("size-(--shop-category-glyph-size)", style.text)} />
     </div>
   );
 }
@@ -86,7 +100,7 @@ function ShopItemCard({
         {item.owned ? (
           <Text variant="caption" className="text-text-secondary">{item.equipped ? "Currently equipped" : "In your collection"}</Text>
         ) : (
-          <span className="inline-flex items-center gap-2 text-label text-text-primary"><span aria-hidden="true" className="text-warning">◉</span>{item.price.toLocaleString()}</span>
+          <span className="inline-flex items-center gap-2 text-label text-text-primary"><CoinGlyph className="size-(--icon-size-sm) text-warning" />{item.price.toLocaleString()}</span>
         )}
         <Button variant={item.owned ? "secondary" : "primary"} size="sm" onClick={item.owned ? onEquip : onPreview}>
           {item.owned ? (item.equipped ? "Equipped" : "Equip") : "Preview"}
@@ -156,7 +170,7 @@ export function ShopScreen() {
             <Text variant="body" className="text-text-secondary">Personalize your presence. Every piece is earned, collected, and yours to equip.</Text>
           </div>
           <Card variant="secondary" padding="md" className="flex w-fit items-center gap-4">
-            <span aria-hidden="true" className="flex size-(--shop-balance-icon-size) items-center justify-center rounded-md border border-border bg-surface text-heading text-warning">◉</span>
+            <span aria-hidden="true" className="flex size-(--shop-balance-icon-size) items-center justify-center rounded-md border border-border bg-surface"><CoinGlyph className="size-(--icon-size-md) text-warning" /></span>
             <div>
               <Text variant="caption" className="block text-text-muted">YOUR BALANCE</Text>
               <Text variant="heading" as="p" className="text-text-primary">{balance.toLocaleString()} <span className="text-text-secondary">CC</span></Text>
@@ -192,7 +206,7 @@ export function ShopScreen() {
               </Button>
             ) : (
               <Button size="lg" onClick={() => purchaseItem(selectedItem)}>
-                <span aria-hidden="true" className="text-warning">◉</span>{selectedItem.price.toLocaleString()} CC · Unlock
+                <CoinGlyph className="size-(--icon-size-md) text-warning" />{selectedItem.price.toLocaleString()} CC · Unlock
               </Button>
             )}
             {!selectedItem.owned ? <Text variant="caption" className="text-text-muted">One-time unlock</Text> : null}

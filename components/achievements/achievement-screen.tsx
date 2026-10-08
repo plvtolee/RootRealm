@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
+import { AwardGlyph, CalendarGlyph, ShieldGlyph, SparkleGlyph, StarGlyph } from "@/components/ui/content-glyphs";
 import { ProgressBar } from "@/components/ui/progress-bar";
 import { Text } from "@/components/ui/text";
 import { cn } from "@/lib/cn";
@@ -25,15 +26,16 @@ const RARITY_ORDER: Record<AchievementRarity, number> = {
   common: 3,
 };
 
-const RARITY_STYLE: Record<AchievementRarity, { tone: "neutral" | "accent" | "warning"; icon: string }> = {
-  common: { tone: "neutral", icon: "✦" },
-  rare: { tone: "accent", icon: "◈" },
-  epic: { tone: "accent", icon: "✧" },
-  legendary: { tone: "warning", icon: "✺" },
+const RARITY_STYLE: Record<AchievementRarity, { tone: "neutral" | "accent" | "warning"; icon: typeof AwardGlyph }> = {
+  common: { tone: "neutral", icon: AwardGlyph },
+  rare: { tone: "accent", icon: ShieldGlyph },
+  epic: { tone: "accent", icon: SparkleGlyph },
+  legendary: { tone: "warning", icon: StarGlyph },
 };
 
 function AchievementCard({ achievement, index }: { achievement: Achievement; index: number }) {
   const rarity = RARITY_STYLE[achievement.rarity];
+  const AchievementIcon = rarity.icon;
 
   return (
     <Card
@@ -50,7 +52,7 @@ function AchievementCard({ achievement, index }: { achievement: Achievement; ind
           )}
           aria-hidden="true"
         >
-          <span>{achievement.icon}</span>
+            <AchievementIcon className="size-7" />
         </div>
         <Badge variant={rarity.tone} size="sm">{ACHIEVEMENT_RARITY_LABEL[achievement.rarity]}</Badge>
       </div>
@@ -74,9 +76,7 @@ function AchievementCard({ achievement, index }: { achievement: Achievement; ind
           <Text variant="caption" className="shrink-0 text-text-secondary">+{achievement.skillPoints} SP</Text>
         </div>
         <div className="flex items-center gap-2 text-text-muted">
-          <svg aria-hidden="true" viewBox="0 0 16 16" fill="none" className="size-4 shrink-0">
-            <path d="M5 2.5v2M11 2.5v2M3 6h10M4 4h8a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1Z" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
-          </svg>
+          <CalendarGlyph className="size-4 shrink-0" />
           <Text variant="caption">Earned {achievement.unlockedAt}</Text>
           <span className="ml-auto text-label text-text-disabled" aria-label={`Achievement ${index + 1}`}>{String(index + 1).padStart(2, "0")}</span>
         </div>
@@ -137,7 +137,7 @@ export function AchievementScreen() {
               <Text variant="subheading" as="h2" id="progress-heading" className="text-text-primary">The collection grows with you.</Text>
             </div>
             <div className="flex size-11 shrink-0 items-center justify-center rounded-md border border-border bg-surface-secondary text-text-secondary" aria-hidden="true">
-              <svg viewBox="0 0 20 20" fill="none" className="size-5"><path d="M10 2.5 12 7l4.8.5-3.6 3.2 1 4.8-4.2-2.4-4.2 2.4 1-4.8L3.2 7.5 8 7l2-4.5Z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" /></svg>
+              <StarGlyph className="size-5" />
             </div>
           </div>
           <div className="space-y-3">
@@ -152,7 +152,12 @@ export function AchievementScreen() {
         <Card variant="secondary" padding="lg" className="grid grid-cols-2 gap-x-6 gap-y-5">
           {(Object.keys(ACHIEVEMENT_RARITY_LABEL) as AchievementRarity[]).map((rarity) => (
             <div key={rarity} className="flex items-center gap-3">
-              <span className={cn("flex size-9 shrink-0 items-center justify-center rounded-md border border-border bg-surface text-body", rarity === "legendary" && "text-warning", rarity === "epic" && "text-accent")} aria-hidden="true">{RARITY_STYLE[rarity].icon}</span>
+              <span className={cn("flex size-9 shrink-0 items-center justify-center rounded-md border border-border bg-surface", rarity === "legendary" && "text-warning", rarity === "epic" && "text-accent")} aria-hidden="true">
+                {(() => {
+                  const RarityIcon = RARITY_STYLE[rarity].icon;
+                  return <RarityIcon className="size-5" />;
+                })()}
+              </span>
               <div className="min-w-0">
                 <Text variant="caption" className="block truncate text-text-muted">{ACHIEVEMENT_RARITY_LABEL[rarity]}</Text>
                 <Text variant="subheading" as="p" className="text-text-primary">{String(rarityCounts[rarity]).padStart(2, "0")}</Text>

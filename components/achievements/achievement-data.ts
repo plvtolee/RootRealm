@@ -9,7 +9,6 @@ export type Achievement = {
   unlockedAt: string;
   source: string;
   evidenceHref: string;
-  icon: string;
   skillPoints: number;
 };
 
@@ -38,7 +37,6 @@ export const MOCK_ACHIEVEMENTS: readonly Achievement[] = [
     unlockedAt: "2024-03-12",
     source: "GitHub",
     evidenceHref: "https://github.com",
-    icon: "?",
     skillPoints: 1,
   },
   {
@@ -50,7 +48,6 @@ export const MOCK_ACHIEVEMENTS: readonly Achievement[] = [
     unlockedAt: "2024-04-05",
     source: "GitHub",
     evidenceHref: "https://github.com",
-    icon: "?",
     skillPoints: 2,
   },
   {
@@ -62,7 +59,6 @@ export const MOCK_ACHIEVEMENTS: readonly Achievement[] = [
     unlockedAt: "2024-05-18",
     source: "Issue tracker",
     evidenceHref: "https://github.com",
-    icon: "?",
     skillPoints: 2,
   },
   {
@@ -74,7 +70,6 @@ export const MOCK_ACHIEVEMENTS: readonly Achievement[] = [
     unlockedAt: "2024-06-02",
     source: "Documentation",
     evidenceHref: "https://github.com",
-    icon: "?",
     skillPoints: 3,
   },
   {
@@ -86,7 +81,6 @@ export const MOCK_ACHIEVEMENTS: readonly Achievement[] = [
     unlockedAt: "2024-07-14",
     source: "Releases",
     evidenceHref: "https://github.com",
-    icon: "?",
     skillPoints: 3,
   },
   {
@@ -98,7 +92,6 @@ export const MOCK_ACHIEVEMENTS: readonly Achievement[] = [
     unlockedAt: "2024-08-03",
     source: "Discussions",
     evidenceHref: "https://github.com",
-    icon: "?",
     skillPoints: 3,
   },
   {
@@ -110,7 +103,6 @@ export const MOCK_ACHIEVEMENTS: readonly Achievement[] = [
     unlockedAt: "2024-09-01",
     source: "System design",
     evidenceHref: "https://github.com",
-    icon: "?",
     skillPoints: 5,
   },
   {
@@ -122,7 +114,6 @@ export const MOCK_ACHIEVEMENTS: readonly Achievement[] = [
     unlockedAt: "2024-09-28",
     source: "GitHub activity",
     evidenceHref: "https://github.com",
-    icon: "?",
     skillPoints: 5,
   },
 ];
