@@ -65,7 +65,7 @@ function PreviewCard({
     <Card className="overflow-hidden border-border bg-surface-secondary">
       <div
         className={cn(
-          "flex h-28 items-end justify-between border-b border-border px-4 pb-3",
+          "flex h-(--customization-banner-height) items-end justify-between border-b border-border px-4 pb-3",
           theme.accent === "cyan"
             ? "bg-info/10"
             : theme.accent === "violet"
@@ -88,7 +88,7 @@ function PreviewCard({
         </Badge>
       </div>
 
-      <div className="flex items-center gap-4 px-4 py-5">
+      <div className="flex items-center gap-4 px-4 py-6">
         <div className={cn("relative flex items-center justify-center rounded-full border-2 p-1", ACCENT_CLASS[frame.accent ?? "slate"])}>
           <Avatar name="plvtolee" initials="PL" size="xl" className="border border-border" />
         </div>
@@ -179,7 +179,7 @@ export function CustomizationScreen() {
                       : "border-border bg-surface text-text-secondary hover:border-border-strong hover:text-text-primary",
                   )}
                 >
-                  <div className={cn("mb-3 h-10 w-10 rounded-md border", ACCENT_CLASS[option.accent ?? "slate"])} />
+                  <div className={cn("mb-3 size-(--customization-option-swatch-size) rounded-md border", ACCENT_CLASS[option.accent ?? "slate"])} />
                   <Text variant="label" className="text-text-primary">
                     {option.label}
                   </Text>

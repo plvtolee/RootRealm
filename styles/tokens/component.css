@@ -92,6 +92,19 @@
      canvas height, so they are tokens rather than values on the spacing scale. */
   --skill-minimap-width: 9rem; /* 144px */
   --skill-minimap-height: 7rem; /* 112px */
+
+  /* --- Static screen preview sizes -------------------------------------- */
+  --customization-banner-height: 7rem; /* 112px */
+  --shop-item-preview-height: 9rem; /* 144px */
+  --shop-featured-height: 18rem; /* 288px */
+  --shop-glyph-size-lg: 7rem; /* 112px */
+  --shop-featured-glyph-size: 13rem; /* 208px */
+  --shop-banner-height-sm: 4rem; /* 64px */
+  --shop-banner-height-lg: 6rem; /* 96px */
+  --shop-grid-width: 12rem; /* 192px */
+  --shop-balance-icon-size: 2.5rem; /* 40px */
+  --shop-notice-min-height: 1.25rem; /* 20px */
+  --customization-option-swatch-size: 2.5rem; /* 40px */
 }
 
 /* Tablet — height-bound, so this is where node size is bought. The preferred
