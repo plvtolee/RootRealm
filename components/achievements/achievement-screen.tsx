@@ -41,18 +41,18 @@ function AchievementCard({ achievement, index }: { achievement: Achievement; ind
     <Card
       as="article"
       padding="md"
-      className="group relative flex min-h-64 flex-col overflow-hidden transition-colors duration-(--motion-base) ease-standard hover:border-border-strong"
+      className="group relative flex min-h-(--achievement-card-min-height) flex-col overflow-hidden transition-colors duration-(--motion-base) ease-standard hover:border-border-strong"
     >
-      <div className="mb-5 flex items-start justify-between gap-3">
+      <div className="mb-6 flex items-start justify-between gap-3">
         <div
           className={cn(
-            "flex size-14 shrink-0 items-center justify-center rounded-lg border border-border bg-surface-secondary text-heading text-text-primary transition-colors duration-(--motion-base) ease-standard group-hover:border-border-strong",
+            "flex size-(--achievement-icon-size) shrink-0 items-center justify-center rounded-lg border border-border bg-surface-secondary text-heading text-text-primary transition-colors duration-(--motion-base) ease-standard group-hover:border-border-strong",
             achievement.rarity === "legendary" && "text-warning",
             achievement.rarity === "epic" && "text-accent",
           )}
           aria-hidden="true"
         >
-            <AchievementIcon className="size-7" />
+            <AchievementIcon className="size-(--achievement-glyph-size)" />
         </div>
         <Badge variant={rarity.tone} size="sm">{ACHIEVEMENT_RARITY_LABEL[achievement.rarity]}</Badge>
       </div>
@@ -136,8 +136,8 @@ export function AchievementScreen() {
               <Text variant="label" className="text-text-muted">YOUR JOURNEY</Text>
               <Text variant="subheading" as="h2" id="progress-heading" className="text-text-primary">The collection grows with you.</Text>
             </div>
-            <div className="flex size-11 shrink-0 items-center justify-center rounded-md border border-border bg-surface-secondary text-text-secondary" aria-hidden="true">
-              <StarGlyph className="size-5" />
+            <div className="flex size-(--achievement-summary-icon-size) shrink-0 items-center justify-center rounded-md border border-border bg-surface-secondary text-text-secondary" aria-hidden="true">
+              <StarGlyph className="size-(--icon-size-md)" />
             </div>
           </div>
           <div className="space-y-3">
@@ -152,10 +152,10 @@ export function AchievementScreen() {
         <Card variant="secondary" padding="lg" className="grid grid-cols-2 gap-x-6 gap-y-5">
           {(Object.keys(ACHIEVEMENT_RARITY_LABEL) as AchievementRarity[]).map((rarity) => (
             <div key={rarity} className="flex items-center gap-3">
-              <span className={cn("flex size-9 shrink-0 items-center justify-center rounded-md border border-border bg-surface", rarity === "legendary" && "text-warning", rarity === "epic" && "text-accent")} aria-hidden="true">
+              <span className={cn("flex size-(--achievement-rarity-icon-size) shrink-0 items-center justify-center rounded-md border border-border bg-surface", rarity === "legendary" && "text-warning", rarity === "epic" && "text-accent")} aria-hidden="true">
                 {(() => {
                   const RarityIcon = RARITY_STYLE[rarity].icon;
-                  return <RarityIcon className="size-5" />;
+                  return <RarityIcon className="size-(--icon-size-md)" />;
                 })()}
               </span>
               <div className="min-w-0">
@@ -167,7 +167,7 @@ export function AchievementScreen() {
         </Card>
       </section>
 
-      <section aria-labelledby="collection-heading" className="space-y-5">
+      <section aria-labelledby="collection-heading" className="space-y-6">
         <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
           <div className="space-y-2">
             <Text variant="heading" as="h2" id="collection-heading" className="text-text-primary">Unlocked</Text>

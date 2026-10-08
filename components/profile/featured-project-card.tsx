@@ -52,9 +52,9 @@ export function FeaturedProjectCard({ project, className }: FeaturedProjectCardP
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:gap-4">
         <span
           aria-hidden="true"
-          className="grid size-24 shrink-0 place-items-center rounded-md border border-border bg-surface-secondary lg:size-32"
+          className="grid size-(--project-thumbnail-size) shrink-0 place-items-center rounded-md border border-border bg-surface-secondary lg:size-(--project-thumbnail-size-lg)"
         >
-          <FolderGlyph className="size-8 text-text-muted lg:size-12" />
+          <FolderGlyph className="size-(--project-glyph-size) text-text-muted lg:size-(--project-glyph-size-lg)" />
         </span>
 
         <div className="flex min-w-0 flex-1 flex-col gap-2">

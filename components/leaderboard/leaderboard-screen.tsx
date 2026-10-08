@@ -7,7 +7,7 @@ import { LEADERBOARD_ROWS, LEADERBOARD_SEASON } from "./leaderboard-data";
 
 export function LeaderboardScreen() {
   return (
-    <div className="flex flex-col gap-5">
+    <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div>
           <Text variant="label" className="uppercase text-text-secondary">

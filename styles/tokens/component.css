@@ -106,6 +106,15 @@
   --shop-notice-min-height: 1.25rem; /* 20px */
   --shop-category-glyph-size: 2.5rem; /* 40px */
   --customization-option-swatch-size: 2.5rem; /* 40px */
+  --achievement-card-min-height: 16rem; /* 256px */
+  --achievement-icon-size: 3.5rem; /* 56px */
+  --achievement-summary-icon-size: 2.75rem; /* 44px */
+  --achievement-rarity-icon-size: 2.25rem; /* 36px */
+  --achievement-glyph-size: 1.75rem; /* 28px */
+  --project-thumbnail-size: 6rem; /* 96px */
+  --project-thumbnail-size-lg: 8rem; /* 128px */
+  --project-glyph-size: 2rem; /* 32px */
+  --project-glyph-size-lg: 3rem; /* 48px */
 }
 
 /* Tablet — height-bound, so this is where node size is bought. The preferred

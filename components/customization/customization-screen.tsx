@@ -109,6 +109,7 @@ function PreviewCard({
 export function CustomizationScreen() {
   const [section, setSection] = useState<CustomizationSection>("Avatar");
   const [selected, setSelected] = useState(MOCK_CUSTOMIZATION_STATE);
+  const [message, setMessage] = useState<string | null>(null);
 
   const activeOptions = useMemo(() => OPTION_GROUPS[section], [section]);
 
@@ -165,6 +166,7 @@ export function CustomizationScreen() {
                   key={option.id}
                   type="button"
                   onClick={() => {
+                    setMessage(null);
                     if (section === "Avatar") setSelected((prev) => ({ ...prev, avatar: option.id }));
                     if (section === "Frame") setSelected((prev) => ({ ...prev, frame: option.id }));
                     if (section === "Banner") setSelected((prev) => ({ ...prev, banner: option.id }));
@@ -220,10 +222,20 @@ export function CustomizationScreen() {
               </Text>
             </div>
             <div className="mt-4 flex gap-2">
-              <Button variant="secondary" size="sm">
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => {
+                  setSelected(MOCK_CUSTOMIZATION_STATE);
+                  setMessage("Customization reset.");
+                }}
+              >
                 Reset
               </Button>
-              <Button>Save changes</Button>
+              <Button onClick={() => setMessage("Customization saved for this session.")}>Save changes</Button>
+            </div>
+            <div aria-live="polite" className="mt-4 min-h-(--shop-notice-min-height)">
+              {message ? <Text variant="caption" className="text-text-secondary">{message}</Text> : null}
             </div>
           </Card>
         </div>
