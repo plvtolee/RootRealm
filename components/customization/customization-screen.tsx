@@ -32,10 +32,10 @@ const OPTION_GROUPS: Record<CustomizationSection, readonly CustomizationOption[]
 };
 
 const ACCENT_CLASS: Record<string, string> = {
-  amber: "border-[#f0c968] bg-[#2a1d0a] text-[#fce7a2]",
-  cyan: "border-[#7db5ff] bg-[#11253d] text-[#dfeeff]",
-  violet: "border-[#bf8ef7] bg-[#291838] text-[#f1e1ff]",
-  rose: "border-[#f59ab1] bg-[#2b1520] text-[#ffdfe8]",
+  amber: "border-warning bg-warning/10 text-warning",
+  cyan: "border-info bg-info/10 text-info",
+  violet: "border-accent bg-accent/10 text-accent",
+  rose: "border-danger bg-danger/10 text-danger",
   slate: "border-border bg-surface-secondary text-text-primary",
 };
 
@@ -67,12 +67,12 @@ function PreviewCard({
         className={cn(
           "flex h-28 items-end justify-between border-b border-border px-4 pb-3",
           theme.accent === "cyan"
-            ? "bg-[#12243d]"
+            ? "bg-info/10"
             : theme.accent === "violet"
-              ? "bg-[#26183b]"
+              ? "bg-accent/10"
               : theme.accent === "amber"
-                ? "bg-[#2a1d0a]"
-                : "bg-[#11161d]",
+                ? "bg-warning/10"
+                : "bg-surface-secondary",
         )}
       >
         <div className="space-y-1">
