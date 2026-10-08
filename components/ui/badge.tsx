@@ -88,7 +88,7 @@ export function Badge({
     <span
       {...rest}
       className={cn(
-        "inline-flex items-center border text-label whitespace-nowrap [&>svg]:size-(--icon-size-sm) [&>svg]:shrink-0",
+        "inline-flex items-center border text-label whitespace-nowrap transition-colors duration-(--motion-fast) ease-standard motion-reduce:transition-none [&>svg]:size-(--icon-size-sm) [&>svg]:shrink-0",
         BADGE_SIZE[size],
         BADGE_SHAPE[shape],
         BADGE_VARIANT[variant],

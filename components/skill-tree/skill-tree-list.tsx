@@ -68,7 +68,7 @@ export function SkillTreeList({ state, selectedId, onSelect, nodeLabel }: SkillT
                     aria-pressed={selected}
                     aria-label={nodeLabel(view.node)}
                     className={cn(
-                      "flex w-full items-start gap-3 rounded-lg border px-4 py-3 text-left transition-colors duration-(--motion-fast) ease-standard",
+                      "flex w-full items-start gap-3 rounded-lg border px-4 py-3 text-left transition-colors duration-(--motion-fast) ease-standard motion-reduce:transition-none",
                       selected
                         ? "border-border-strong bg-surface-secondary text-text-primary"
                         : "border-border bg-surface text-text-secondary hover:border-border-strong hover:text-text-primary",

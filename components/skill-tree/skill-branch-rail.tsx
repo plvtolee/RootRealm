@@ -50,7 +50,7 @@ export function SkillBranchRail({ state, activeBranch, onSelectBranch }: SkillBr
         onClick={() => onSelectBranch(null)}
         aria-pressed={activeBranch === null}
         className={cn(
-          "flex shrink-0 items-center gap-3 rounded-md border px-4 py-2 text-left text-label transition-colors duration-(--motion-fast) ease-standard",
+          "flex shrink-0 items-center gap-3 rounded-md border px-4 py-2 text-left text-label transition-colors duration-(--motion-fast) ease-standard motion-reduce:transition-none",
           activeBranch === null
             ? "border-border-strong bg-surface-secondary text-text-primary"
             : "border-transparent text-text-secondary hover:border-border hover:text-text-primary",
@@ -68,7 +68,7 @@ export function SkillBranchRail({ state, activeBranch, onSelectBranch }: SkillBr
             onClick={() => onSelectBranch(active ? null : branch)}
             aria-pressed={active}
             className={cn(
-              "flex shrink-0 items-center gap-3 rounded-md border px-4 py-2 text-left text-label transition-colors duration-(--motion-fast) ease-standard",
+              "flex shrink-0 items-center gap-3 rounded-md border px-4 py-2 text-left text-label transition-colors duration-(--motion-fast) ease-standard motion-reduce:transition-none",
               active
                 ? "border-border-strong bg-surface-secondary text-text-primary"
                 : "border-transparent text-text-secondary hover:border-border hover:text-text-primary",

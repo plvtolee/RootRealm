@@ -82,9 +82,9 @@ function ShopItemCard({
   onEquip: () => void;
 }) {
   return (
-    <Card padding="none" className={cn("group flex h-full flex-col overflow-hidden transition-colors duration-(--motion-base) ease-standard", selected && "border-border-strong")}>
+    <Card padding="none" className={cn("group flex h-full flex-col overflow-hidden transition-colors duration-(--motion-base) ease-standard motion-reduce:transition-none", selected && "border-border-strong")}>
       <button type="button" onClick={onSelect} aria-pressed={selected} className="flex flex-1 flex-col p-4 text-left">
-        <div className="mb-4 flex min-h-(--shop-item-preview-height) w-full items-center justify-center rounded-md border border-border bg-bg p-4 transition-colors duration-(--motion-base) ease-standard group-hover:bg-surface-secondary">
+        <div className="mb-4 flex min-h-(--shop-item-preview-height) w-full items-center justify-center rounded-md border border-border bg-bg p-4 transition-colors duration-(--motion-base) ease-standard group-hover:bg-surface-secondary motion-reduce:transition-none">
           <ItemGlyph item={item} />
         </div>
         <div className="flex w-full items-start justify-between gap-3">
@@ -234,7 +234,7 @@ export function ShopScreen() {
                   aria-pressed={active}
                   onClick={() => selectCategory(category)}
                   className={cn(
-                    "inline-flex min-h-(--control-height-md) shrink-0 items-center gap-2 rounded-md border px-3 text-label transition-colors duration-(--motion-fast) ease-standard",
+                    "inline-flex min-h-(--control-height-md) shrink-0 items-center gap-2 rounded-md border px-3 text-label transition-colors duration-(--motion-fast) ease-standard motion-reduce:transition-none",
                     active ? "border-border-strong bg-surface-secondary text-text-primary" : "border-border bg-surface text-text-secondary hover:border-border-strong hover:text-text-primary",
                   )}
                 >

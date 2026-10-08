@@ -41,12 +41,12 @@ function AchievementCard({ achievement, index }: { achievement: Achievement; ind
     <Card
       as="article"
       padding="md"
-      className="group relative flex min-h-(--achievement-card-min-height) flex-col overflow-hidden transition-colors duration-(--motion-base) ease-standard hover:border-border-strong"
+      className="group relative flex min-h-(--achievement-card-min-height) flex-col overflow-hidden transition-colors duration-(--motion-base) ease-standard hover:border-border-strong motion-reduce:transition-none"
     >
       <div className="mb-6 flex items-start justify-between gap-3">
         <div
           className={cn(
-            "flex size-(--achievement-icon-size) shrink-0 items-center justify-center rounded-lg border border-border bg-surface-secondary text-heading text-text-primary transition-colors duration-(--motion-base) ease-standard group-hover:border-border-strong",
+            "flex size-(--achievement-icon-size) shrink-0 items-center justify-center rounded-lg border border-border bg-surface-secondary text-heading text-text-primary transition-colors duration-(--motion-base) ease-standard group-hover:border-border-strong motion-reduce:transition-none",
             achievement.rarity === "legendary" && "text-warning",
             achievement.rarity === "epic" && "text-accent",
           )}
@@ -197,7 +197,7 @@ export function AchievementScreen() {
                 aria-pressed={active}
                 onClick={() => setSelectedFilter(filter)}
                 className={cn(
-                  "inline-flex min-h-(--control-height-md) shrink-0 items-center gap-3 rounded-md border px-4 text-label transition-colors duration-(--motion-fast) ease-standard",
+                  "inline-flex min-h-(--control-height-md) shrink-0 items-center gap-3 rounded-md border px-4 text-label transition-colors duration-(--motion-fast) ease-standard motion-reduce:transition-none",
                   active ? "border-border-strong bg-surface-secondary text-text-primary" : "border-border bg-surface text-text-secondary hover:border-border-strong hover:text-text-primary",
                 )}
               >

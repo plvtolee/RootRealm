@@ -88,7 +88,7 @@ export function SkillTreeScreen() {
               onClick={() => setViewMode(mode)}
               aria-pressed={viewMode === mode}
               className={cn(
-                "rounded-md border px-4 text-label transition-colors duration-(--motion-fast) ease-standard",
+                "rounded-md border px-4 text-label transition-colors duration-(--motion-fast) ease-standard motion-reduce:transition-none",
                 "h-(--control-height-sm)",
                 viewMode === mode
                   ? "border-border-strong bg-surface-secondary text-text-primary"

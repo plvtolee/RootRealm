@@ -135,7 +135,7 @@ export function CustomizationScreen() {
             type="button"
             onClick={() => setSection(name)}
             className={cn(
-              "rounded-md border px-3 py-2 text-label transition-colors duration-(--motion-fast) ease-standard",
+              "rounded-md border px-3 py-2 text-label transition-colors duration-(--motion-fast) ease-standard motion-reduce:transition-none",
               section === name
                 ? "border-border-strong bg-surface-secondary text-text-primary"
                 : "border-border bg-surface text-text-secondary hover:border-border-strong hover:text-text-primary",
@@ -175,7 +175,7 @@ export function CustomizationScreen() {
                     if (section === "Effects") setSelected((prev) => ({ ...prev, effect: option.id }));
                   }}
                   className={cn(
-                    "flex flex-col items-start rounded-lg border p-3 text-left transition-colors duration-(--motion-fast) ease-standard",
+                    "flex flex-col items-start rounded-lg border p-3 text-left transition-colors duration-(--motion-fast) ease-standard motion-reduce:transition-none",
                     isSelected
                       ? "border-border-strong bg-surface text-text-primary"
                       : "border-border bg-surface text-text-secondary hover:border-border-strong hover:text-text-primary",
