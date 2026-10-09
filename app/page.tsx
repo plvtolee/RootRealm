@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Text } from "@/components/ui/text";
@@ -63,7 +65,44 @@ export default function Home() {
           </Text>
         </ul>
       </Card>
+
+      {/*
+        Development surfaces. These are review harnesses for code that is
+        server-only and therefore invisible from the screens, so they are
+        linked from here rather than from the primary navigation: `NAV_ITEMS`
+        is the product information architecture (TASKS §1.5) and a dev route
+        must never become one of its five destinations.
+      */}
+      <Card className="flex flex-col gap-3">
+        <Text variant="label" className="uppercase text-text-muted">
+          Development
+        </Text>
+
+        <ul className="flex flex-col gap-2">
+          <Text as="li" variant="body">
+            <DevLink href="/dev/github">
+              GitHub ingestion preview — look up a public GitHub profile through
+              the TASKS 4.1–4.2 server route.
+            </DevLink>
+          </Text>
+        </ul>
+      </Card>
     </div>
+  );
+}
+
+/**
+ * A development link, styled like any other body link. `Text` owns the type
+ * role, so only the interaction treatment is applied here.
+ */
+function DevLink({ href, children }: { href: string; children: React.ReactNode }) {
+  return (
+    <Link
+      href={href}
+      className="text-accent underline underline-offset-4 transition-colors duration-(--motion-fast) ease-standard motion-reduce:transition-none"
+    >
+      {children}
+    </Link>
   );
 }
 
