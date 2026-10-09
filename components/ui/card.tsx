@@ -1,4 +1,9 @@
-import type { ComponentPropsWithoutRef, ElementType, ReactNode } from "react";
+import {
+  forwardRef,
+  type ComponentPropsWithoutRef,
+  type ElementType,
+  type ReactNode,
+} from "react";
 
 import { cn } from "@/lib/cn";
 
@@ -75,15 +80,18 @@ export type CardProps<T extends ElementType = "div"> = CardOwnProps<T> &
  * - the card holds no product logic: it is a container, not a quest, an
  *   achievement or a cosmetic
  */
-export function Card<T extends ElementType = "div">({
-  variant = "surface",
-  padding = "md",
-  interactive = false,
-  as,
-  className,
-  children,
-  ...rest
-}: CardProps<T>) {
+export const Card = forwardRef(function Card<T extends ElementType = "div">(
+  {
+    variant = "surface",
+    padding = "md",
+    interactive = false,
+    as,
+    className,
+    children,
+    ...rest
+  }: CardProps<T>,
+  ref,
+) {
   const Component = (as ?? (interactive ? "button" : "div")) as ElementType;
 
   // `type` only exists on the button branch; the cast keeps the generic element
@@ -95,6 +103,7 @@ export function Card<T extends ElementType = "div">({
 
   return (
     <Component
+      ref={ref}
       {...(defaultType ? { type: defaultType } : {})}
       {...rest}
       className={cn(
@@ -108,4 +117,4 @@ export function Card<T extends ElementType = "div">({
       {children}
     </Component>
   );
-}
+});

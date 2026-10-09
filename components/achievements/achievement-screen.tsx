@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useRef, useEffect } from "react";
+import { useMemo, useState, useRef, useEffect, useRef as _useRef } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -9,6 +9,7 @@ import { AwardGlyph, CalendarGlyph, ShieldGlyph, SparkleGlyph, StarGlyph } from 
 import { ProgressBar } from "@/components/ui/progress-bar";
 import { Text } from "@/components/ui/text";
 import { cn } from "@/lib/cn";
+import { playAchievementReveal } from "@/lib/motion";
 
 import {
   ACHIEVEMENT_FILTERS,
@@ -47,14 +48,23 @@ function AchievementCard({
 }) {
   const rarity = RARITY_STYLE[achievement.rarity];
   const AchievementIcon = rarity.icon;
+  const cardRef = useRef<HTMLDivElement | null>(null);
+
+  /* Phase 3 (Task 3.4): GSAP drives the reveal so it re-triggers cleanly
+     every time the card is marked revealing (the old CSS-class toggle
+     fought React remounts). Reduced motion collapses to the final state. */
+  useEffect(() => {
+    if (!revealing || !cardRef.current) return;
+    playAchievementReveal(cardRef.current, achievement.rarity);
+  }, [revealing, achievement.rarity]);
 
   return (
     <Card
+      ref={cardRef}
       as="article"
       padding="md"
       className={cn(
         "group relative flex min-h-(--achievement-card-min-height) flex-col overflow-hidden transition-colors duration-(--motion-base) ease-standard hover:border-border-strong motion-reduce:transition-none",
-        revealing && `achievement-reveal-${achievement.rarity}`,
       )}
       onAnimationEnd={revealing ? onRevealEnd : undefined}
     >

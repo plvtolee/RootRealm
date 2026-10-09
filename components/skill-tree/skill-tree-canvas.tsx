@@ -6,7 +6,8 @@
  * the SVG paints edges, shells, glyphs and the dotted grid behind them.
  */
 
-import { useId, useRef, useState, type AnimationEvent, type CSSProperties, type PointerEvent, type WheelEvent } from "react";
+import { useId, useRef, useState, useEffect, type AnimationEvent, type CSSProperties, type PointerEvent, type WheelEvent } from "react";
+import { playSkillUnlock, stopMotion } from "@/lib/motion";
 
 import { cn } from "@/lib/cn";
 
@@ -332,12 +333,33 @@ export function SkillTreeCanvas({
   const gridId = useId().replace(/[^a-zA-Z0-9]/g, "grid");
   const [viewport, setViewport] = useState<Viewport>(SKILL_TREE_VIEWBOX);
   const dragRef = useRef<{ pointerId: number; startX: number; startY: number; viewport: Viewport } | null>(null);
+  const containerRef = useRef<HTMLDivElement | null>(null);
   const preview = previewIds ?? new Set<string>();
   const statusById: SkillStatusById = new Map(
     [...state.nodes.entries()].map(([id, view]) => [id, view.status]),
   );
   const nodes = [...state.nodes.values()].map((view) => view.node);
   const { x, y, width, height } = viewport;
+
+  /* Phase 3 (Task 3.3): when the screen reports an unlock, hand the three
+     animated elements to GSAP. The `revision` in the event makes this fire
+     again on every learn, and killing the previous timeline first means a
+     rapid second learn interrupts cleanly instead of fighting the first. */
+  useEffect(() => {
+    if (!unlockEvent || !containerRef.current) return;
+
+    const root = containerRef.current;
+    const branchEl = root.querySelector<SVGPathElement>(".skill-branch-unlock");
+    const nodeEl = root.querySelector<SVGGElement>(".skill-node-unlock");
+    const rippleEl = root.querySelector<SVGCircleElement>(".skill-ripple-unlock");
+    const branchLength = branchEl ? branchEl.getTotalLength() : 0;
+
+    const tl = playSkillUnlock({ branchEl, nodeEl, rippleEl, branchLength });
+
+    return () => {
+      tl?.kill();
+    };
+  }, [unlockEvent?.nodeId, unlockEvent?.revision]);
 
   function handleWheel(event: WheelEvent<HTMLDivElement>) {
     const bounds = event.currentTarget.getBoundingClientRect();
@@ -388,6 +410,7 @@ export function SkillTreeCanvas({
 
   return (
     <div
+      ref={containerRef}
       className="relative touch-none overflow-hidden rounded-lg border border-border bg-bg"
       onWheel={handleWheel}
       onPointerDown={handlePointerDown}

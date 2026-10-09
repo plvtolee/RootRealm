@@ -1,6 +1,8 @@
+import { useEffect, useRef } from "react";
 import type { CSSProperties, ReactNode } from "react";
 
 import { cn } from "@/lib/cn";
+import { playAvatarFrame, stopAvatarFrame } from "@/lib/motion";
 
 export type AvatarFrameMode = "none" | "pulse" | "haze" | "trail";
 
@@ -48,8 +50,21 @@ export function AvatarFrame({
     ...(duration ? { "--avatar-frame-duration": duration } : null),
   } as CSSProperties;
 
+  const frameRef = useRef<HTMLSpanElement | null>(null);
+
+  /* Phase 3 (Task 3.2): hand the ring / glow loop to GSAP instead of CSS
+     keyframes; the component still publishes the two custom properties so
+     DevTools live-tweaking and the CSS reduced-motion path both keep
+     working. */
+  useEffect(() => {
+    if (!frameRef.current) return;
+    playAvatarFrame(frameRef.current, { mode: activeMode, intensity: strength, glow });
+    return () => stopAvatarFrame(frameRef.current);
+  }, [activeMode, strength, glow]);
+
   return (
     <span
+      ref={frameRef}
       className={cn("avatar-frame relative isolate inline-flex rounded-pill", className)}
       data-avatar-frame-mode={activeMode}
       data-avatar-frame-glow={glow && strength > 0 ? "true" : undefined}

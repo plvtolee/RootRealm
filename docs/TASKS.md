@@ -458,8 +458,7 @@ Target:
 
 150–250ms
 
-Use CSS where possible.
-
+use gsap animations and motions
 ---
 
 ## TASK 3.2 — Avatar Frame Motion
