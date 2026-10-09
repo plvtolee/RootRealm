@@ -103,8 +103,8 @@ function AchievementCard({
 export function AchievementScreen() {
   const [selectedFilter, setSelectedFilter] = useState<(typeof ACHIEVEMENT_FILTERS)[number]>("All");
   const [sortMode, setSortMode] = useState<SortMode>("Newest");
-  const [revealingIds, setRevealingIds] = useState<ReadonlySet<string>>(new Set());
-  const timersRef = useRef<NodeJS.Timeout[]>([]);
+  const [animating, setAnimating] = useState<ReadonlySet<string>>(new Set());
+  const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
 
   const totalPoints = MOCK_ACHIEVEMENTS.reduce((sum, achievement) => sum + achievement.skillPoints, 0);
   const rarityCounts = useMemo(() => MOCK_ACHIEVEMENTS.reduce<Record<AchievementRarity, number>>((counts, item) => {
@@ -126,23 +126,25 @@ export function AchievementScreen() {
   }, [selectedFilter, sortMode]);
 
   function handleDemoReveal() {
-    // Clear any existing timers
     timersRef.current.forEach((t) => clearTimeout(t));
     timersRef.current = [];
+    setAnimating(new Set());
 
-    // Clear revealing state then start sequential reveal
-    setRevealingIds(new Set());
-    const runReveal = (index: number) => {
-      if (index >= visibleAchievements.length) return;
-      const achievement = visibleAchievements[index];
-      setRevealingIds((prev) => {
-        const next = new Set(prev);
-        next.add(achievement.id);
-        return next;
-      });
-      timersRef.current.push(setTimeout(() => runReveal(index + 1), 350));
-    };
-    runReveal(0);
+    visibleAchievements.forEach((achievement, index) => {
+      timersRef.current.push(
+        setTimeout(() => {
+          setAnimating((prev) => new Set([...prev, achievement.id]));
+          // Clear after animation completes
+          setTimeout(() => {
+            setAnimating((prev) => {
+              const next = new Set(prev);
+              next.delete(achievement.id);
+              return next;
+            });
+          }, 600);
+        }, index * 200)
+      );
+    });
   }
 
   // Cleanup timers on unmount or when visibleAchievements changes
@@ -232,7 +234,7 @@ export function AchievementScreen() {
             variant="secondary"
             size="sm"
             onClick={handleDemoReveal}
-            disabled={revealingIds.size > 0}
+            disabled={animating.size > 0}
             className="shrink-0"
           >
             Demo Reveal
@@ -262,19 +264,24 @@ export function AchievementScreen() {
 
         {visibleAchievements.length ? (
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            {visibleAchievements.map((achievement, index) => (
-              <AchievementCard
-                key={`${achievement.id}-${revealingIds.has(achievement.id) ? 'r' : ''}`}
-                achievement={achievement}
-                index={index}
-                revealing={revealingIds.has(achievement.id)}
-                onRevealEnd={() => setRevealingIds((prev) => {
-                  const next = new Set(prev);
-                  next.delete(achievement.id);
-                  return next;
-                })}
-              />
-            ))}
+            {visibleAchievements.map((achievement, index) => {
+              const isRevealed = revealedIds.has(achievement.id);
+              const inRun = revealRun?.has(achievement.id) ?? false;
+              // During a reveal run, only show cards that are revealed; hide the rest
+              if (revealRun !== null && !isRevealed) {
+                return (
+                  <div key={`${achievement.id}-placeholder`} className="aspect-[1/1] animate-pulse bg-surface-secondary rounded-lg" />
+                );
+              }
+              return (
+                <AchievementCard
+                  key={`${achievement.id}-${isRevealed ? 'r' : 'h'}`}
+                  achievement={achievement}
+                  index={index}
+                  revealing={inRun && isRevealed}
+                />
+              );
+            })}
           </div>
         ) : (
           <Card padding="lg" className="text-center">
