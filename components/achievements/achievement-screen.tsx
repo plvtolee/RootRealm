@@ -265,20 +265,13 @@ export function AchievementScreen() {
         {visibleAchievements.length ? (
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {visibleAchievements.map((achievement, index) => {
-              const isRevealed = revealedIds.has(achievement.id);
-              const inRun = revealRun?.has(achievement.id) ?? false;
-              // During a reveal run, only show cards that are revealed; hide the rest
-              if (revealRun !== null && !isRevealed) {
-                return (
-                  <div key={`${achievement.id}-placeholder`} className="aspect-[1/1] animate-pulse bg-surface-secondary rounded-lg" />
-                );
-              }
+              const isAnimating = animating.has(achievement.id);
               return (
                 <AchievementCard
-                  key={`${achievement.id}-${isRevealed ? 'r' : 'h'}`}
+                  key={`${achievement.id}-${isAnimating ? "r" : "s"}`}
                   achievement={achievement}
                   index={index}
-                  revealing={inRun && isRevealed}
+                  revealing={isAnimating}
                 />
               );
             })}
