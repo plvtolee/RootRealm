@@ -196,19 +196,19 @@
   stroke-dashoffset: 1;
   stroke-width: 8;
   filter: drop-shadow(var(--skill-unlock-boost, 0 0 0 transparent));
-  animation: skill-branch-unlock var(--motion-unlock) ease-entrance both;
+  animation: skill-branch-unlock var(--motion-unlock) var(--ease-entrance) both;
 }
 
 .skill-node-unlock {
   transform-box: fill-box;
   transform-origin: center;
-  animation: skill-node-unlock var(--motion-unlock) ease-entrance both;
+  animation: skill-node-unlock var(--motion-unlock) var(--ease-entrance) both;
 }
 
 .skill-ripple-unlock {
   transform-box: fill-box;
   transform-origin: center;
-  animation: skill-ripple-unlock var(--motion-unlock) ease-exit both;
+  animation: skill-ripple-unlock var(--motion-unlock) var(--ease-exit) both;
 }
 
 @keyframes skill-branch-unlock {
