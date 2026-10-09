@@ -55,11 +55,13 @@ export function AvatarFrame({
   /* Phase 3 (Task 3.2): hand the ring / glow loop to GSAP instead of CSS
      keyframes; the component still publishes the two custom properties so
      DevTools live-tweaking and the CSS reduced-motion path both keep
-     working. */
+     working. Copy the ref value into the closure so the cleanup sees the same
+     node even if the component re-renders and the ref moves. */
   useEffect(() => {
-    if (!frameRef.current) return;
-    playAvatarFrame(frameRef.current, { mode: activeMode, intensity: strength, glow });
-    return () => stopAvatarFrame(frameRef.current);
+    const el = frameRef.current;
+    if (!el) return;
+    playAvatarFrame(el, { mode: activeMode, intensity: strength, glow });
+    return () => stopAvatarFrame(el);
   }, [activeMode, strength, glow]);
 
   return (

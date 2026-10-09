@@ -2,6 +2,7 @@ import {
   forwardRef,
   type ComponentPropsWithoutRef,
   type ElementType,
+  type ForwardedRef,
   type ReactNode,
 } from "react";
 
@@ -90,7 +91,7 @@ export const Card = forwardRef(function Card<T extends ElementType = "div">(
     children,
     ...rest
   }: CardProps<T>,
-  ref,
+  ref: ForwardedRef<HTMLElement>,
 ) {
   const Component = (as ?? (interactive ? "button" : "div")) as ElementType;
 

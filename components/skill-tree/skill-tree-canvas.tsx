@@ -7,7 +7,7 @@
  */
 
 import { useId, useRef, useState, useEffect, type AnimationEvent, type CSSProperties, type PointerEvent, type WheelEvent } from "react";
-import { playSkillUnlock, stopMotion } from "@/lib/motion";
+import { playSkillUnlock } from "@/lib/motion";
 
 import { cn } from "@/lib/cn";
 
@@ -359,6 +359,7 @@ export function SkillTreeCanvas({
     return () => {
       tl?.kill();
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [unlockEvent?.nodeId, unlockEvent?.revision]);
 
   function handleWheel(event: WheelEvent<HTMLDivElement>) {
