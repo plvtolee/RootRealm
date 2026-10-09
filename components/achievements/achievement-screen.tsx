@@ -230,15 +230,17 @@ export function AchievementScreen() {
               <option>Newest</option><option>Oldest</option><option>Name</option><option>Rarity</option>
             </select>
           </label>
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={handleDemoReveal}
-            disabled={animating.size > 0}
-            className="shrink-0"
-          >
-            Demo Reveal
-          </Button>
+          {process.env.NODE_ENV !== "production" ? (
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={handleDemoReveal}
+              disabled={animating.size > 0}
+              className="shrink-0"
+            >
+              Demo Reveal
+            </Button>
+          ) : null}
         </div>
 
         <div className="flex gap-2 overflow-x-auto pb-1" role="group" aria-label="Filter achievements by rarity">

@@ -283,16 +283,16 @@
 }
 
 .achievement-reveal-common {
-  animation: achievement-reveal-common var(--motion-base) ease-standard forwards;
+  animation: achievement-reveal-common var(--motion-base) var(--ease-standard) forwards;
 }
 .achievement-reveal-rare {
-  animation: achievement-reveal-rare var(--motion-base) ease-standard forwards;
+  animation: achievement-reveal-rare var(--motion-base) var(--ease-standard) forwards;
 }
 .achievement-reveal-epic {
-  animation: achievement-reveal-epic var(--motion-slow) ease-entrance forwards;
+  animation: achievement-reveal-epic var(--motion-slow) var(--ease-entrance) forwards;
 }
 .achievement-reveal-legendary {
-  animation: achievement-reveal-legendary var(--motion-slow) ease-entrance forwards;
+  animation: achievement-reveal-legendary var(--motion-slow) var(--ease-entrance) forwards;
 }
 
 /* ---------------------------------------------------------------------------
