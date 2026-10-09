@@ -264,7 +264,7 @@ export function AchievementScreen() {
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {visibleAchievements.map((achievement, index) => (
               <AchievementCard
-                key={achievement.id}
+                key={`${achievement.id}-${revealingIds.has(achievement.id) ? 'r' : ''}`}
                 achievement={achievement}
                 index={index}
                 revealing={revealingIds.has(achievement.id)}
