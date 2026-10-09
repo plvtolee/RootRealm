@@ -12,7 +12,6 @@
 
 import { useMemo, useState } from "react";
 
-import { Button } from "@/components/ui/button";
 import type { AttributeKey } from "@/lib/attributes";
 import { cn } from "@/lib/cn";
 import { Badge } from "@/components/ui/badge";

@@ -256,6 +256,46 @@
 }
 
 /* ---------------------------------------------------------------------------
+   Achievement Reveal Animations (Task 3.4)
+   Restrained, rarity-appropriate reveals for achievement cards.
+   Common: fade only. Rare: subtle scale + fade. Epic/Legendary: scale + fade,
+   longer duration for epic/legendary. No particles/glow, no skill-unlock drama.
+   ------------------------------------------------------------------------ */
+
+@keyframes achievement-reveal-common {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes achievement-reveal-rare {
+  from { opacity: 0; transform: scale(0.97); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+@keyframes achievement-reveal-epic {
+  from { opacity: 0; transform: scale(0.95); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+@keyframes achievement-reveal-legendary {
+  from { opacity: 0; transform: scale(0.95); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+.achievement-reveal-common {
+  animation: achievement-reveal-common var(--motion-base) ease-standard forwards;
+}
+.achievement-reveal-rare {
+  animation: achievement-reveal-rare var(--motion-base) ease-standard forwards;
+}
+.achievement-reveal-epic {
+  animation: achievement-reveal-epic var(--motion-slow) ease-entrance forwards;
+}
+.achievement-reveal-legendary {
+  animation: achievement-reveal-legendary var(--motion-slow) ease-entrance forwards;
+}
+
+/* ---------------------------------------------------------------------------
    Reduced Motion
    - All animated surfaces stop moving
    - Durations collapse to fast (150ms)
@@ -290,6 +330,18 @@
     r: 70 !important;
     stroke-width: 0 !important;
     opacity: 0 !important;
+  }
+
+  /* ---------------------------------------------------------------------------
+     Achievement Reveal (Task 3.4)
+     Restrained, rarity-appropriate reveals for the achievements collection.
+     Common = fade only; Rare = subtle scale; Epic/Legendary = scale + border pulse.
+     Collapses to instant in reduced motion. -no particles/glow, no skill-like drama. */
+  .achievement-reveal-common,
+  .achievement-reveal-rare,
+  .achievement-reveal-epic,
+  .achievement-reveal-legendary {
+    animation: none !important;
   }
 
   :root {

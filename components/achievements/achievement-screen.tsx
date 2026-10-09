@@ -1,8 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useRef } from "react";
 
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { AwardGlyph, CalendarGlyph, ShieldGlyph, SparkleGlyph, StarGlyph } from "@/components/ui/content-glyphs";
 import { ProgressBar } from "@/components/ui/progress-bar";
@@ -33,7 +34,17 @@ const RARITY_STYLE: Record<AchievementRarity, { tone: "neutral" | "accent" | "wa
   legendary: { tone: "warning", icon: StarGlyph },
 };
 
-function AchievementCard({ achievement, index }: { achievement: Achievement; index: number }) {
+function AchievementCard({
+  achievement,
+  index,
+  revealing,
+  onRevealEnd,
+}: {
+  achievement: Achievement;
+  index: number;
+  revealing?: boolean;
+  onRevealEnd?: () => void;
+}) {
   const rarity = RARITY_STYLE[achievement.rarity];
   const AchievementIcon = rarity.icon;
 
@@ -41,7 +52,11 @@ function AchievementCard({ achievement, index }: { achievement: Achievement; ind
     <Card
       as="article"
       padding="md"
-      className="group relative flex min-h-(--achievement-card-min-height) flex-col overflow-hidden transition-colors duration-(--motion-base) ease-standard hover:border-border-strong motion-reduce:transition-none"
+      className={cn(
+        "group relative flex min-h-(--achievement-card-min-height) flex-col overflow-hidden transition-colors duration-(--motion-base) ease-standard hover:border-border-strong motion-reduce:transition-none",
+        revealing && `achievement-reveal-${achievement.rarity}`,
+      )}
+      onAnimationEnd={revealing ? onRevealEnd : undefined}
     >
       <div className="mb-6 flex items-start justify-between gap-3">
         <div
@@ -88,6 +103,9 @@ function AchievementCard({ achievement, index }: { achievement: Achievement; ind
 export function AchievementScreen() {
   const [selectedFilter, setSelectedFilter] = useState<(typeof ACHIEVEMENT_FILTERS)[number]>("All");
   const [sortMode, setSortMode] = useState<SortMode>("Newest");
+  const [revealingIds, setRevealingIds] = useState<ReadonlySet<string>>(new Set());
+  const timersRef = useRef<NodeJS.Timeout[]>([]);
+
   const totalPoints = MOCK_ACHIEVEMENTS.reduce((sum, achievement) => sum + achievement.skillPoints, 0);
   const rarityCounts = useMemo(() => MOCK_ACHIEVEMENTS.reduce<Record<AchievementRarity, number>>((counts, item) => {
     counts[item.rarity] += 1;
@@ -106,6 +124,32 @@ export function AchievementScreen() {
       return sortMode === "Newest" ? -dateOrder : dateOrder;
     });
   }, [selectedFilter, sortMode]);
+
+  function handleDemoReveal() {
+    // Clear any existing timers
+    timersRef.current.forEach((t) => clearTimeout(t));
+    timersRef.current = [];
+
+    // Clear revealing state then start sequential reveal
+    setRevealingIds(new Set());
+    const runReveal = (index: number) => {
+      if (index >= visibleAchievements.length) return;
+      const achievement = visibleAchievements[index];
+      setRevealingIds((prev) => {
+        const next = new Set(prev);
+        next.add(achievement.id);
+        return next;
+      });
+      timersRef.current.push(setTimeout(() => runReveal(index + 1), 350));
+    };
+    runReveal(0);
+  }
+
+  // Cleanup timers on unmount or when visibleAchievements changes
+  useEffect(() => () => {
+    timersRef.current.forEach((t) => clearTimeout(t));
+    timersRef.current = [];
+  }, [visibleAchievements]);
 
   return (
     <div className="flex flex-col gap-8">
@@ -184,6 +228,15 @@ export function AchievementScreen() {
               <option>Newest</option><option>Oldest</option><option>Name</option><option>Rarity</option>
             </select>
           </label>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={handleDemoReveal}
+            disabled={revealingIds.size > 0}
+            className="shrink-0"
+          >
+            Demo Reveal
+          </Button>
         </div>
 
         <div className="flex gap-2 overflow-x-auto pb-1" role="group" aria-label="Filter achievements by rarity">
@@ -209,7 +262,19 @@ export function AchievementScreen() {
 
         {visibleAchievements.length ? (
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            {visibleAchievements.map((achievement, index) => <AchievementCard key={achievement.id} achievement={achievement} index={index} />)}
+            {visibleAchievements.map((achievement, index) => (
+              <AchievementCard
+                key={achievement.id}
+                achievement={achievement}
+                index={index}
+                revealing={revealingIds.has(achievement.id)}
+                onRevealEnd={() => setRevealingIds((prev) => {
+                  const next = new Set(prev);
+                  next.delete(achievement.id);
+                  return next;
+                })}
+              />
+            ))}
           </div>
         ) : (
           <Card padding="lg" className="text-center">
