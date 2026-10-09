@@ -71,8 +71,6 @@ export type SkillTreeCanvasProps = {
   selectedId: string | null;
   activeBranch?: string | null;
   unlockEvent?: UnlockEvent | null;
-  /** Animation duration token for the unlock animation (defaults to --motion-unlock). */
-  unlockDuration?: string;
   onUnlockAnimationEnd?: (revision: number) => void;
   onSelect: (id: string) => void;
 };
@@ -142,13 +140,11 @@ function TreeEdges({
   statusById,
   previewIds,
   unlockEvent,
-  unlockDuration,
 }: {
   nodes: readonly SkillNode[];
   statusById: SkillStatusById;
   previewIds: ReadonlySet<string>;
   unlockEvent: UnlockEvent | null;
-  unlockDuration?: string;
 }) {
   const edges: EdgeSpec[] = [];
   for (const node of nodes) {
@@ -189,7 +185,6 @@ function TreeEdges({
           style={edge.animate && edge.branch ? {
             "--skill-unlock-stroke": `var(--color-branch-${edge.branch})`,
             "--skill-unlock-boost": `drop-shadow(var(--drop-shadow-glow-${edge.branch}))`,
-            ...(unlockDuration ? { "--motion-unlock": unlockDuration } : null),
           } as CSSProperties : undefined}
         />
       ))}
@@ -211,7 +206,6 @@ function NodeShell({
   preview,
   selected,
   animating,
-  unlockDuration,
   onUnlockAnimationEnd,
 }: {
   node: SkillNode;
@@ -220,7 +214,6 @@ function NodeShell({
   preview: boolean;
   selected: boolean;
   animating: boolean;
-  unlockDuration?: string;
   onUnlockAnimationEnd: (event: AnimationEvent<SVGGElement>) => void;
 }) {
   const radius = NODE_RADIUS[node.type];
@@ -245,7 +238,6 @@ function NodeShell({
         ...(animating && node.branch
           ? {
               "--skill-unlock-boost": `drop-shadow(var(--drop-shadow-glow-${node.branch}))`,
-              ...(unlockDuration ? { "--motion-unlock": unlockDuration } : {}),
             }
           : {}),
       } as CSSProperties}
@@ -334,7 +326,6 @@ export function SkillTreeCanvas({
   selectedId,
   activeBranch,
   unlockEvent = null,
-  unlockDuration,
   onUnlockAnimationEnd,
   onSelect,
 }: SkillTreeCanvasProps) {
@@ -442,7 +433,7 @@ export function SkillTreeCanvas({
         aria-label="Skill tree map: six branches growing from the Origin. Use the list below for keyboard navigation."
       >
         <MapBackdrop gridId={gridId} />
-        <TreeEdges nodes={nodes} statusById={statusById} previewIds={preview} unlockEvent={unlockEvent} unlockDuration={unlockDuration} />
+        <TreeEdges nodes={nodes} statusById={statusById} previewIds={preview} unlockEvent={unlockEvent} />
         <TierAxis />
         {nodes.map((node) => (
           <NodeShell
@@ -453,7 +444,6 @@ export function SkillTreeCanvas({
             preview={preview.has(node.id)}
             selected={selectedId === node.id}
             animating={unlockEvent?.nodeId === node.id}
-            unlockDuration={unlockDuration}
             onUnlockAnimationEnd={(event) => {
               if (event.target === event.currentTarget && unlockEvent) {
                 onUnlockAnimationEnd?.(unlockEvent.revision);

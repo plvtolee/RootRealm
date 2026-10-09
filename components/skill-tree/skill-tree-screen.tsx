@@ -44,7 +44,6 @@ export function SkillTreeScreen() {
   const [activeBranch, setActiveBranch] = useState<AttributeKey | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>("map");
   const [unlockEvent, setUnlockEvent] = useState<UnlockEvent | null>(null);
-  const [unlockDuration, setUnlockDuration] = useState<string>("var(--motion-slow)");
 
   const state = useMemo(() => computeSkillTreeState(learnedIds), [learnedIds]);
   const selectedView = selectedId ? (state.nodes.get(selectedId) ?? null) : null;
@@ -117,23 +116,6 @@ export function SkillTreeScreen() {
             </button>
           ))}
         </div>
-
-        {/* Animation speed selector */}
-        <div role="group" aria-label="Choose the unlock animation speed" className="flex flex-wrap items-center gap-2">
-          <Text variant="label" className="uppercase text-text-muted">
-            Animation speed
-          </Text>
-          {(["slow", "medium", "fast"] as const).map((speed) => (
-            <Button
-              key={speed}
-              size="sm"
-              variant={unlockDuration === `var(--motion-${speed})` ? "primary" : "secondary"}
-              onClick={() => setUnlockDuration(`var(--motion-${speed})`)}
-            >
-              {speed.charAt(0).toUpperCase() + speed.slice(1)}
-            </Button>
-          ))}
-        </div>
       </header>
 
       <div className="grid gap-4 lg:grid-cols-[15rem_1fr] xl:grid-cols-[15rem_1fr_22rem]">
@@ -151,7 +133,6 @@ export function SkillTreeScreen() {
               selectedId={selectedId}
               activeBranch={activeBranch}
               unlockEvent={unlockEvent}
-              unlockDuration={unlockDuration}
               onUnlockAnimationEnd={(revision) => {
                 setUnlockEvent((current) => current?.revision === revision ? null : current);
               }}
