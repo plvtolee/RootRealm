@@ -35,7 +35,13 @@ import { Text } from "@/components/ui/text";
 type LookupState =
   | { status: "idle" }
   | { status: "loading" }
-  | { status: "populated"; profile: PreviewProfile; rateLimit: PreviewRateLimit }
+  | {
+      status: "populated";
+      profile: PreviewProfile;
+      observation: PreviewObservation | null;
+      repositoriesMessage: string | null;
+      rateLimit: PreviewRateLimit;
+    }
   | {
       status: "error";
       reason: string;
@@ -71,6 +77,35 @@ interface PreviewRateLimit {
   limit: number | null;
   remaining: number | null;
   resetsAt: number | null;
+}
+
+/**
+ * The subset of `RepositoryRecord` this screen renders, plus the observation
+ * counters. The route returns the full record including `source`; the preview
+ * narrows to the fields it displays so the screen cannot come to depend on a
+ * raw GitHub field.
+ */
+interface PreviewRepository {
+  repositoryId: number;
+  fullName: string;
+  description: string | null;
+  url: string | null;
+  primaryLanguage: string | null;
+  isFork: boolean;
+  isArchived: boolean;
+  isTemplate: boolean;
+  stars: number | null;
+  createdAt: string | null;
+  pushedAt: string | null;
+}
+
+interface PreviewObservation {
+  repositories: PreviewRepository[];
+  count: number;
+  pages: number;
+  truncated: boolean;
+  oldestCreatedAt: string | null;
+  latestActivityAt: string | null;
 }
 
 function rateLimitOf(value: unknown): PreviewRateLimit {
@@ -116,10 +151,26 @@ export function GitHubPreview() {
       };
 
       if (body.profile) {
+        // Repositories are a second request, so a failure there must not discard
+        // the profile that did resolve — the two are reported independently.
+        const repositories = await fetch(
+          `/api/github/repositories?username=${encodeURIComponent(query)}`,
+        );
+        const repositoryBody = (await repositories.json()) as {
+          observation: PreviewObservation | null;
+          failure: { message: string } | null;
+          rateLimit: unknown;
+        };
+
         setState({
           status: "populated",
           profile: body.profile,
-          rateLimit: rateLimitOf(body.rateLimit),
+          observation: repositoryBody.observation,
+          repositoriesMessage: repositoryBody.observation
+            ? null
+            : (repositoryBody.failure?.message ??
+              "The repository lookup failed for an unknown reason."),
+          rateLimit: rateLimitOf(repositoryBody.rateLimit ?? body.rateLimit),
         });
         return;
       }
@@ -170,12 +221,16 @@ export function GitHubPreview() {
         <Text variant="display">GitHub ingestion preview</Text>
 
         <Text variant="body" className="text-text-secondary">
-          Looks up a public GitHub profile through{" "}
+          Looks up a public GitHub profile and repository list through{" "}
           <code className="font-mono text-text-primary">
             /api/github/profile
+          </code>{" "}
+          and{" "}
+          <code className="font-mono text-text-primary">
+            /api/github/repositories
           </code>
-          . It exercises TASKS 4.1 and 4.2 only — nothing is scored, normalised
-          or stored.
+          . It exercises TASKS 4.1–4.3 only — nothing is scored, normalised or
+          stored.
         </Text>
       </header>
 
@@ -205,7 +260,8 @@ export function GitHubPreview() {
           Try <code className="font-mono">octocat</code> for a valid account,{" "}
           <code className="font-mono">octocat-does-not-exist-404</code> for an
           unknown one, and <code className="font-mono">not a login!</code> for a
-          malformed one.
+          malformed one. <code className="font-mono">sindresorhus</code> has over
+          a thousand repositories and will show the truncated badge.
         </Text>
       </Card>
 
@@ -288,6 +344,53 @@ export function GitHubPreview() {
         ) : null}
       </Card>
 
+      {state.status === "populated" ? (
+        <Card className="flex flex-col gap-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <Text variant="label" className="uppercase text-text-muted">
+              Repositories
+            </Text>
+
+            {state.observation ? (
+              <Badge variant="neutral" size="sm">
+                {state.observation.count} found · {state.observation.pages}{" "}
+                {state.observation.pages === 1 ? "page" : "pages"}
+              </Badge>
+            ) : null}
+
+            {/* A capped walk is not a complete one, and saying so is the point
+                of TASK 4.3 — the count must never read as authoritative. */}
+            {state.observation?.truncated ? (
+              <Badge variant="warning" size="sm">
+                truncated
+              </Badge>
+            ) : null}
+          </div>
+
+          {state.repositoriesMessage ? (
+            <Text variant="body" className="text-text-secondary">
+              {state.repositoriesMessage}
+            </Text>
+          ) : null}
+
+          {state.observation ? (
+            <>
+              <Text variant="caption" className="text-text-muted">
+                {state.observation.count === 0
+                  ? "No public repositories."
+                  : `Oldest created ${formatDate(state.observation.oldestCreatedAt)} · last push ${formatDate(state.observation.latestActivityAt)}`}
+              </Text>
+
+              <ul className="flex flex-col divide-y divide-border">
+                {state.observation.repositories.map((repo) => (
+                  <RepositoryRow key={repo.repositoryId} repo={repo} />
+                ))}
+              </ul>
+            </>
+          ) : null}
+        </Card>
+      ) : null}
+
       {state.status === "populated" || state.status === "error" ? (
         <Card variant="secondary" className="flex flex-col gap-2">
           <Text variant="label" className="uppercase text-text-muted">
@@ -327,6 +430,65 @@ function PreviewAvatar({ src }: { src: string }) {
       height={48}
       className="size-(--avatar-size-md) rounded-pill border border-border"
     />
+  );
+}
+
+/**
+ * One repository row.
+ *
+ * Archived, fork and template states are shown rather than hidden: TASKS 4.3
+ * requires them to survive ingestion, so a reviewer has to be able to see that
+ * they did. The chips are `Badge` tones, not product rarity — nothing here is
+ * scored, so nothing here claims a repository is worth anything.
+ */
+function RepositoryRow({ repo }: { repo: PreviewRepository }) {
+  return (
+    <li className="flex flex-col gap-2 py-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <Text variant="subheading">
+          {repo.url ? (
+            <a
+              href={repo.url}
+              className="transition-colors duration-(--motion-fast) ease-standard hover:text-accent motion-reduce:transition-none"
+              rel="noreferrer noopener"
+              target="_blank"
+            >
+              {repo.fullName}
+            </a>
+          ) : (
+            repo.fullName
+          )}
+        </Text>
+
+        {repo.isArchived ? (
+          <Badge variant="warning" size="sm">
+            Archived
+          </Badge>
+        ) : null}
+        {repo.isFork ? (
+          <Badge variant="neutral" size="sm">
+            Fork
+          </Badge>
+        ) : null}
+        {repo.isTemplate ? (
+          <Badge variant="neutral" size="sm">
+            Template
+          </Badge>
+        ) : null}
+      </div>
+
+      {repo.description ? (
+        <Text variant="body" className="text-text-secondary">
+          {repo.description}
+        </Text>
+      ) : null}
+
+      <Text variant="caption" className="text-text-muted">
+        id {repo.repositoryId} · {repo.primaryLanguage ?? "no language"} ·{" "}
+        {formatCount(repo.stars)} stars · created {formatDate(repo.createdAt)} ·
+        last push {formatDate(repo.pushedAt)}
+      </Text>
+    </li>
   );
 }
 

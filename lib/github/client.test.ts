@@ -187,9 +187,11 @@ describe("listRepositories", () => {
       { body: [repo(3, "three")], headers: {} },
     ]);
 
-    const repos = await api.listRepositories("octocat");
+    const result = await api.listRepositories("octocat");
 
-    expect(repos.map((r) => r.id)).toEqual([1, 2, 3]);
+    expect(result.items.map((r) => r.id)).toEqual([1, 2, 3]);
+    expect(result.pages).toBe(2);
+    expect(result.truncated).toBe(false);
     expect(calls[0].url).toContain("sort=created");
     expect(calls[0].url).toContain("direction=asc");
     expect(calls[0].url).toContain("per_page=100");
@@ -205,13 +207,33 @@ describe("listRepositories", () => {
       { body: [repo(2, "two")] },
     ]);
 
-    const repos = await api.listRepositories("octocat");
-    expect(repos.map((r) => r.archived)).toEqual([false, true]);
+    const result = await api.listRepositories("octocat");
+    expect(result.items.map((r) => r.archived)).toEqual([false, true]);
   });
 
   it("returns an empty list for an account with no public repositories", async () => {
     const { client: api } = client([{ body: [] }]);
-    await expect(api.listRepositories("octocat")).resolves.toEqual([]);
+
+    const result = await api.listRepositories("octocat");
+
+    expect(result.items).toEqual([]);
+    expect(result.pages).toBe(1);
+    expect(result.truncated).toBe(false);
+  });
+
+  it("flags a walk stopped by the page cap rather than hiding it", async () => {
+    const alwaysNext = {
+      body: [repo(1, "one")],
+      headers: { link: `<${API}/users/octocat/repos?page=2>; rel="next"` },
+    };
+    const { client: api, calls } = client([alwaysNext, alwaysNext]);
+
+    const result = await api.listRepositories("octocat");
+
+    // 10 pages max, so a broken Link header cannot loop forever.
+    expect(calls).toHaveLength(10);
+    expect(result.pages).toBe(10);
+    expect(result.truncated).toBe(true);
   });
 });
 
@@ -239,16 +261,18 @@ describe("listEvents", () => {
       { body: [event("2")] },
     ]);
 
-    const events = await api.listEvents("octocat");
+    const result = await api.listEvents("octocat");
 
-    expect(events.map((e) => e.id)).toEqual(["1", "2"]);
-    expect(events.every((e) => e.public)).toBe(true);
+    expect(result.items.map((e) => e.id)).toEqual(["1", "2"]);
+    expect(result.items.every((e) => e.public)).toBe(true);
+    expect(result.pages).toBe(2);
+    expect(result.truncated).toBe(false);
     expect(calls[0].url).toBe(`${API}/users/octocat/events?per_page=100`);
   });
 
   it("returns an empty list rather than an error for an idle account", async () => {
     const { client: api } = client([{ body: [] }]);
-    await expect(api.listEvents("octocat")).resolves.toEqual([]);
+    await expect(api.listEvents("octocat")).resolves.toMatchObject({ items: [] });
   });
 
   it("stops paginating when GitHub keeps offering a next page", async () => {
@@ -258,10 +282,11 @@ describe("listEvents", () => {
     };
     const { client: api, calls } = client([alwaysNext, alwaysNext, alwaysNext]);
 
-    await api.listEvents("octocat");
+    const result = await api.listEvents("octocat");
 
     // 10 pages max, so a broken Link header cannot loop forever.
     expect(calls).toHaveLength(10);
+    expect(result.truncated).toBe(true);
   });
 });
 

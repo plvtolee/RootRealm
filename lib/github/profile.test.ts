@@ -2,11 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import { GitHubClient } from "./client";
 import type { GitHubClientOptions } from "./client";
-import {
-  createProfileClient,
-  fetchPublicProfile,
-  type ProfileFailureReason,
-} from "./profile";
+import type { FailureReason } from "./failure";
+import { createProfileClient, fetchPublicProfile } from "./profile";
 
 const NOW = 1_700_000_000_000;
 
@@ -104,7 +101,7 @@ describe("fetchPublicProfile — controlled failures", () => {
   async function failureFor(
     stubs: Stub[],
     username = "octocat",
-  ): Promise<ProfileFailureReason> {
+  ): Promise<FailureReason> {
     const result = await fetchPublicProfile(client(stubs), username);
     if (result.ok) throw new Error("expected a failure");
     return result.failure.reason;

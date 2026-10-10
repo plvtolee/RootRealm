@@ -2,9 +2,9 @@
  * RootRealm — `GET /api/github/profile` (TASKS 4.2).
  *
  * The server boundary for a guest profile lookup. It is deliberately thin: it
- * validates the one input, calls the ingestion service, and translates the
- * result into an HTTP status. It holds no GitHub knowledge — no header parsing,
- * no retrying, no field validation — because all of that belongs to
+ * passes the one input to the ingestion service and translates the result into
+ * an HTTP status. It holds no GitHub knowledge — no header parsing, no
+ * retrying, no field validation — because all of that belongs to
  * `lib/github/client.ts`, and duplicating it here would be the second place to
  * update when GitHub changes.
  *
@@ -12,10 +12,10 @@
  * server environment and never leaves this process; the browser only ever sees
  * the fields in {@link ProfileResponseBody}.
  */
+import { statusForReason, type FailureReason } from "@/lib/github/failure";
 import {
   createProfileClient,
   fetchPublicProfile,
-  type ProfileFailureReason,
   type PublicProfile,
 } from "@/lib/github/profile";
 import type { RateLimitState } from "@/lib/github/rate-limit";
@@ -23,28 +23,10 @@ import type { RateLimitState } from "@/lib/github/rate-limit";
 /** No caching: a lookup is a live read, and the budget is already rate-limited. */
 export const dynamic = "force-dynamic";
 
-/**
- * `ProfileFailureReason` → HTTP status.
- *
- * `invalid_username` is a 400 because the caller sent something malformed;
- * `not_found` is a 404 because the resource genuinely does not exist; the rest
- * are 502/503/429 because the failure is upstream, not in the request. This
- * distinction matters to TASK 8.2: a 404 must be shown as "no such developer",
- * while a 503 must be shown as "try again", and neither may be rendered as an
- * empty profile.
- */
-const STATUS_BY_REASON: Record<ProfileFailureReason, number> = {
-  invalid_username: 400,
-  not_found: 404,
-  rate_limited: 429,
-  unavailable: 503,
-  unexpected_response: 502,
-};
-
 interface ProfileResponseBody {
   profile: PublicProfile | null;
   failure: {
-    reason: ProfileFailureReason;
+    reason: FailureReason;
     message: string;
     retryAfterMs: number | null;
   } | null;
@@ -77,7 +59,6 @@ export async function GET(request: Request): Promise<Response> {
   }
 
   const { reason, message, retryAfterMs } = result.failure;
-  const status = STATUS_BY_REASON[reason];
 
   const body: ProfileResponseBody = {
     profile: null,
@@ -88,7 +69,7 @@ export async function GET(request: Request): Promise<Response> {
   };
 
   return Response.json(body, {
-    status,
+    status: statusForReason(reason),
     // A rate-limited client can tell the browser exactly when to come back,
     // which keeps a retry from consuming the remaining budget.
     headers: retryAfterMs === null

@@ -70,6 +70,23 @@ export interface RequestOptions {
 }
 
 /**
+ * The outcome of a paginated listing.
+ *
+ * `truncated` is the reason this is an object rather than a bare array: the page
+ * cap exists so a misbehaving `Link` header cannot loop forever, but silently
+ * returning a partial list would let ingestion record a repository count as if
+ * it were complete. Every consumer must be able to see that it saw less than
+ * everything. TASKS 4.7 turns this into full coverage reporting.
+ */
+export interface PaginatedResult<T> {
+  items: T[];
+  /** Pages actually fetched. */
+  pages: number;
+  /** GitHub still offered a next page when the cap stopped the walk. */
+  truncated: boolean;
+}
+
+/**
  * Throws when the module is evaluated in a browser bundle. Deliberately a
  * plain `Error`: this is a programming error at import time, not one of the
  * transport failures `kind` describes.
@@ -144,7 +161,7 @@ export class GitHubClient {
   async listRepositories(
     username: string,
     options: RequestOptions = {},
-  ): Promise<GitHubRepository[]> {
+  ): Promise<PaginatedResult<GitHubRepository>> {
     const login = assertValidUsername(username);
     return this.paginate(
       `/users/${encodeURIComponent(login)}/repos`,
@@ -160,13 +177,14 @@ export class GitHubClient {
 
   /**
    * `GET /users/{username}/events` across up to `MAX_PAGES` pages. GitHub caps
-   * this endpoint at 300 events regardless of pagination, so a `full` result
-   * is not guaranteed — coverage tracking (TASKS 4.7) reports what was seen.
+   * this endpoint at 300 events regardless of pagination, so walking every page
+   * does not mean seeing every event — `truncated` reports the page cap, and
+   * coverage tracking (TASKS 4.7) reports the rest.
    */
   async listEvents(
     username: string,
     options: RequestOptions = {},
-  ): Promise<GitHubEvent[]> {
+  ): Promise<PaginatedResult<GitHubEvent>> {
     const login = assertValidUsername(username);
     return this.paginate(
       `/users/${encodeURIComponent(login)}/events`,
@@ -239,16 +257,15 @@ export class GitHubClient {
 
   /**
    * Follows `Link: <…>; rel="next"` until GitHub stops offering one, then
-   * hands every page to `parse`. Pagination stops at `MAX_PAGES` so a
-   * misbehaving `Link` header cannot loop forever; TASKS 4.7 will surface the
-   * truncation.
+   * hands every page to `parse`. The walk stops at `MAX_PAGES` so a misbehaving
+   * `Link` header cannot loop forever, and `truncated` records that it did.
    */
   private async paginate<T>(
     path: string,
     query: Record<string, string | number>,
     parse: (value: unknown, path: string) => T[],
     options: RequestOptions,
-  ): Promise<T[]> {
+  ): Promise<PaginatedResult<T>> {
     const items: T[] = [];
     let next: string | null = this.buildUrl(path, query);
     let pages = 0;
@@ -260,7 +277,7 @@ export class GitHubClient {
       pages += 1;
     }
 
-    return items;
+    return { items, pages, truncated: next !== null };
   }
 
   /** Issues the request with a timeout, mapping transport failures. */
