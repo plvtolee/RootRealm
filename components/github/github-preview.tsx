@@ -189,6 +189,16 @@ function formatCount(value: number | null): string {
 
 export function GitHubPreview() {
   const [username, setUsername] = useState("");
+  /**
+   * Simulates a repeated sync by feeding the fetched activity twice.
+   *
+   * Deduplication is invisible in a normal walk: GitHub does not repeat an event
+   * within a single page sequence, so the cleaner always reports "no
+   * duplicates" — the guarantee holds, but nothing proves it worked rather than
+   * never been invoked. This control makes TASKS 4.6 demonstrable, and is
+   * dev-gated for the same reason the Demo Reveal button is.
+   */
+  const [repeatSync, setRepeatSync] = useState(false);
   const [state, setState] = useState<LookupState>({ status: "idle" });
 
   const lookup = useCallback(async () => {
@@ -354,6 +364,25 @@ export function GitHubPreview() {
             Look up
           </Button>
         </form>
+
+        {/*
+          Dev-only. Deduplication is unobservable on a live walk — GitHub does
+          not repeat an event within one page sequence, so the cleaner always
+          reports "no duplicates" and nothing distinguishes "held" from "never
+          invoked". This simulates the SCORING.md §19 case of a feed being read
+          twice, which is the only way to see TASK 4.6 work.
+        */}
+        {process.env.NODE_ENV !== "production" ? (
+          <label className="flex items-center gap-2 text-label text-text-secondary">
+            <input
+              checked={repeatSync}
+              className="size-(--control-height-sm) accent-[--color-accent]"
+              onChange={(event) => setRepeatSync(event.target.checked)}
+              type="checkbox"
+            />
+            Simulate a repeated sync (feeds every event twice)
+          </label>
+        ) : null}
 
         <Text variant="caption" className="text-text-muted">
           Try <code className="font-mono">octocat</code> for a valid account,{" "}
@@ -573,6 +602,7 @@ export function GitHubPreview() {
               : []
           }
           login={state.profile.login}
+          repeatSync={repeatSync}
         />
       ) : null}
 
@@ -726,17 +756,25 @@ function DeveloperEventsCard({
   activity,
   repositoryIds,
   login,
+  repeatSync,
 }: {
   activity: PreviewActivityObservation;
   repositoryIds: number[];
   login: string;
+  repeatSync: boolean;
 }) {
   // Normalization (TASKS 4.5) and deduplication (TASKS 4.6) are separate stages,
   // so both results are kept: the second consumes the first and only collapses
   // repeated identities.
   const { normalized, deduplicated } = useMemo(() => {
+    // A repeated sync hands the cleaner the same events again, which is exactly
+    // the SCORING.md §19 case: duplicates arriving from re-reading a feed.
+    const records = repeatSync
+      ? [...activity.events, ...activity.events]
+      : activity.events;
+
     const result = normalizeActivity(
-      activity.events as unknown as ActivityRecord[],
+      records as unknown as ActivityRecord[],
       {
         developerLogin: login,
         developerId: null,
@@ -750,7 +788,7 @@ function DeveloperEventsCard({
     // duplicates within a run. The identity is stable TASK 4.5 output, so a
     // repeated sync collapses under the same rule once ids are stored.
     return { normalized: result, deduplicated: dedupeEvents(result.events) };
-  }, [activity.events, repositoryIds, login]);
+  }, [activity.events, repositoryIds, login, repeatSync]);
 
   const limitations = new Map<string, number>();
   for (const event of normalized.events) {
@@ -767,6 +805,18 @@ function DeveloperEventsCard({
         <Text variant="label" className="uppercase text-text-muted">
           Developer events
         </Text>
+
+        {/*
+          Input vs output, shown only when the repeated-sync control is on. A
+          single number cannot show a collapse: "299 canonical" reads the same
+          whether 299 events arrived or 598.
+        */}
+        {repeatSync ? (
+          <Badge variant="neutral" size="sm">
+            {activity.events.length} observed · {normalized.events.length} normalized ·{" "}
+            {deduplicated.events.length} canonical
+          </Badge>
+        ) : null}
 
         <Badge variant="neutral" size="sm">
           {deduplicated.events.length} canonical

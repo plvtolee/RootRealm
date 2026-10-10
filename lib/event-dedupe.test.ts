@@ -292,6 +292,69 @@ describe("dedupeEvents — edge cases", () => {
   });
 });
 
+/**
+ * The integration the preview's "repeated sync" toggle exercises: real
+ * normalization from TASKS 4.5 fed twice, then deduplicated by TASKS 4.6.
+ * Neither module's own tests cover the composition, and this is the only place
+ * the doubling path is verifiable — a live walk never repeats an event.
+ */
+describe("dedupeEvents after normalizeActivity", () => {
+  function activityRecords(count: number) {
+    return Array.from({ length: count }, (_unused, index) => ({
+      eventId: `push-${index}`,
+      type: "PushEvent",
+      relevance: "scored" as const,
+      createdAt: "2026-10-09T05:51:24Z",
+      actorLogin: "octocat",
+      repositoryId: 170_270,
+      repositoryFullName: "octocat/octo-repo",
+      sourceUrl: null,
+      push: null,
+      pullRequest: null,
+      content: null,
+      ref: null,
+      source: { id: `push-${index}`, type: "PushEvent", public: true, createdAt: "2026-10-09T05:51:24Z", actorLogin: "octocat", actorAvatarUrl: null, repoId: 170_270, repoFullName: "octocat/octo-repo", payload: {} },
+    }));
+  }
+
+  it("collapses a feed that was read twice, keeping every event exactly once", async () => {
+    const { normalizeActivity } = await import("./developer-event");
+
+    const once = activityRecords(300);
+    const normalized = normalizeActivity([...once, ...once], {
+      developerLogin: "octocat",
+      developerId: 583_231,
+      confirmedRepositoryIds: new Set([170_270]),
+    });
+
+    const result = dedupeEvents(normalized.events);
+
+    // 600 observations in, one canonical event out per identity. The badge the
+    // toggle drives shows "600 observed · 600 normalized · 300 canonical".
+    expect(normalized.events).toHaveLength(600);
+    expect(result.events).toHaveLength(300);
+    expect(new Set(result.events.map((e) => e.id)).size).toBe(300);
+    expect(result.duplicates).toHaveLength(300);
+    expect(result.duplicates.every((d) => d.count === 2)).toBe(true);
+    expect(result.duplicates.every((d) => !d.conflicting)).toBe(true);
+  });
+
+  it("leaves a single walk untouched", async () => {
+    const { normalizeActivity } = await import("./developer-event");
+
+    const normalized = normalizeActivity(activityRecords(300), {
+      developerLogin: "octocat",
+      developerId: 583_231,
+      confirmedRepositoryIds: new Set([170_270]),
+    });
+
+    const result = dedupeEvents(normalized.events);
+
+    expect(result.events).toHaveLength(300);
+    expect(result.duplicates).toEqual([]);
+  });
+});
+
 describe("idempotency key", () => {
   it("matches the format from SCORING.md §18", () => {
     // xp:user123:event456:scoring-v1
