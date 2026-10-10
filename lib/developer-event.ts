@@ -165,9 +165,20 @@ export interface IssueEvidence {
   title: string | null;
   state: string | null;
   /**
+   * The event action: `opened`, `closed`, `labeled`, `assigned`, `reopened`.
+   *
+   * Needed in addition to `state` because an issue event fires for labelling,
+   * assigning and commenting too, and a long-closed issue can be labelled later.
+   * `state` says the issue *is* closed; `action` says *this event* is the
+   * closure. TASKS 5.5 must award the latter, and without this field it could
+   * only see the former.
+   */
+  action: string | null;
+  /**
    * Whether the developer opened the issue rather than acting on someone else's.
    * `null` when GitHub omitted the author. An issue event fires for anyone who
-   * labels, closes or comments, so this is the distinction TASKS 5.5 needs.
+   * labels, closes or comments, so this is the distinction TASKS 5.5 needs to
+   * separate a self-fix from triage.
    */
   authored: boolean | null;
 }
@@ -176,6 +187,13 @@ export interface IssueEvidence {
 export interface ReleaseEvidence {
   tag: string | null;
   name: string | null;
+  /**
+   * The event action: `published`, `created`, `edited`, `deleted`, `prereleased`.
+   *
+   * A release event fires for edits and deletions too, and §11 rewards a
+   * *release*, not a revision of one — so TASKS 5.6 needs to tell them apart.
+   */
+  action: string | null;
   draft: boolean | null;
   prerelease: boolean | null;
 }
@@ -483,6 +501,7 @@ function toDeveloperEvent(
         number: record.content?.number ?? null,
         title: record.content?.title ?? null,
         state: record.content?.state ?? null,
+        action: record.content?.action ?? null,
         authored: record.content?.authoredByActor ?? null,
       };
 
@@ -498,6 +517,7 @@ function toDeveloperEvent(
         evidence: {
           tag: record.content?.releaseTag ?? null,
           name: record.content?.title ?? null,
+          action: record.content?.action ?? null,
           draft: record.content?.isDraft ?? null,
           prerelease: record.content?.isPrerelease ?? null,
         },

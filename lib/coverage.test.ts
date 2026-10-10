@@ -167,6 +167,7 @@ function consistentReport(over: {
           evidence: {
             tag: "v1",
             name: "One",
+            action: "published",
             draft: false,
             prerelease: false,
           },
