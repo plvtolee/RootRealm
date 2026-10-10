@@ -18,10 +18,8 @@ import { statusForReason, type FailureReason } from "@/lib/github/failure";
 import { createProfileClient } from "@/lib/github/profile";
 import { fetchRepositories } from "@/lib/github/repositories";
 import type { RateLimitState } from "@/lib/github/rate-limit";
-import {
-  normalizeActivity,
-  type NormalizationResult,
-} from "@/lib/developer-event";
+import { normalizeActivity, type NormalizationResult } from "@/lib/developer-event";
+import { dedupeEvents, idempotencyKeyFor } from "@/lib/event-dedupe";
 
 /** No caching: a lookup is a live read, and the budget is already rate-limited. */
 export const dynamic = "force-dynamic";
@@ -32,6 +30,13 @@ interface DeveloperEventResponseBody {
   byConfidence: NormalizationResult["byConfidence"];
   /** Inputs deliberately not converted, with counts — so the loss is auditable. */
   unsupported: NormalizationResult["unsupported"];
+  /** Idempotency keys for the deduplicated events (SCORING.md §18). */
+  idempotencyKeys: string[];
+  duplicates: {
+    id: string;
+    count: number;
+    conflicting: boolean;
+  }[];
   failure: {
     reason: FailureReason;
     message: string;
@@ -83,11 +88,24 @@ export async function GET(request: Request): Promise<Response> {
     ),
   });
 
+  // Deduplicate before anything downstream can see the stream (TASKS 4.6). No
+  // `alreadySeen` set exists yet — persistence is TASKS 10.x — so this collapses
+  // duplicates *within* a run. A repeated sync collapses under the same rule once
+  // ids are stored, because the identity is stable TASK 4.5 output.
+  const deduplicated = dedupeEvents(normalized.events);
+
   const body: DeveloperEventResponseBody = {
-    events: normalized.events,
+    events: deduplicated.events,
     byKind: normalized.byKind,
-    byConfidence: normalized.byConfidence,
+    byConfidence: {
+      verified: deduplicated.events.filter((e) => e.confidence === "verified").length,
+      inferred: deduplicated.events.filter((e) => e.confidence === "inferred").length,
+    },
     unsupported: normalized.unsupported,
+    idempotencyKeys: deduplicated.events.map((event) =>
+      idempotencyKeyFor(event, SCORING_VERSION),
+    ),
+    duplicates: deduplicated.duplicates,
     failure: null,
     // Activity is fetched last-walked, so its rate-limit state is the newest.
     rateLimit: activity.rateLimit,
@@ -95,6 +113,16 @@ export async function GET(request: Request): Promise<Response> {
 
   return Response.json(body, { status: 200 });
 }
+
+/**
+ * The scoring version every idempotency key is scoped to.
+ *
+ * SCORING.md §18 requires a version in the key so that a scoring change can
+ * award an event again without the award looking like a duplicate. It is a
+ * placeholder until TASKS 5.11 wires the real version, and is deliberately
+ * named here rather than inlined in the key format.
+ */
+const SCORING_VERSION = "scoring-v1";
 
 /** Shared failure response, mirroring the other routes. */
 function failureBody(
@@ -114,6 +142,8 @@ function failureBody(
     },
     byConfidence: { verified: 0, inferred: 0 },
     unsupported: [],
+    idempotencyKeys: [],
+    duplicates: [],
     // `detail` is intentionally dropped: it carries GitHub's raw wording and is
     // for server logs, not for the browser.
     failure: {

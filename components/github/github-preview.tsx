@@ -10,6 +10,7 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Text } from "@/components/ui/text";
 import { normalizeActivity } from "@/lib/developer-event";
+import { dedupeEvents } from "@/lib/event-dedupe";
 import type { ActivityRecord } from "@/lib/github/activity";
 
 /**
@@ -730,17 +731,26 @@ function DeveloperEventsCard({
   repositoryIds: number[];
   login: string;
 }) {
-  const normalized = useMemo(
-    () =>
-      normalizeActivity(activity.events as unknown as ActivityRecord[], {
+  // Normalization (TASKS 4.5) and deduplication (TASKS 4.6) are separate stages,
+  // so both results are kept: the second consumes the first and only collapses
+  // repeated identities.
+  const { normalized, deduplicated } = useMemo(() => {
+    const result = normalizeActivity(
+      activity.events as unknown as ActivityRecord[],
+      {
         developerLogin: login,
         developerId: null,
         // The repository inventory may itself be truncated, in which case an
         // absent repository is an incomplete check rather than a failed one.
         confirmedRepositoryIds: new Set(repositoryIds),
-      }),
-    [activity.events, repositoryIds, login],
-  );
+      },
+    );
+
+    // No `alreadySeen` set yet — persistence is TASKS 10.x — so this collapses
+    // duplicates within a run. The identity is stable TASK 4.5 output, so a
+    // repeated sync collapses under the same rule once ids are stored.
+    return { normalized: result, deduplicated: dedupeEvents(result.events) };
+  }, [activity.events, repositoryIds, login]);
 
   const limitations = new Map<string, number>();
   for (const event of normalized.events) {
@@ -759,8 +769,24 @@ function DeveloperEventsCard({
         </Text>
 
         <Badge variant="neutral" size="sm">
-          {normalized.events.length} canonical
+          {deduplicated.events.length} canonical
         </Badge>
+
+        {/*
+          A repeated observation is not a second award. This badge is zero on a
+          normal walk — its job is to be visibly zero, proving the TASK 4.6
+          guarantee holds rather than assuming it.
+        */}
+        {deduplicated.duplicates.length > 0 ? (
+          <Badge variant="warning" size="sm">
+            {deduplicated.duplicates.length} duplicate
+            {deduplicated.duplicates.length === 1 ? "" : "s"} collapsed
+          </Badge>
+        ) : (
+          <Badge variant="success" size="sm">
+            no duplicates
+          </Badge>
+        )}
 
         <Badge variant="neutral" size="sm">
           {normalized.byConfidence.verified} verified
