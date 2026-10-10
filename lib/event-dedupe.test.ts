@@ -313,6 +313,7 @@ describe("dedupeEvents after normalizeActivity", () => {
       pullRequest: null,
       content: null,
       ref: null,
+      documentation: null,
       source: { id: `push-${index}`, type: "PushEvent", public: true, createdAt: "2026-10-09T05:51:24Z", actorLogin: "octocat", actorAvatarUrl: null, repoId: 170_270, repoFullName: "octocat/octo-repo", payload: {} },
     }));
   }

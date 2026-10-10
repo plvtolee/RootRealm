@@ -161,6 +161,29 @@ export interface RefDetail {
 }
 
 /**
+ * A wiki change (`GollumEvent`).
+ *
+ * The payload's `pages` array is the only real evidence a `GollumEvent` carries,
+ * and TASKS 4.4 originally extracted none of it — the canonical event ended up
+ * with nothing but a kind, which left TASKS 5.7 unable to apply §12's rule that
+ * documentation be "meaningful qualifying work rather than simply any textual
+ * change".
+ *
+ * `pagesCreated` is separated from `pagesChanged` because §12's warning is about
+ * scale: creating a page is authoring documentation, while editing one may be a
+ * typo fix. The payload reports no change size, so the two are the only
+ * distinction available.
+ */
+export interface DocumentationDetail {
+  /** Pages affected by this event. */
+  pagesChanged: number;
+  /** Pages newly created, as opposed to edited. */
+  pagesCreated: number;
+  /** First page name, for the ledger's explanation. */
+  page: string | null;
+}
+
+/**
  * What we can actually read from a push event.
  *
  * `commits` is deliberately absent from the type. It is not optional — it does
@@ -248,6 +271,7 @@ export interface ActivityRecord {
   pullRequest: PullRequestDetail | null;
   content: ContentDetail | null;
   ref: RefDetail | null;
+  documentation: DocumentationDetail | null;
   /** The exact payload GitHub returned. */
   source: GitHubEvent;
 }
@@ -514,6 +538,36 @@ function extractRelease(
 /* Normalisation                                                               */
 /* -------------------------------------------------------------------------- */
 
+/**
+ * Reads a `GollumEvent`'s `pages` array.
+ *
+ * The payload is `{ pages: [{ page_name, title, summary, action, sha, html_url }] }`
+ * and `action` is `created` or `edited`. Nothing here throws: a page with an
+ * unexpected shape still counts as changed, because GitHub did report a change.
+ */
+function extractDocumentation(
+  payload: Record<string, unknown>,
+  omitted: Omitted,
+): DocumentationDetail {
+  const pages = Array.isArray(payload.pages) ? payload.pages : null;
+
+  if (pages === null) {
+    note(omitted, "GollumEvent", "pages", false);
+    return { pagesChanged: 0, pagesCreated: 0, page: null };
+  }
+
+  let pagesCreated = 0;
+  let page: string | null = null;
+
+  for (const entry of pages) {
+    const shape = asShape(entry);
+    if (page === null) page = readStr(shape, "page_name");
+    if (readStr(shape, "action")?.toLowerCase() === "created") pagesCreated += 1;
+  }
+
+  return { pagesChanged: pages.length, pagesCreated, page };
+}
+
 /** Normalises one event, recording which expected fields GitHub omitted. */
 function toRecord(event: GitHubEvent, omitted: Omitted): ActivityRecord {
   const payload = event.payload;
@@ -524,6 +578,7 @@ function toRecord(event: GitHubEvent, omitted: Omitted): ActivityRecord {
   let pullRequest: PullRequestDetail | null = null;
   let content: ContentDetail | null = null;
   let ref: RefDetail | null = null;
+  let documentation: DocumentationDetail | null = null;
   let sourceUrl: string | null = null;
 
   if (type === "PushEvent") {
@@ -553,6 +608,8 @@ function toRecord(event: GitHubEvent, omitted: Omitted): ActivityRecord {
 
     sourceUrl = content.htmlUrl
       ?? evidenceUrl(repository, "releases", content.releaseTag);
+  } else if (type === "GollumEvent") {
+    documentation = extractDocumentation(payload, omitted);
   } else if (type === "CreateEvent" || type === "DeleteEvent") {
     ref = { refType: readStr(payload, "ref_type"), ref: readStr(payload, "ref") };
 
@@ -572,6 +629,7 @@ function toRecord(event: GitHubEvent, omitted: Omitted): ActivityRecord {
     pullRequest,
     content,
     ref,
+    documentation,
     source: event,
   };
 }

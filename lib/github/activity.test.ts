@@ -334,6 +334,96 @@ describe("fetchActivity — partial responses", () => {
   });
 });
 
+describe("fetchActivity — wiki changes (GollumEvent)", () => {
+  /**
+   * The payload shape documented for `GollumEvent`: a `pages` array, each entry
+   * carrying `page_name`, `title`, `summary`, `action`, `sha` and `html_url`.
+   */
+  const gollum = (pages: unknown[]) => ({
+    id: "wiki-1",
+    type: "GollumEvent",
+    public: true,
+    created_at: "2026-10-07T08:00:00Z",
+    actor: { login: "octocat", avatar_url: null },
+    repo: { id: 170_270, name: "octocat/octo-repo" },
+    payload: { pages },
+  });
+
+  const page = (action: string, name = "Home") => ({
+    page_name: name,
+    title: name,
+    summary: null,
+    action,
+    sha: "abc123",
+    html_url: `https://github.com/octocat/octo-repo/wiki/${name}`,
+  });
+
+  it("reads the pages array rather than discarding it", async () => {
+    const observation = await observationOf([
+      { body: [gollum([page("created")])] },
+    ]);
+
+    // TASKS 4.4 originally extracted nothing here, leaving TASKS 5.7 unable to
+    // apply §12's rule at all.
+    expect(observation.events[0].documentation).toEqual({
+      pagesChanged: 1,
+      pagesCreated: 1,
+      page: "Home",
+    });
+  });
+
+  it("separates creations from edits, which is all §12 can qualify on", async () => {
+    const observation = await observationOf([
+      { body: [gollum([page("edited", "A"), page("created", "B"), page("edited", "C")])] },
+    ]);
+
+    expect(observation.events[0].documentation).toEqual({
+      pagesChanged: 3,
+      pagesCreated: 1,
+      page: "A",
+    });
+  });
+
+  it("counts a multi-page creation event", async () => {
+    const observation = await observationOf([
+      { body: [gollum([page("created", "A"), page("created", "B")])] },
+    ]);
+
+    expect(observation.events[0].documentation?.pagesCreated).toBe(2);
+  });
+
+  it("records a missing pages array rather than throwing", async () => {
+    const observation = await observationOf([
+      { body: [{ ...gollum([]), payload: {} }] },
+    ]);
+
+    expect(observation.events[0].documentation).toEqual({
+      pagesChanged: 0,
+      pagesCreated: 0,
+      page: null,
+    });
+  });
+
+  it("tolerates a page of an unexpected shape", async () => {
+    // GitHub did report a change, so it still counts as one.
+    const observation = await observationOf([
+      { body: [gollum(["not an object"])] },
+    ]);
+
+    expect(observation.events[0].documentation).toEqual({
+      pagesChanged: 1,
+      pagesCreated: 0,
+      page: null,
+    });
+  });
+
+  it("leaves documentation null for events that are not wiki changes", async () => {
+    const observation = await observationOf([{ body: [pushEvent()] }]);
+
+    expect(observation.events[0].documentation).toBeNull();
+  });
+});
+
 describe("fetchActivity — identifiers and evidence", () => {
   it("keys each record on GitHub's own event id", async () => {
     const observation = await observationOf([{ body: [pushEvent(), forkEvent()] }]);

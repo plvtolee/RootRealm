@@ -207,9 +207,21 @@ export interface ReleaseEvidence {
   prerelease: boolean | null;
 }
 
-/** Evidence for a wiki edit. GitHub's `GollumEvent` payload is nearly empty. */
+/**
+ * Evidence for a wiki edit.
+ *
+ * A `GollumEvent` reports which pages it touched and whether each was created or
+ * edited, and nothing else — no change size, no diff. §12 requires documentation
+ * be "meaningful qualifying work rather than simply any textual change", and with
+ * no scale available, page creation is the only distinction the payload offers,
+ * which is why the two counts are kept apart.
+ */
 export interface DocumentationEvidence {
-  /** Wiki page name, when GitHub supplied one. */
+  /** Pages affected by this event. */
+  pagesChanged: number;
+  /** Pages newly created, as opposed to edited. */
+  pagesCreated: number;
+  /** First page name, so an explanation can name what changed. */
   page: string | null;
 }
 
@@ -539,7 +551,11 @@ function toDeveloperEvent(
       return {
         ...base,
         kind,
-        evidence: { page: null },
+        evidence: {
+          pagesChanged: record.documentation?.pagesChanged ?? 0,
+          pagesCreated: record.documentation?.pagesCreated ?? 0,
+          page: record.documentation?.page ?? null,
+        },
         limitations,
       };
     }
