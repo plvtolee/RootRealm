@@ -128,43 +128,6 @@ function input(over: Partial<CoverageInput> = {}): CoverageInput {
  * The stages are only meaningful together, so a test that overrides one can
  * override from this base rather than guessing what the others should be.
  */
-function consistentInput(over: Partial<CoverageInput> = {}): CoverageInput {
-  const observed = over.activity?.count ?? 300;
-  const unsupported = over.normalized?.unsupported?.length ?? 1;
-  const canonical = observed - unsupported;
-
-  return input({
-    activity: activity({
-      count: observed,
-      byType: { PushEvent: canonical },
-      byRelevance: { scored: canonical, weak: 0, ignored: 0 },
-    }),
-    normalized: normalized({
-      events: eventsWithLimitations("commit_count_unavailable", canonical),
-      unsupported: [{ type: "ForkEvent", count: 1, relevance: "ignored" }],
-      byKind: { ...KINDS, push: canonical },
-      byConfidence: { verified: canonical, inferred: 0 },
-    }),
-    deduplicated: deduplicated({
-      events: eventsWithLimitations("commit_count_unavailable", canonical),
-    }),
-    ...over,
-  });
-}
-
-/**
- * A report built on an internally consistent run.
- *
- * Takes the knobs a test actually wants to turn rather than whole stage
- * objects, because the three stages are only meaningful together — overriding
- * one silently desynchronizes the other two, which is how a coverage test
- * comes to assert a contradiction.
- *
- * `limitation` defaults to the commit-list gap, because that is what every real
- * walk produces. Pass `null` for limitation-free events — note that is only
- * achievable with event kinds that carry no known gap, such as releases, since a
- * push always lacks a commit list.
- */
 function consistentReport(over: {
   observedEvents?: number;
   unsupported?: number;

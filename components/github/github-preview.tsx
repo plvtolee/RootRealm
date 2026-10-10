@@ -10,6 +10,11 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Text } from "@/components/ui/text";
 import { buildCoverage, type CoverageReport } from "@/lib/coverage";
+import {
+  errorStateFor,
+  formatRetryDelay,
+  noticesFor,
+} from "@/lib/github/error-states";
 import { normalizeActivity } from "@/lib/developer-event";
 import { dedupeEvents } from "@/lib/event-dedupe";
 import type { ActivityRecord } from "@/lib/github/activity";
@@ -415,16 +420,10 @@ export function GitHubPreview() {
         ) : null}
 
         {state.status === "error" ? (
-          <div className="flex flex-col gap-2">
-            <Badge variant="danger">{state.reason}</Badge>
-            <Text variant="body">{state.message}</Text>
-            {state.retryAfterMs !== null ? (
-              <Text variant="caption" className="text-text-muted">
-                GitHub asked us to wait {Math.ceil(state.retryAfterMs / 1000)}s
-                before retrying.
-              </Text>
-            ) : null}
-          </div>
+          <LookupError
+            reason={state.reason}
+            retryAfterMs={state.retryAfterMs}
+          />
         ) : null}
 
         {state.status === "populated" ? (
@@ -658,6 +657,60 @@ export function GitHubPreview() {
  * previews the URL it was given. Product avatar rendering belongs to `Avatar`
  * (TASKS 2.1), which will configure a remote loader there.
  */
+/**
+ * A lookup failure, rendered from the shared error states (TASKS 4.8).
+ *
+ * The copy lives in `lib/github/error-states.ts` rather than here so that no two
+ * screens can describe the same reason differently. This component only decides
+ * tone and layout.
+ */
+function LookupError({
+  reason,
+  retryAfterMs,
+}: {
+  reason: string;
+  retryAfterMs: number | null;
+}) {
+  const state = errorStateFor(
+    reason as Parameters<typeof errorStateFor>[0],
+    retryAfterMs,
+  );
+  const delay = formatRetryDelay(retryAfterMs);
+
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex flex-wrap items-center gap-2">
+        <Badge variant="danger">{state.reason}</Badge>
+        {state.retryable ? (
+          <Badge variant="neutral" size="sm">
+            retryable
+          </Badge>
+        ) : null}
+      </div>
+
+      <Text variant="subheading">{state.title}</Text>
+      <Text variant="body" className="text-text-secondary">
+        {state.message}
+      </Text>
+
+      {state.nextAction ? (
+        <Text variant="caption" className="text-text-muted">
+          {state.nextAction}
+        </Text>
+      ) : null}
+
+      {delay ? (
+        <Text variant="caption" className="text-text-muted">
+          GitHub asked us to wait {delay} before retrying
+          {state.retryAfterMs !== null && state.retryAfterMs > 120_000
+            ? " — the budget resets between whole hours, not per user."
+            : "."}
+        </Text>
+      ) : null}
+    </div>
+  );
+}
+
 function PreviewAvatar({ src }: { src: string }) {
   return (
     // eslint-disable-next-line @next/next/no-img-element
@@ -984,6 +1037,11 @@ function DeveloperEventsCard({
  * exhaustive.
  */
 function CoverageCard({ coverage }: { coverage: CoverageReport }) {
+  // TASKS 4.8. Two of the seven handled states are not failures at all — empty
+  // activity and partial pagination — so they surface here as notices rather than
+  // in the error card.
+  const notices = noticesFor(coverage);
+
   return (
     <Card className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center gap-2">
@@ -994,6 +1052,12 @@ function CoverageCard({ coverage }: { coverage: CoverageReport }) {
         <Badge variant={coverage.complete ? "success" : "warning"} size="sm">
           {coverage.complete ? "complete" : "bounded"}
         </Badge>
+
+        {notices.map((notice) => (
+          <Badge key={notice.kind} variant="warning" size="sm">
+            {notice.kind.replace(/_/g, " ")}
+          </Badge>
+        ))}
 
         {coverage.repositories.shortfall !== null ? (
           <Badge variant="warning" size="sm">
@@ -1038,6 +1102,28 @@ function CoverageCard({ coverage }: { coverage: CoverageReport }) {
                 </Text>
                 <Text variant="caption" className="text-text-secondary">
                   {limitation.implication}
+                </Text>
+              </li>
+            ))}
+          </ul>
+        </>
+      ) : null}
+
+      {notices.length > 0 ? (
+        <>
+          <Text variant="label" className="uppercase text-text-muted">
+            Not a failure, but worth knowing
+          </Text>
+
+          <ul className="flex flex-col gap-2">
+            {notices.map((notice) => (
+              <li key={notice.kind} className="flex flex-col gap-1">
+                <Text variant="caption" className="text-text-muted">
+                  {notice.count === null ? null : `${notice.count} · `}
+                  {notice.title}
+                </Text>
+                <Text variant="body" className="text-text-secondary">
+                  {notice.message}
                 </Text>
               </li>
             ))}
