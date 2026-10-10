@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Text } from "@/components/ui/text";
+import { buildCoverage, type CoverageReport } from "@/lib/coverage";
 import { normalizeActivity } from "@/lib/developer-event";
 import { dedupeEvents } from "@/lib/event-dedupe";
 import type { ActivityRecord } from "@/lib/github/activity";
@@ -160,6 +161,7 @@ interface PreviewActivityObservation {
   atCeiling: boolean;
   oldestAt: string | null;
   newestAt: string | null;
+  byType: Record<string, number>;
   byRelevance: Record<string, number>;
   partial: {
     pushesWithoutCommitList: number;
@@ -603,6 +605,27 @@ export function GitHubPreview() {
           }
           login={state.profile.login}
           repeatSync={repeatSync}
+          repositoryCount={state.profile.publicRepos ?? 0}
+          repositoryPages={
+            state.repositories.status === "ok"
+              ? state.repositories.value.pages
+              : 0
+          }
+          repositoryTruncated={
+            state.repositories.status === "ok" &&
+            state.repositories.value.truncated
+          }
+          declaredRepositoryCount={state.profile.publicRepos ?? null}
+          oldestCreatedAt={
+            state.repositories.status === "ok"
+              ? state.repositories.value.oldestCreatedAt
+              : null
+          }
+          latestActivityAt={
+            state.repositories.status === "ok"
+              ? state.repositories.value.latestActivityAt
+              : null
+          }
         />
       ) : null}
 
@@ -757,11 +780,23 @@ function DeveloperEventsCard({
   repositoryIds,
   login,
   repeatSync,
+  repositoryCount,
+  repositoryPages,
+  repositoryTruncated,
+  declaredRepositoryCount,
+  oldestCreatedAt,
+  latestActivityAt,
 }: {
   activity: PreviewActivityObservation;
   repositoryIds: number[];
   login: string;
   repeatSync: boolean;
+  repositoryCount: number;
+  repositoryPages: number;
+  repositoryTruncated: boolean;
+  declaredRepositoryCount: number | null;
+  oldestCreatedAt: string | null;
+  latestActivityAt: string | null;
 }) {
   // Normalization (TASKS 4.5) and deduplication (TASKS 4.6) are separate stages,
   // so both results are kept: the second consumes the first and only collapses
@@ -798,6 +833,38 @@ function DeveloperEventsCard({
   }
 
   const kinds = Object.entries(normalized.byKind).filter(([, count]) => count > 0);
+
+  // TASKS 4.7. Built from the same three stages the card already computed plus
+  // the profile's own repository count, which is the only number that can
+  // contradict the walk — a walk capped at 1000 is otherwise indistinguishable
+  // from an account with exactly 1000.
+  const coverage = buildCoverage({
+    login,
+    githubId: null,
+    declaredRepositoryCount: declaredRepositoryCount,
+    repositories: {
+      repositories: [],
+      count: repositoryCount,
+      pages: repositoryPages,
+      truncated: repositoryTruncated,
+      oldestCreatedAt,
+      latestActivityAt,
+    },
+    activity: {
+      events: [],
+      count: activity.count,
+      pages: activity.pages,
+      truncated: activity.truncated,
+      atCeiling: activity.atCeiling,
+      oldestAt: activity.oldestAt,
+      newestAt: activity.newestAt,
+      byType: activity.byType,
+      byRelevance: activity.byRelevance,
+      partial: { omittedFields: {}, ...activity.partial },
+    },
+    normalized,
+    deduplicated,
+  });
 
   return (
     <Card className="flex flex-col gap-4">
@@ -898,6 +965,82 @@ function DeveloperEventsCard({
                   </Text>
                 </li>
               ))}
+          </ul>
+        </>
+      ) : null}
+    </Card>
+  );
+
+  return <CoverageCard coverage={coverage} />;
+}
+
+/**
+ * The TASKS 4.7 coverage report.
+ *
+ * The four things the task asks to track — repository count, event count, time
+ * range, pagination completeness — plus the reconciliation and limitations that
+ * make them usable. `complete` is the one field worth reading first: it is the
+ * only thing that tells a consumer whether these counts may be treated as
+ * exhaustive.
+ */
+function CoverageCard({ coverage }: { coverage: CoverageReport }) {
+  return (
+    <Card className="flex flex-col gap-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <Text variant="label" className="uppercase text-text-muted">
+          Coverage
+        </Text>
+
+        <Badge variant={coverage.complete ? "success" : "warning"} size="sm">
+          {coverage.complete ? "complete" : "bounded"}
+        </Badge>
+
+        {coverage.repositories.shortfall !== null ? (
+          <Badge variant="warning" size="sm">
+            {coverage.repositories.observed} of{" "}
+            {coverage.repositories.declared} repositories ·{" "}
+            {coverage.repositories.shortfall} unseen
+          </Badge>
+        ) : null}
+
+        <Badge variant="neutral" size="sm">
+          {coverage.activity.observed} events
+        </Badge>
+      </div>
+
+      <Text variant="caption" className="text-text-muted">
+        Repositories stopped by <code className="font-mono">{coverage.repositories.pagination.stoppedBy}</code>{" "}
+        over {coverage.repositories.pagination.pages} pages · activity stopped by{" "}
+        <code className="font-mono">{coverage.activity.pagination.stoppedBy}</code>{" "}
+        over {coverage.activity.pagination.pages} pages
+      </Text>
+
+      <Text variant="caption" className="text-text-muted">
+        Observed {formatDate(coverage.activity.eventWindow.oldest)} –{" "}
+        {formatDate(coverage.activity.eventWindow.newest)} · reconciled{" "}
+        {coverage.reconciliation.observed} observed ={" "}
+        {coverage.reconciliation.normalized} normalized +{" "}
+        {coverage.reconciliation.unsupported} unconverted
+        {coverage.reconciliation.balanced ? "" : " — UNBALANCED"}
+      </Text>
+
+      {coverage.limitations.length > 0 ? (
+        <>
+          <Text variant="label" className="uppercase text-text-muted">
+            What this run cannot support
+          </Text>
+
+          <ul className="flex flex-col gap-1">
+            {coverage.limitations.map((limitation) => (
+              <li key={limitation.code}>
+                <Text variant="caption" className="text-text-muted">
+                  {limitation.count} × <code className="font-mono">{limitation.code}</code>
+                </Text>
+                <Text variant="caption" className="text-text-secondary">
+                  {limitation.implication}
+                </Text>
+              </li>
+            ))}
           </ul>
         </>
       ) : null}

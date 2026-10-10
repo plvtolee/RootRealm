@@ -15,9 +15,10 @@
  */
 import { fetchActivity } from "@/lib/github/activity";
 import { statusForReason, type FailureReason } from "@/lib/github/failure";
-import { createProfileClient } from "@/lib/github/profile";
+import { createProfileClient, fetchPublicProfile } from "@/lib/github/profile";
 import { fetchRepositories } from "@/lib/github/repositories";
 import type { RateLimitState } from "@/lib/github/rate-limit";
+import { buildCoverage, type CoverageReport } from "@/lib/coverage";
 import { normalizeActivity, type NormalizationResult } from "@/lib/developer-event";
 import { dedupeEvents, idempotencyKeyFor } from "@/lib/event-dedupe";
 
@@ -37,6 +38,8 @@ interface DeveloperEventResponseBody {
     count: number;
     conflicting: boolean;
   }[];
+  /** What the run established and what it did not (TASKS 4.7). */
+  coverage: CoverageReport | null;
   failure: {
     reason: FailureReason;
     message: string;
@@ -62,7 +65,8 @@ export async function GET(request: Request): Promise<Response> {
   const client = createProfileClient();
   const signal = request.signal;
 
-  const [repositories, activity] = await Promise.all([
+  const [profile, repositories, activity] = await Promise.all([
+    fetchPublicProfile(client, username, { signal }),
     fetchRepositories(client, username, { signal }),
     fetchActivity(client, username, { signal }),
   ]);
@@ -94,6 +98,22 @@ export async function GET(request: Request): Promise<Response> {
   // ids are stored, because the identity is stable TASK 4.5 output.
   const deduplicated = dedupeEvents(normalized.events);
 
+  // TASKS 4.7. The profile is fetched for `public_repos`, which is the only
+  // number that can contradict the repository walk — a walk that stopped at 1000
+  // pages or GitHub's ceiling looks identical to an account with exactly that
+  // many repositories until it is compared against the count GitHub reports.
+  const coverage: CoverageReport = buildCoverage({
+    login: username,
+    githubId: profile.ok ? profile.profile.githubId : null,
+    declaredRepositoryCount: profile.ok
+      ? profile.profile.publicRepos
+      : null,
+    repositories: repositories.observation,
+    activity: activity.observation,
+    normalized,
+    deduplicated,
+  });
+
   const body: DeveloperEventResponseBody = {
     events: deduplicated.events,
     byKind: normalized.byKind,
@@ -106,6 +126,7 @@ export async function GET(request: Request): Promise<Response> {
       idempotencyKeyFor(event, SCORING_VERSION),
     ),
     duplicates: deduplicated.duplicates,
+    coverage,
     failure: null,
     // Activity is fetched last-walked, so its rate-limit state is the newest.
     rateLimit: activity.rateLimit,
@@ -144,6 +165,7 @@ function failureBody(
     unsupported: [],
     idempotencyKeys: [],
     duplicates: [],
+    coverage: null,
     // `detail` is intentionally dropped: it carries GitHub's raw wording and is
     // for server logs, not for the browser.
     failure: {
