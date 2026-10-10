@@ -37,6 +37,7 @@
  * page would reward a bulk rename as though it were several documents.
  */
 import type { DeveloperEvent } from "../../developer-event";
+import { attributeUnitsFor } from "../attributes";
 import { attributable, award, reject, type ScoringRule } from "../rule";
 import type { ScoreResult, ScoringVersion } from "../types";
 
@@ -97,8 +98,9 @@ export const documentationRule: ScoringRule = {
         evidence.pagesCreated === 1
           ? "Created a wiki page"
           : `Created ${evidence.pagesCreated} wiki pages`,
-      // §12: "Documentation may contribute primarily to: Scholar".
-      attributes: [{ attribute: "scholar", amount: 1 }],
+      // §12 names Scholar as documentation's primary attribute. Resolved through
+      // the central table.
+      attributes: attributeUnitsFor(classification),
     });
   },
 };

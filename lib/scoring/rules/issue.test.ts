@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { DeveloperEvent } from "../../developer-event";
+import { attributeUnitsFor } from "../attributes";
 import { issueRule, RULE_ID } from "./issue";
 import { SCORING_V1 } from "../types";
 
@@ -156,6 +157,35 @@ describe("issueRule — attribution and source", () => {
     const result = score(issue({ confidence: "inferred", authored: null }));
 
     expect(result?.rejectionReason).toBe("not_attributable");
+  });
+});
+
+describe("issueRule — agrees with the attribute mapping (§14)", () => {
+  // The reason and the attribute are decided from the same fact, so they cannot
+  // drift: were the mapping to stop treating a self-fix as Debugger evidence,
+  // this test would start describing it wrongly.
+  it("pairs a self-fix with the Debugger attribute", () => {
+    const result = score(issue({ authored: true }));
+
+    expect(result?.attributeAwards[0].attribute).toBe("debugger");
+    expect(result?.reason).toContain("had opened");
+  });
+
+  it("pairs triage with the Maintainer attribute", () => {
+    const result = score(issue({ authored: false }));
+
+    expect(result?.attributeAwards[0].attribute).toBe("maintainer");
+    expect(result?.reason).toContain("reported by");
+  });
+
+  it("awards the amount the table defines", () => {
+    const mapped = attributeUnitsFor("linked_issue_closure", {
+      issueAuthored: true,
+    })[0];
+
+    expect(score(issue({ authored: true }))?.attributeAwards[0].amount).toBe(
+      mapped.amount,
+    );
   });
 });
 

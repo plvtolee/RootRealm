@@ -43,6 +43,7 @@
  * issue is closed, the action says this event is the closure.
  */
 import type { DeveloperEvent } from "../../developer-event";
+import { attributeUnitsFor } from "../attributes";
 import {
   attributable,
   award,
@@ -50,20 +51,9 @@ import {
   reject,
   type ScoringRule,
 } from "../rule";
-import type { Attribute, ScoreResult, ScoringVersion } from "../types";
+import type { ScoreResult, ScoringVersion } from "../types";
 
 export const RULE_ID = "issue.closed";
-
-/** §14 maps a self-fix to Debugger and someone else's report to Maintainer. */
-function attributeFor(authored: boolean): Attribute {
-  return authored ? "debugger" : "maintainer";
-}
-
-/** The issue's author is the event's actor: the developer closed their own. */
-const REASON_BY_AUTHORSHIP: Record<"own" | "other", string> = {
-  own: "Closed an issue the developer had opened",
-  other: "Closed an issue reported by someone else",
-};
 
 export const issueRule: ScoringRule = {
   ruleId: RULE_ID,
@@ -123,16 +113,23 @@ export const issueRule: ScoringRule = {
       });
     }
 
-    const attribute = attributeFor(evidence.authored);
-
     return award({
       event,
       version,
       ruleId: RULE_ID,
       classification,
       xp: version.xp.linked_issue_closure,
-      reason: REASON_BY_AUTHORSHIP[evidence.authored ? "own" : "other"],
-      attributes: [{ attribute, amount: 1 }],
+      // §14 splits issue evidence between Debugger and Maintainer on whether the
+      // issue was the developer's own, and the reason names which it was — from
+      // the same fact the mapping used, so the copy and the attribute it
+      // describes cannot drift apart.
+      reason:
+        evidence.authored === true
+          ? "Closed an issue the developer had opened"
+          : "Closed an issue reported by someone else",
+      attributes: attributeUnitsFor(classification, {
+        issueAuthored: evidence.authored,
+      }),
     });
   },
 };

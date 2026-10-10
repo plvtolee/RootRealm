@@ -45,6 +45,7 @@
  * which is precisely why the guarantee is split across those two layers.
  */
 import type { DeveloperEvent } from "../../developer-event";
+import { attributeUnitsFor } from "../attributes";
 import {
   attributable,
   award,
@@ -143,8 +144,9 @@ export const releaseRule: ScoringRule = {
       reason: evidence.prerelease === true
         ? "Published a prerelease"
         : "Published a release",
-      // §11: "Releases contribute primarily to: Maintainer".
-      attributes: [{ attribute: "maintainer", amount: 1 }],
+      // §11: "Releases contribute primarily to: Maintainer". Resolved through the
+      // central table.
+      attributes: attributeUnitsFor(classification),
     });
   },
 };

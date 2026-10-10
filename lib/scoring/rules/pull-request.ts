@@ -35,6 +35,7 @@
  * declining evidence and lacking it.
  */
 import type { DeveloperEvent } from "../../developer-event";
+import { attributeUnitsFor } from "../attributes";
 import {
   attributable,
   award,
@@ -125,8 +126,8 @@ export const pullRequestRule: ScoringRule = {
       classification,
       xp,
       reason: "Merged implementation pull request",
-      // §14: Builder's primary evidence is "merged implementation PRs".
-      attributes: [{ attribute: "builder", amount: 1 }],
+      // §14, via the central table.
+      attributes: attributeUnitsFor(classification),
     });
   },
 };

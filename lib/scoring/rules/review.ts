@@ -43,6 +43,7 @@
  * opposed to an unknown state, which is `insufficient_evidence`.
  */
 import type { DeveloperEvent } from "../../developer-event";
+import { attributeUnitsFor } from "../attributes";
 import {
   attributable,
   award,
@@ -156,9 +157,9 @@ export const reviewRule: ScoringRule = {
       classification,
       xp: version.xp.completed_review,
       reason: "Completed pull request review",
-      // §9: Collaborator, and §14 lists "completed PR reviews" as its primary
-      // evidence.
-      attributes: [{ attribute: "collaborator", amount: 1 }],
+      // §9 names Collaborator; §14 lists "completed PR reviews" as its primary
+      // evidence. Resolved through the central table.
+      attributes: attributeUnitsFor(classification),
     });
   },
 };
