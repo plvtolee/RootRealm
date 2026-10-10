@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 
 import Link from "next/link";
 
@@ -9,6 +9,8 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Text } from "@/components/ui/text";
+import { normalizeActivity } from "@/lib/developer-event";
+import type { ActivityRecord } from "@/lib/github/activity";
 
 /**
  * RootRealm — GitHub ingestion preview (TASKS 4.2).
@@ -120,18 +122,21 @@ interface PreviewRepositoryObservation {
 }
 
 /**
- * The subset of `ActivityRecord` this screen renders.
+ * The activity observation this screen renders.
  *
- * `push` and `pullRequest` are shown rather than hidden because the fields that
- * are *missing* from them are the whole point of TASK 4.4 — a reviewer has to be
- * able to see that a push carried no commit list and that a pull request carried
- * no diff stats, rather than taking it on trust.
+ * Wider than a display projection: normalization (TASKS 4.5) runs client-side
+ * here, because `normalizeActivity` is a pure function with only a type-only
+ * dependency on the ingestion module. That lets the preview show the canonical
+ * pipeline using the activity it has *already* fetched, rather than spending a
+ * second walk of up to 13 requests to re-fetch the same data.
  */
 interface PreviewActivityEvent {
   eventId: string;
   type: string;
   relevance: "scored" | "weak" | "ignored";
   createdAt: string | null;
+  actorLogin: string | null;
+  repositoryId: number | null;
   repositoryFullName: string | null;
   sourceUrl: string | null;
   push: { branch: string | null; headSha: string | null } | null;
@@ -142,6 +147,8 @@ interface PreviewActivityEvent {
   } | null;
   content: { title: string | null; state: string | null } | null;
   ref: { refType: string | null } | null;
+  /** Kept because normalization checks whether GitHub supplied a commit list. */
+  source: { payload: Record<string, unknown> };
 }
 
 interface PreviewActivityObservation {
@@ -556,6 +563,18 @@ export function GitHubPreview() {
         </Card>
       ) : null}
 
+      {state.status === "populated" && state.activity.status === "ok" ? (
+        <DeveloperEventsCard
+          activity={state.activity.value}
+          repositoryIds={
+            state.repositories.status === "ok"
+              ? state.repositories.value.repositories.map((r) => r.repositoryId)
+              : []
+          }
+          login={state.profile.login}
+        />
+      ) : null}
+
       {state.status === "populated" || state.status === "error" ? (
         <Card variant="secondary" className="flex flex-col gap-2">
           <Text variant="label" className="uppercase text-text-muted">
@@ -686,6 +705,127 @@ function ActivityRow({ event }: { event: PreviewActivityEvent }) {
         {` · ${event.eventId}`}
       </Text>
     </li>
+  );
+}
+
+/**
+ * The canonical event summary (TASKS 4.5).
+ *
+ * Normalization runs here rather than behind a route because
+ * `normalizeActivity` is pure with only a type-only dependency on the
+ * ingestion module — the same function the server route calls, run over the
+ * activity already in hand. No extra GitHub requests.
+ *
+ * The card shows the three things worth reviewing: what the events became, how
+ * confident they are, and — most importantly — what the evidence cannot
+ * support. The limitation counts are the point: they are the same findings that
+ * constrain TASKS 5.2 and 5.3, visible before Phase 5 is built on them.
+ */
+function DeveloperEventsCard({
+  activity,
+  repositoryIds,
+  login,
+}: {
+  activity: PreviewActivityObservation;
+  repositoryIds: number[];
+  login: string;
+}) {
+  const normalized = useMemo(
+    () =>
+      normalizeActivity(activity.events as unknown as ActivityRecord[], {
+        developerLogin: login,
+        developerId: null,
+        // The repository inventory may itself be truncated, in which case an
+        // absent repository is an incomplete check rather than a failed one.
+        confirmedRepositoryIds: new Set(repositoryIds),
+      }),
+    [activity.events, repositoryIds, login],
+  );
+
+  const limitations = new Map<string, number>();
+  for (const event of normalized.events) {
+    for (const limitation of event.limitations) {
+      limitations.set(limitation, (limitations.get(limitation) ?? 0) + 1);
+    }
+  }
+
+  const kinds = Object.entries(normalized.byKind).filter(([, count]) => count > 0);
+
+  return (
+    <Card className="flex flex-col gap-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <Text variant="label" className="uppercase text-text-muted">
+          Developer events
+        </Text>
+
+        <Badge variant="neutral" size="sm">
+          {normalized.events.length} canonical
+        </Badge>
+
+        <Badge variant="neutral" size="sm">
+          {normalized.byConfidence.verified} verified
+        </Badge>
+
+        {normalized.byConfidence.inferred > 0 ? (
+          <Badge variant="warning" size="sm">
+            {normalized.byConfidence.inferred} inferred
+          </Badge>
+        ) : null}
+      </div>
+
+      <Text variant="caption" className="text-text-muted">
+        Normalized client-side from the activity above — TASKS 4.5 is a pure
+        transform, so this is the same function the server route runs, with no
+        additional GitHub requests.
+      </Text>
+
+      {kinds.length > 0 ? (
+        <div className="flex flex-wrap items-center gap-2">
+          {kinds.map(([kind, count]) => (
+            <Badge key={kind} variant="accent" size="sm">
+              {kind} {count}
+            </Badge>
+          ))}
+        </div>
+      ) : (
+        <Text variant="body" className="text-text-secondary">
+          No canonical events.
+        </Text>
+      )}
+
+      {/*
+        Unsupported input is reported rather than dropped silently: 299 events
+        plus 1 fork must reconcile to the 300 GitHub returned.
+      */}
+      {normalized.unsupported.length > 0 ? (
+        <Text variant="caption" className="text-text-muted">
+          Not converted:{" "}
+          {normalized.unsupported
+            .map((u) => `${u.type} (${u.count})`)
+            .join(", ")}
+        </Text>
+      ) : null}
+
+      {limitations.size > 0 ? (
+        <>
+          <Text variant="label" className="uppercase text-text-muted">
+            What the evidence cannot support
+          </Text>
+
+          <ul className="flex flex-col gap-1">
+            {[...limitations.entries()]
+              .sort((a, b) => b[1] - a[1])
+              .map(([limitation, count]) => (
+                <li key={limitation}>
+                  <Text variant="caption" className="text-text-muted">
+                    {count} × <code className="font-mono">{limitation}</code>
+                  </Text>
+                </li>
+              ))}
+          </ul>
+        </>
+      ) : null}
+    </Card>
   );
 }
 
