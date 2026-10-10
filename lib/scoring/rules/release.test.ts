@@ -74,9 +74,13 @@ describe("releaseRule — publishing (§11)", () => {
     expect(attributes).toEqual(["maintainer"]);
   });
 
-  it("qualifies a promoted prerelease", () => {
-    // `released` is a prerelease being promoted; both actions put work out.
-    expect(score(release({ action: "released" }))?.eligible).toBe(true);
+  it("declines an undocumented action rather than awarding optimistically", () => {
+    // The Events API documents only `published`. A rewarding system should
+    // decline what it does not recognise and say so.
+    const result = score(release({ action: "released" }));
+
+    expect(result?.eligible).toBe(false);
+    expect(result?.rejectionReason).toBe("not_qualifying");
   });
 
   it("qualifies a prerelease publication, and says that is what it was", () => {

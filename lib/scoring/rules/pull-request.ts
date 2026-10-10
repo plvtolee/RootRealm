@@ -99,11 +99,19 @@ export const pullRequestRule: ScoringRule = {
     }
 
     if (evidence.merged === false) {
+      // A PullRequestEvent also fires for `labeled`, `assigned`, `reopened` and
+      // similar (per the documented payload), so the reason must not assert a
+      // closure that did not happen.
+      const action = evidence.action?.toLowerCase() ?? null;
+      const wasClosed = action === "closed";
+
       return reject({
         event,
         version,
         classification,
-        reason: "The pull request was closed without being merged.",
+        reason: wasClosed
+          ? "The pull request was closed without being merged."
+          : `A pull request "${action ?? "unknown"}" action is not a merge.`,
         rejectionReason: "not_qualifying",
       });
     }

@@ -153,8 +153,17 @@ export interface PullRequestEvidence {
 /** Evidence for a review or review comment. */
 export interface ReviewEvidence {
   number: number | null;
-  /** `approved`, `changes_requested`, `commented`, `dismissed`. */
+  /** `approved`, `changes_requested`, `commented`. */
   state: string | null;
+  /**
+   * The event action: `created`, `updated`, `dismissed`.
+   *
+   * Distinct from `state`, and the distinction matters: dismissing a review sets
+   * the *action* to `dismissed` while the review's own `state` can remain
+   * `approved`. TASKS 5.4 must not award a dismissed review as a completed one,
+   * so it has to read this rather than `state`.
+   */
+  action: string | null;
   /** Which object the subject came from — they carry different identities. */
   subject: "review" | "comment";
 }
@@ -489,6 +498,7 @@ function toDeveloperEvent(
         evidence: {
           number: record.content?.number ?? null,
           state: record.content?.state ?? null,
+          action: record.content?.action ?? null,
           subject:
             record.type === "PullRequestReviewEvent" ? "review" : "comment",
         },

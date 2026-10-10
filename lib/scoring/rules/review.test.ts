@@ -7,6 +7,7 @@ import { SCORING_V1 } from "../types";
 function review(over: {
   subject?: "review" | "comment";
   state?: string | null;
+  action?: string | null;
   number?: number | null;
   confidence?: "verified" | "inferred";
   id?: string;
@@ -27,6 +28,7 @@ function review(over: {
     evidence: {
       number: over.number === undefined ? 82 : over.number,
       state: over.state === undefined ? "approved" : over.state,
+      action: over.action === undefined ? "created" : over.action,
       subject: over.subject ?? "review",
     },
   } as DeveloperEvent;
@@ -108,6 +110,26 @@ describe("reviewRule — a comment is not a completed review (§9)", () => {
 });
 
 describe("reviewRule — states that are not completed", () => {
+  it("declines a review whose action is dismissed", () => {
+    // Verified against the documented payload: dismissing sets the *action* to
+    // `dismissed` while the review's own `state` can remain `approved`. Checking
+    // the state alone would award a dismissed review as a completed one.
+    const result = score(review({ action: "dismissed", state: "approved" }));
+
+    expect(result?.eligible).toBe(false);
+    expect(result?.rejectionReason).toBe("not_qualifying");
+    expect(result?.reason).toContain("dismissed");
+  });
+
+  it("declines a dismissed review however the casing arrives", () => {
+    expect(score(review({ action: "DISMISSED" }))?.eligible).toBe(false);
+  });
+
+  it("still awards an updated review, which stands", () => {
+    // `updated` is a documented action and does not withdraw the review.
+    expect(score(review({ action: "updated" }))?.eligible).toBe(true);
+  });
+
   it("declines a dismissed review as not qualifying", () => {
     const result = score(review({ state: "dismissed" }));
 

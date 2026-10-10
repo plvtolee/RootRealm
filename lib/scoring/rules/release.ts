@@ -7,21 +7,24 @@
  *
  * ## Which action is a release
  *
- * A `ReleaseEvent` fires for more than publishing. Its action is one of:
+ * The Events API documents exactly one action for this event type — "Can be
+ * `published`" — so this rule accepts that and declines everything else. The
+ * reasoning behind the declines still matters, because the *webhook* form of the
+ * same event carries more actions and the payload shape is otherwise identical:
  *
  * | action | what happened | qualifies |
  * | --- | --- | --- |
- * | `published` | a release (or prerelease) went out | yes |
- * | `released` | a prerelease was promoted to a release | yes |
+ * | `published` | a release went out | yes |
  * | `created` | a **draft** was saved | no |
  * | `edited` | an existing release's text changed | no |
  * | `deleted` | the release was removed | no |
  * | `unpublished` | a publish was reverted | no |
  *
- * §11 rewards a *release*, so the three negative cases matter: `created` is not
+ * Declining is the right default for a system that awards XP: `created` is not
  * published, `edited` is a revision of something already counted, and
  * `deleted`/`unpublished` describe a withdrawal. Awarding any of them would
- * credit shipping for the act of not shipping.
+ * credit shipping for the act of not shipping, and admitting a new action later
+ * should be a deliberate edit rather than an accident of a permissive set.
  *
  * This is why TASKS 4.5's `ReleaseEvidence` needed `action` added — without it
  * the canonical event could not tell a publish from an edit, and the rule would
@@ -53,8 +56,15 @@ import type { ScoreResult, ScoringVersion } from "../types";
 
 export const RULE_ID = "release.published";
 
-/** Actions that put something out, as opposed to revising or withdrawing it. */
-const PUBLISHING_ACTIONS: ReadonlySet<string> = new Set(["published", "released"]);
+/**
+ * Actions that put something out, as opposed to revising or withdrawing it.
+ *
+ * The Events API documents exactly one value — "Can be `published`" — so that is
+ * the set. The others are handled defensively rather than optimistically: a
+ * rewarding system should decline an unrecognised action and say so, not award on
+ * a guess, and adding one later is then a deliberate edit to this set.
+ */
+const PUBLISHING_ACTIONS: ReadonlySet<string> = new Set(["published"]);
 
 export const releaseRule: ScoringRule = {
   ruleId: RULE_ID,

@@ -54,7 +54,13 @@ import type { ScoreResult, ScoringVersion } from "../types";
 
 export const RULE_ID = "review.completed";
 
-/** Review states that are not a completed contribution. */
+/**
+ * Review states that are not a completed contribution.
+ *
+ * A `pending` review was never submitted. `dismissed` is handled as an *action*
+ * rather than a state — see the note in the rule — but is checked here too,
+ * because a review can also carry it as its state.
+ */
 const NON_QUALIFYING_STATES: ReadonlySet<string> = new Set([
   "dismissed",
   "pending",
@@ -116,6 +122,20 @@ export const reviewRule: ScoringRule = {
         reason:
           "The review recorded no outcome, so it is not a completed review.",
         rejectionReason: "insufficient_evidence",
+      });
+    }
+
+    // Dismissal is the event's *action*, not the review's state: dismissing sets
+    // the action to `dismissed` while the review's own state can remain
+    // `approved`. Checking only the state would award a dismissed review as a
+    // completed one — verified against the documented payload.
+    if (evidence.action !== null && evidence.action.toLowerCase() === "dismissed") {
+      return reject({
+        event,
+        version,
+        classification,
+        reason: "The review was dismissed and no longer stands.",
+        rejectionReason: "not_qualifying",
       });
     }
 
