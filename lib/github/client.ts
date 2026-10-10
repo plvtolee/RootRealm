@@ -20,7 +20,7 @@
  * which is what keeps "no browser secrets" a checked invariant rather than a
  * convention.
  */
-import { GitHubError, kindForStatus } from "./errors";
+import { GitHubError, isGitHubError, kindForStatus } from "./errors";
 import { RateLimitTracker, type RateLimitState } from "./rate-limit";
 import { ValidationError } from "./validate";
 import type {
@@ -45,6 +45,18 @@ const LOGIN_PATTERN = /^[a-z\d](?:[a-z\d]|-(?=[a-z\d])){0,38}$/i;
 const MAX_PAGES = 10;
 const PER_PAGE = 100;
 
+/**
+ * GitHub's 300-event ceiling on the activity feed, expressed in pages.
+ *
+ * Verified against the live API (2026-10-10): `/users/{u}/events` serves
+ * `per_page=100` for pages 1–3 and answers page 4 with
+ * `422 "pagination is limited for this resource"`. The `Link` header does stop
+ * correctly (`rel="last"` on page 3, no `rel="next"`), so a conforming walk
+ * never asks for page 4 — but the cap is enforced here rather than trusted,
+ * because one wasted request against a 60/hour anonymous budget is 1.7% of it.
+ */
+export const EVENT_MAX_PAGES = 3;
+
 export interface GitHubClientOptions {
   /**
    * Personal access token. Omitted for anonymous access, which GitHub limits
@@ -67,6 +79,12 @@ export interface RequestOptions {
   signal?: AbortSignal;
   /** Extra query parameters; `undefined` and `null` values are dropped. */
   query?: Record<string, string | number | boolean | null | undefined>;
+  /**
+   * Lower bound on {@link MAX_PAGES} for a paginated walk. Set this for feeds
+   * with a server-side ceiling so the walk stops at the ceiling instead of
+   * spending a request to be told it cannot continue.
+   */
+  maxPages?: number;
 }
 
 /**
@@ -176,10 +194,13 @@ export class GitHubClient {
   /* ---------------------------------------------------------------- */
 
   /**
-   * `GET /users/{username}/events` across up to `MAX_PAGES` pages. GitHub caps
-   * this endpoint at 300 events regardless of pagination, so walking every page
-   * does not mean seeing every event — `truncated` reports the page cap, and
-   * coverage tracking (TASKS 4.7) reports the rest.
+   * `GET /users/{username}/events`, capped at {@link EVENT_MAX_PAGES}.
+   *
+   * GitHub serves at most 300 events on this feed and 422s beyond it, so the walk
+   * is bounded at three pages of 100. `truncated` therefore means *we* stopped
+   * early; hitting GitHub's ceiling while still being offered a next page is
+   * reported by TASKS 4.4's observation as `atCeiling`, because that is GitHub's
+   * limit rather than an incomplete walk.
    */
   async listEvents(
     username: string,
@@ -190,7 +211,7 @@ export class GitHubClient {
       `/users/${encodeURIComponent(login)}/events`,
       { per_page: PER_PAGE },
       parseEventList,
-      options,
+      { maxPages: EVENT_MAX_PAGES, ...options },
     );
   }
 
@@ -257,8 +278,10 @@ export class GitHubClient {
 
   /**
    * Follows `Link: <…>; rel="next"` until GitHub stops offering one, then
-   * hands every page to `parse`. The walk stops at `MAX_PAGES` so a misbehaving
-   * `Link` header cannot loop forever, and `truncated` records that it did.
+   * hands every page to `parse`. The walk stops at `MAX_PAGES` — or at
+   * `options.maxPages` where a feed has a lower server-side ceiling — so a
+   * misbehaving `Link` header cannot loop forever, and `truncated` records that
+   * it did.
    */
   private async paginate<T>(
     path: string,
@@ -267,11 +290,27 @@ export class GitHubClient {
     options: RequestOptions,
   ): Promise<PaginatedResult<T>> {
     const items: T[] = [];
+    const pageLimit = Math.min(MAX_PAGES, options.maxPages ?? MAX_PAGES);
     let next: string | null = this.buildUrl(path, query);
     let pages = 0;
 
-    while (next !== null && pages < MAX_PAGES) {
-      const page = await this.get(next, options.signal);
+    while (next !== null && pages < pageLimit) {
+      let page;
+      try {
+        page = await this.get(next, options.signal);
+      } catch (error) {
+        // A 422 once at least one page has been collected is GitHub's pagination
+        // ceiling, not a failure — its message is literally "pagination is
+        // limited for this resource". Letting it propagate would turn a
+        // successful 300-event read into a 503 and discard the pages already
+        // fetched, so the walk ends here and keeps what it has.
+        if (items.length > 0 && isGitHubError(error) && error.status === 422) {
+          next = null;
+          break;
+        }
+        throw error;
+      }
+
       items.push(...parse(page.body, "body"));
       next = nextPageUrl(page.headers.get("link"));
       pages += 1;

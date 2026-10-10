@@ -32,14 +32,25 @@ import { Text } from "@/components/ui/text";
  * Home screen's Development card, and carries a back link.
  */
 
+/**
+ * One independently-fetched section.
+ *
+ * Each of the three lookups can succeed or fail on its own, and a failure in one
+ * must never discard what another resolved. Modelling that explicitly is what
+ * keeps the fetch code from growing a nest of conditionals.
+ */
+type Section<T> =
+  | { status: "ok"; value: T }
+  | { status: "failed"; message: string };
+
 type LookupState =
   | { status: "idle" }
   | { status: "loading" }
   | {
       status: "populated";
       profile: PreviewProfile;
-      observation: PreviewObservation | null;
-      repositoriesMessage: string | null;
+      repositories: Section<PreviewRepositoryObservation>;
+      activity: Section<PreviewActivityObservation>;
       rateLimit: PreviewRateLimit;
     }
   | {
@@ -99,13 +110,53 @@ interface PreviewRepository {
   pushedAt: string | null;
 }
 
-interface PreviewObservation {
+interface PreviewRepositoryObservation {
   repositories: PreviewRepository[];
   count: number;
   pages: number;
   truncated: boolean;
   oldestCreatedAt: string | null;
   latestActivityAt: string | null;
+}
+
+/**
+ * The subset of `ActivityRecord` this screen renders.
+ *
+ * `push` and `pullRequest` are shown rather than hidden because the fields that
+ * are *missing* from them are the whole point of TASK 4.4 — a reviewer has to be
+ * able to see that a push carried no commit list and that a pull request carried
+ * no diff stats, rather than taking it on trust.
+ */
+interface PreviewActivityEvent {
+  eventId: string;
+  type: string;
+  relevance: "scored" | "weak" | "ignored";
+  createdAt: string | null;
+  repositoryFullName: string | null;
+  sourceUrl: string | null;
+  push: { branch: string | null; headSha: string | null } | null;
+  pullRequest: {
+    number: number | null;
+    action: string | null;
+    merged: boolean | null;
+  } | null;
+  content: { title: string | null; state: string | null } | null;
+  ref: { refType: string | null } | null;
+}
+
+interface PreviewActivityObservation {
+  events: PreviewActivityEvent[];
+  count: number;
+  pages: number;
+  truncated: boolean;
+  atCeiling: boolean;
+  oldestAt: string | null;
+  newestAt: string | null;
+  byRelevance: Record<string, number>;
+  partial: {
+    pushesWithoutCommitList: number;
+    pullRequestsWithoutDiffStats: number;
+  };
 }
 
 function rateLimitOf(value: unknown): PreviewRateLimit {
@@ -151,26 +202,61 @@ export function GitHubPreview() {
       };
 
       if (body.profile) {
-        // Repositories are a second request, so a failure there must not discard
-        // the profile that did resolve — the two are reported independently.
-        const repositories = await fetch(
-          `/api/github/repositories?username=${encodeURIComponent(query)}`,
-        );
-        const repositoryBody = (await repositories.json()) as {
-          observation: PreviewObservation | null;
-          failure: { message: string } | null;
-          rateLimit: unknown;
-        };
+        // Repositories and activity are separate requests, so a failure in either
+        // must not discard the profile that did resolve — and neither may
+        // discard the other. They are also independent of each other, so they
+        // run concurrently rather than as a chain of dependent round trips.
+        const [repositories, activity] = await Promise.all([
+          fetch(
+            `/api/github/repositories?username=${encodeURIComponent(query)}`,
+          ).then(async (response) => {
+            const payload = (await response.json()) as {
+              observation: PreviewRepositoryObservation | null;
+              failure: { message: string } | null;
+              rateLimit: unknown;
+            };
+            return {
+              section: payload.observation
+                ? ({ status: "ok", value: payload.observation } as const)
+                : ({
+                    status: "failed",
+                    message:
+                      payload.failure?.message ??
+                      "The repository lookup failed for an unknown reason.",
+                  } as const),
+              rateLimit: payload.rateLimit,
+            };
+          }),
+          fetch(
+            `/api/github/activity?username=${encodeURIComponent(query)}`,
+          ).then(async (response) => {
+            const payload = (await response.json()) as {
+              observation: PreviewActivityObservation | null;
+              failure: { message: string } | null;
+              rateLimit: unknown;
+            };
+            return {
+              section: payload.observation
+                ? ({ status: "ok", value: payload.observation } as const)
+                : ({
+                    status: "failed",
+                    message:
+                      payload.failure?.message ??
+                      "The activity lookup failed for an unknown reason.",
+                  } as const),
+              rateLimit: payload.rateLimit,
+            };
+          }),
+        ]);
 
         setState({
           status: "populated",
           profile: body.profile,
-          observation: repositoryBody.observation,
-          repositoriesMessage: repositoryBody.observation
-            ? null
-            : (repositoryBody.failure?.message ??
-              "The repository lookup failed for an unknown reason."),
-          rateLimit: rateLimitOf(repositoryBody.rateLimit ?? body.rateLimit),
+          repositories: repositories.section,
+          activity: activity.section,
+          rateLimit: rateLimitOf(
+            activity.rateLimit ?? repositories.rateLimit ?? body.rateLimit,
+          ),
         });
         return;
       }
@@ -221,15 +307,20 @@ export function GitHubPreview() {
         <Text variant="display">GitHub ingestion preview</Text>
 
         <Text variant="body" className="text-text-secondary">
-          Looks up a public GitHub profile and repository list through{" "}
+          Looks up a public GitHub profile, repository list and activity feed
+          through{" "}
           <code className="font-mono text-text-primary">
             /api/github/profile
+          </code>
+          ,{" "}
+          <code className="font-mono text-text-primary">
+            /api/github/repositories
           </code>{" "}
           and{" "}
           <code className="font-mono text-text-primary">
-            /api/github/repositories
+            /api/github/activity
           </code>
-          . It exercises TASKS 4.1–4.3 only — nothing is scored, normalised or
+          . It exercises TASKS 4.1–4.4 only — nothing is scored, normalised or
           stored.
         </Text>
       </header>
@@ -261,7 +352,9 @@ export function GitHubPreview() {
           <code className="font-mono">octocat-does-not-exist-404</code> for an
           unknown one, and <code className="font-mono">not a login!</code> for a
           malformed one. <code className="font-mono">sindresorhus</code> has over
-          a thousand repositories and will show the truncated badge.
+          a thousand repositories and will show the truncated badge, plus an
+          activity feed that hits GitHub&apos;s 300-event ceiling in about two
+          days.
         </Text>
       </Card>
 
@@ -351,39 +444,111 @@ export function GitHubPreview() {
               Repositories
             </Text>
 
-            {state.observation ? (
+            {state.repositories.status === "ok" ? (
               <Badge variant="neutral" size="sm">
-                {state.observation.count} found · {state.observation.pages}{" "}
-                {state.observation.pages === 1 ? "page" : "pages"}
+                {state.repositories.value.count} found ·{" "}
+                {state.repositories.value.pages}{" "}
+                {state.repositories.value.pages === 1 ? "page" : "pages"}
               </Badge>
             ) : null}
 
             {/* A capped walk is not a complete one, and saying so is the point
                 of TASK 4.3 — the count must never read as authoritative. */}
-            {state.observation?.truncated ? (
+            {state.repositories.status === "ok" &&
+            state.repositories.value.truncated ? (
               <Badge variant="warning" size="sm">
                 truncated
               </Badge>
             ) : null}
           </div>
 
-          {state.repositoriesMessage ? (
+          {state.repositories.status === "failed" ? (
             <Text variant="body" className="text-text-secondary">
-              {state.repositoriesMessage}
+              {state.repositories.message}
             </Text>
           ) : null}
 
-          {state.observation ? (
+          {state.repositories.status === "ok" ? (
             <>
               <Text variant="caption" className="text-text-muted">
-                {state.observation.count === 0
+                {state.repositories.value.count === 0
                   ? "No public repositories."
-                  : `Oldest created ${formatDate(state.observation.oldestCreatedAt)} · last push ${formatDate(state.observation.latestActivityAt)}`}
+                  : `Oldest created ${formatDate(state.repositories.value.oldestCreatedAt)} · last push ${formatDate(state.repositories.value.latestActivityAt)}`}
               </Text>
 
               <ul className="flex flex-col divide-y divide-border">
-                {state.observation.repositories.map((repo) => (
+                {state.repositories.value.repositories.map((repo) => (
                   <RepositoryRow key={repo.repositoryId} repo={repo} />
+                ))}
+              </ul>
+            </>
+          ) : null}
+        </Card>
+      ) : null}
+
+      {state.status === "populated" ? (
+        <Card className="flex flex-col gap-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <Text variant="label" className="uppercase text-text-muted">
+              Activity
+            </Text>
+
+            {state.activity.status === "ok" ? (
+              <>
+                <Badge variant="neutral" size="sm">
+                  {state.activity.value.count} events ·{" "}
+                  {state.activity.value.pages}{" "}
+                  {state.activity.value.pages === 1 ? "page" : "pages"}
+                </Badge>
+
+                {/*
+                  GitHub's own 300-event ceiling, distinct from our page cap.
+                  For a very active developer this window can be two days, so the
+                  observed dates below are the only honest measure of it.
+                */}
+                {state.activity.value.atCeiling ? (
+                  <Badge variant="warning" size="sm">
+                    at GitHub&apos;s 300-event ceiling
+                  </Badge>
+                ) : null}
+              </>
+            ) : null}
+          </div>
+
+          {state.activity.status === "failed" ? (
+            <Text variant="body" className="text-text-secondary">
+              {state.activity.message}
+            </Text>
+          ) : null}
+
+          {state.activity.status === "ok" ? (
+            <>
+              <Text variant="caption" className="text-text-muted">
+                {state.activity.value.count === 0
+                  ? "No recent public activity."
+                  : `Observed ${formatDate(state.activity.value.oldestAt)} – ${formatDate(state.activity.value.newestAt)} · ${state.activity.value.byRelevance.scored ?? 0} scored, ${state.activity.value.byRelevance.weak ?? 0} weak, ${state.activity.value.byRelevance.ignored ?? 0} ignored`}
+              </Text>
+
+              {/*
+                The two gaps TASK 4.4 exists to surface. Commit volume is not
+                derivable from this feed, so TASKS 5.2 cannot score it without a
+                different source — this says so on the screen rather than in a
+                code comment nobody reads at scoring time.
+              */}
+              {state.activity.value.partial.pushesWithoutCommitList > 0 ||
+              state.activity.value.partial.pullRequestsWithoutDiffStats > 0 ? (
+                <Text variant="caption" className="text-text-muted">
+                  {state.activity.value.partial.pushesWithoutCommitList} push event
+                  {state.activity.value.partial.pushesWithoutCommitList === 1 ? "" : "s"} carried no commit list ·{" "}
+                  {state.activity.value.partial.pullRequestsWithoutDiffStats} pull
+                  request event
+                  {state.activity.value.partial.pullRequestsWithoutDiffStats === 1 ? "" : "s"} carried no diff stats
+                </Text>
+              ) : null}
+
+              <ul className="flex flex-col divide-y divide-border">
+                {state.activity.value.events.map((event) => (
+                  <ActivityRow key={event.eventId} event={event} />
                 ))}
               </ul>
             </>
@@ -441,6 +606,89 @@ function PreviewAvatar({ src }: { src: string }) {
  * they did. The chips are `Badge` tones, not product rarity — nothing here is
  * scored, so nothing here claims a repository is worth anything.
  */
+/**
+ * One activity row.
+ *
+ * The row states what the event *is* and, just as importantly, what it is not
+ * allowed to imply: a push shows its branch and head SHA but never a commit
+ * count, and a pull request shows its action but never a diff size. A reviewer
+ * scanning this list should be able to reach the same conclusion about the
+ * feed's limits that the TASKS 4.4 doc comment records.
+ *
+ * Relevance is a `Badge` tone, not a product rarity. Nothing here is scored.
+ */
+function ActivityRow({ event }: { event: PreviewActivityEvent }) {
+  return (
+    <li className="flex flex-col gap-2 py-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <Text variant="subheading">
+          {event.sourceUrl ? (
+            <a
+              href={event.sourceUrl}
+              className="transition-colors duration-(--motion-fast) ease-standard hover:text-accent motion-reduce:transition-none"
+              rel="noreferrer noopener"
+              target="_blank"
+            >
+              {event.type}
+            </a>
+          ) : (
+            event.type
+          )}
+        </Text>
+
+        <Badge
+          size="sm"
+          variant={
+            event.relevance === "scored"
+              ? "accent"
+              : event.relevance === "ignored"
+                ? "neutral"
+                : "default"
+          }
+        >
+          {event.relevance}
+        </Badge>
+
+        {/*
+          `closed` is not "not merged" — a pull request can be closed unmerged,
+          and only a `merged` action proves it happened. Showing the distinction
+          keeps an ambiguity from hardening into a false claim downstream.
+        */}
+        {event.pullRequest?.merged === true ? (
+          <Badge variant="success" size="sm">
+            merged
+          </Badge>
+        ) : null}
+
+        {event.ref?.refType ? (
+          <Badge variant="neutral" size="sm">
+            {event.ref.refType}
+          </Badge>
+        ) : null}
+      </div>
+
+      {event.content?.title ? (
+        <Text variant="body" className="text-text-secondary">
+          {event.content.title}
+        </Text>
+      ) : null}
+
+      <Text variant="caption" className="text-text-muted">
+        {formatDate(event.createdAt)}
+        {event.repositoryFullName ? ` · ${event.repositoryFullName}` : ""}
+        {event.push?.branch ? ` · ${event.push.branch}` : ""}
+        {event.push?.headSha ? ` · ${event.push.headSha.slice(0, 7)}` : ""}
+        {event.pullRequest?.number !== null &&
+        event.pullRequest?.number !== undefined
+          ? ` · #${event.pullRequest.number} ${event.pullRequest.action ?? ""}`
+          : ""}
+        {event.content?.state ? ` · ${event.content.state}` : ""}
+        {` · ${event.eventId}`}
+      </Text>
+    </li>
+  );
+}
+
 function RepositoryRow({ repo }: { repo: PreviewRepository }) {
   return (
     <li className="flex flex-col gap-2 py-3">

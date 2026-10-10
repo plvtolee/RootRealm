@@ -275,7 +275,7 @@ describe("listEvents", () => {
     await expect(api.listEvents("octocat")).resolves.toMatchObject({ items: [] });
   });
 
-  it("stops paginating when GitHub keeps offering a next page", async () => {
+  it("stops at the feed's own ceiling rather than asking for the 422 page", async () => {
     const alwaysNext = {
       body: [event("1")],
       headers: { link: `<${API}/users/octocat/events?page=2>; rel="next"` },
@@ -284,9 +284,27 @@ describe("listEvents", () => {
 
     const result = await api.listEvents("octocat");
 
-    // 10 pages max, so a broken Link header cannot loop forever.
-    expect(calls).toHaveLength(10);
+    // GitHub serves 300 events here and answers page 4 with 422. Three pages of
+    // 100 is the ceiling, so the walk stops there rather than spending a request
+    // out of a 60/hour anonymous budget to be told it cannot continue.
+    expect(calls).toHaveLength(3);
+    expect(result.pages).toBe(3);
+    // GitHub still offered a next page; that is the ceiling, not our own cap.
     expect(result.truncated).toBe(true);
+  });
+
+  it("keeps the pages already fetched when GitHub answers with the 422", async () => {
+    const { client: api } = client([
+      { body: [event("1")], headers: { link: `<${API}/users/octocat/events?page=2>; rel="next"` } },
+      { status: 422, body: { message: "pagination is limited for this resource" } },
+    ]);
+
+    const result = await api.listEvents("octocat");
+
+    // Without the guard this throws, and 4.1's error taxonomy maps a 422 to
+    // `forbidden` — turning a successful read into a 503 and losing the event.
+    expect(result.items.map((e) => e.id)).toEqual(["1"]);
+    expect(result.truncated).toBe(false);
   });
 });
 
