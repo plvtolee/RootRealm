@@ -8,6 +8,7 @@
  *
  * The client is constructed per request, so the token stays server-side.
  */
+import { errorStateFor } from "@/lib/github/error-states";
 import { statusForReason, type FailureReason } from "@/lib/github/failure";
 import { createProfileClient } from "@/lib/github/profile";
 import {
@@ -56,13 +57,19 @@ export async function GET(request: Request): Promise<Response> {
     return Response.json(body, { status: 200 });
   }
 
-  const { reason, message, retryAfterMs } = result.failure;
+  const { reason, retryAfterMs } = result.failure;
 
   const body: RepositoryResponseBody = {
     observation: null,
     // `detail` is intentionally dropped: it carries GitHub's raw wording and is
-    // for server logs, not for the browser.
-    failure: { reason, message, retryAfterMs },
+    // for server logs, not for the browser. The copy the browser renders comes
+    // from `errorStateFor` so the API and the UI cannot describe one reason two
+    // different ways.
+    failure: {
+      reason,
+      message: errorStateFor(reason, retryAfterMs).message,
+      retryAfterMs,
+    },
     rateLimit: result.rateLimit,
   };
 
