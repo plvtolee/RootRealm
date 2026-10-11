@@ -85,6 +85,14 @@ export default function Home() {
               the TASKS 4.1–4.2 server route.
             </DevLink>
           </Text>
+
+          <Text as="li" variant="body">
+            <DevLink href="/preview">
+              Profile preview — turn a GitHub username into a real RootRealm
+              profile, with its observed scope, scoring explanations and
+              limitations (TASKS 8.2–8.3).
+            </DevLink>
+          </Text>
         </ul>
       </Card>
     </div>
