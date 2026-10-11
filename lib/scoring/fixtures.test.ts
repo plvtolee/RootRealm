@@ -101,9 +101,12 @@ describe("runFixture — inactive", () => {
   });
 
   it("summarizes to zeros rather than throwing", () => {
+    // Summarizing the fixture's actual (empty) event list, rather than a literal
+    // empty array, so this asserts the pipeline handles an idle account end to
+    // end rather than that `summarize([])` works.
     const { deduplicated } = runFixture("inactive");
 
-    expect(summarize([])).toMatchObject({
+    expect(summarize(score(deduplicated.events))).toMatchObject({
       scored: 0,
       eligible: 0,
       rejected: 0,
