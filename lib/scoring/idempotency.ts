@@ -120,7 +120,11 @@ export function keysToAward(
  * Whether processing the same batch twice would award anything the second time.
  *
  * The acceptance criterion, expressed directly: a run followed by itself must
- * produce no new awards.
+ * produce no new awards. Measured on the awards rather than on every decision,
+ * because a rejected result is never a duplicate — so requiring every decision
+ * to be marked duplicate would assert that a run of rejections is
+ * non-idempotent, when rejections award nothing and there is nothing to
+ * re-award.
  */
 export function isIdempotent(
   results: readonly {
@@ -142,5 +146,11 @@ export function isIdempotent(
     { alreadyAwarded: first.map((decision) => decision.key) },
   );
 
-  return second.every((decision) => decision.duplicate);
+  return keysToAward(results, developerLogin, scoringVersion, {
+    alreadyAwarded: first.map((d) => d.key),
+  }).length === 0
+    ? second.every((decision, index) =>
+        results[index].eligible ? decision.duplicate : true,
+      )
+    : false;
 }
