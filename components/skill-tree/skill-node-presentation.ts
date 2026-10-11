@@ -1,30 +1,16 @@
 /**
  * RootRealm — skill node presentation data (TASKS 6.6).
  *
- * ```text
- * skill id → visualX, visualY, icon, effects, xpReward, codeCoinReward
- * ```
+ * Cosmetic metadata for the tree, kept apart from the domain catalog
+ * (`lib/skills/catalog.ts`). TASKS 6.1 removed these fields from
+ * `SkillDefinition` because they are not progression: `visualX`/`visualY` are
+ * canvas coordinates, `flavor` and `effects` are copy, and `xpReward` /
+ * `codeCoinReward` are display values for rewards the §29 CodeCoins phase does
+ * not yet define.
  *
- * Cosmetic metadata for the tree, kept separate from the domain catalog
- * (`lib/skills/catalog.ts`) on purpose. TASKS 6.1 deliberately removed these
- * fields from `SkillDefinition` because they are not domain state: `visualX` and
- * `visualY` are canvas coordinates, `effects` is display copy, and
- * `xpReward`/`codeCoinReward` are display values for rewards the §29 CodeCoins
- * phase does not yet define.
- *
- * Keeping them here means:
- *
- * - the domain catalog stays pure — a node's eligibility never depends on where
- *   it is drawn or what flavour text it carries;
- * - the tree can render a node that is missing from this map (it shows no
- *   flavour text, which is the honest default) rather than crashing;
- * - changing a node's position or copy never touches the domain.
- *
- * The values are the prototype's, unchanged. They are presentation, not
- * progression: moving a node here cannot change what it requires.
+ * Moving a node's position or copy here cannot change what it requires.
  */
 
-/** Presentation data for one node. */
 export interface SkillNodePresentation {
   /** One-line flavour text for the detail panel. */
   readonly flavor: string;
@@ -45,15 +31,14 @@ export interface SkillNodePresentation {
 /**
  * Presentation data for every node, keyed by skill id.
  *
- * A `Record` rather than a `Map` so a missing key is a compile error when a new
- * node is added to the domain catalog without its presentation data — the tree
- * would otherwise render it with no position and no icon.
+ * A `Record` so a node added to the domain catalog without presentation data
+ * is a compile error rather than a silently unplaced node.
  */
 export const SKILL_NODE_PRESENTATION: Readonly<
   Record<string, SkillNodePresentation>
 > = {
   origin: {
-    flavor: "",
+    flavor: "The root every branch grows from.",
     effects: ["Unlocks the six branches", "Roots your profile's progression"],
     visualX: 0,
     visualY: 1290,
@@ -377,3 +362,12 @@ export const SKILL_NODE_PRESENTATION: Readonly<
     icon: "link",
   },
 };
+
+/** The same data keyed for `Map` lookups, shared by every skill-tree component. */
+export const SKILL_NODE_PRESENTATION_BY_ID: ReadonlyMap<string, SkillNodePresentation> =
+  new Map(Object.entries(SKILL_NODE_PRESENTATION));
+
+/** The presentation for a skill id, or `undefined` if none is registered. */
+export function presentationFor(id: string): SkillNodePresentation | undefined {
+  return SKILL_NODE_PRESENTATION_BY_ID.get(id);
+}

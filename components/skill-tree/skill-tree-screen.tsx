@@ -20,15 +20,15 @@ import type { DeveloperEvent } from "@/lib/developer-event";
 import { SKILL_DEFINITIONS } from "@/lib/skills/catalog";
 import { evaluateAllProgress } from "@/lib/skills/progress";
 import { refund, unlock } from "@/lib/skills/unlock";
-import { computeSkillNodePresentation, computeSkillTreeView, SKILL_POINT_BUDGET } from "@/lib/skills/view";
+import { computeSkillTreeView, SKILL_POINT_BUDGET } from "@/lib/skills/view";
 import type { SkillNodeView, SkillTreeState } from "@/lib/skills/view";
 import type { AttributeKey } from "@/lib/attributes";
 import { cn } from "@/lib/cn";
-import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { ProgressBar } from "@/components/ui/progress-bar";
 import { Text } from "@/components/ui/text";
 
+import { SKILL_NODE_PRESENTATION_BY_ID } from "./skill-node-presentation";
 import { SkillBranchRail } from "./skill-branch-rail";
 import { SkillNodeDetail } from "./skill-node-detail";
 import { SkillTreeCanvas } from "./skill-tree-canvas";
@@ -61,10 +61,7 @@ export function SkillTreeScreen({
     [learnedIds, events],
   );
 
-  const presentation = useMemo(
-    () => computeSkillNodePresentation(),
-    [],
-  );
+  const presentation = SKILL_NODE_PRESENTATION_BY_ID;
 
   const selectedView = selectedId ? (state.nodes.get(selectedId) ?? null) : null;
 

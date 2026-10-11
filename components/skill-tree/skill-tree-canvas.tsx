@@ -11,8 +11,10 @@ import { playSkillUnlock } from "@/lib/motion";
 
 import { cn } from "@/lib/cn";
 
-import { SKILL_NODE_BY_ID } from "./skill-tree-data";
-import type { SkillNode, SkillNodeStatus } from "./skill-tree-data";
+import type { SkillNodeStatus } from "@/lib/skills/progress";
+import { SKILL_DEFINITIONS } from "@/lib/skills/catalog";
+import { indexSkills } from "@/lib/skills/definition";
+import type { SkillNodeView } from "@/lib/skills/view";
 import { NODE_RADIUS } from "./skill-tree-geometry";
 import { SKILL_TREE_VIEWBOX } from "./skill-tree-geometry";
 import { TIER_AXIS } from "./skill-tree-geometry";
@@ -22,6 +24,7 @@ import { SKILL_GLYPH_PATHS } from "./skill-tree-glyphs";
 import type { SkillGlyphKey } from "./skill-tree-glyphs";
 import type { SkillNodePresentation } from "./skill-node-presentation";
 import type { SkillDefinition } from "@/lib/skills/definition";
+import { SKILL_NODE_PRESENTATION_BY_ID } from "./skill-node-presentation";
 import { BRANCH_TEXT_CLASS } from "./skill-tree-presentation";
 import { branchGlowFilter } from "./skill-tree-presentation";
 import type { SkillTreeState } from "@/lib/skills/view";
@@ -84,8 +87,11 @@ export type SkillTreeCanvasProps = {
    * domain node. A node missing from the map draws at 0,0 — the honest default
    * rather than an invented position.
    */
-  presentation?: ReadonlyMap<string, SkillNodePresentation>;
 };
+
+/** Drawing data for one node, from the shared overlay. */
+const presentationOf = (id: string): SkillNodePresentation | undefined =>
+  SKILL_NODE_PRESENTATION_BY_ID.get(id);
 
 /** Dotted-map backdrop behind the tree. */
 function MapBackdrop({ gridId }: { gridId: string }) {
@@ -159,6 +165,8 @@ function TreeEdges({
   unlockEvent: UnlockEvent | null;
 }) {
   const edges: EdgeSpec[] = [];
+  const index = indexSkills(SKILL_DEFINITIONS);
+  const at = (id: string) => SKILL_NODE_PRESENTATION_BY_ID.get(id);
   for (const node of nodes) {
     const target = index.get(node.id);
     if (!target) continue;
@@ -169,7 +177,7 @@ function TreeEdges({
         statusById.get(prereqId) === "learned" && statusById.get(node.id) !== "locked";
       edges.push({
         key: `${prereqId}->${node.id}`,
-        d: edgePath(source.visualX, source.visualY, target.visualX, target.visualY),
+        d: edgePath(at(source.id)?.visualX ?? 0, at(source.id)?.visualY ?? 0, at(target.id)?.visualX ?? 0, at(target.id)?.visualY ?? 0),
         lit,
         preview: previewIds.has(node.id) && previewIds.has(prereqId),
         animate: unlockEvent?.nodeId === node.id && unlockEvent.fromId === prereqId,
@@ -220,6 +228,7 @@ function NodeShell({
   animating,
   onUnlockAnimationEnd,
   presentation,
+  view,
 }: {
   node: SkillDefinition;
   status: SkillNodeStatus;
@@ -229,14 +238,15 @@ function NodeShell({
   animating: boolean;
   onUnlockAnimationEnd: (event: AnimationEvent<SVGGElement>) => void;
   presentation?: SkillNodePresentation;
+  view?: SkillNodeView;
 }) {
   const radius = NODE_RADIUS[node.type];
   const learned = status === "learned";
   const visualX = presentation?.visualX ?? 0;
   const visualY = presentation?.visualY ?? 0;
   const icon = presentation?.icon ?? node.id;
-  const progressCurrent = presentation?.progressCurrent ?? 0;
-  const progressRequired = presentation?.progressRequired ?? 0;
+  const progressCurrent = view?.progress.current ?? 0;
+  const progressRequired = view?.progress.required ?? 0;
   const stroke =
     learned && node.branch
       ? `var(--color-branch-${node.branch})`
@@ -347,7 +357,6 @@ export function SkillTreeCanvas({
   unlockEvent = null,
   onUnlockAnimationEnd,
   onSelect,
-  presentation,
 }: SkillTreeCanvasProps) {
   const gridId = useId().replace(/[^a-zA-Z0-9]/g, "grid");
   const [viewport, setViewport] = useState<Viewport>(SKILL_TREE_VIEWBOX);
@@ -364,15 +373,7 @@ export function SkillTreeCanvas({
    * `visualY` (TASKS 6.1), so a position has to come from here — and a missing
    * entry falls back to 0 rather than inventing one.
    */
-  const nodes = [...state.nodes.values()].map((view) => {
-    const shown = presentation?.get(view.node.id);
-
-    return {
-      ...view.node,
-      visualX: shown?.visualX ?? 0,
-      visualY: shown?.visualY ?? 0,
-    };
-  });
+  const nodes = [...state.nodes.values()].map((view) => view.node);
   const { x, y, width, height } = viewport;
 
   /* Phase 3 (Task 3.3): when the screen reports an unlock, hand the three
@@ -497,6 +498,8 @@ export function SkillTreeCanvas({
           <NodeShell
             key={unlockEvent?.nodeId === node.id ? `${node.id}-${unlockEvent.revision}` : node.id}
             node={node}
+            presentation={presentationOf(node.id)}
+            view={state.nodes.get(node.id)}
             status={statusById.get(node.id) ?? "locked"}
             dimmed={activeBranch != null && node.branch !== activeBranch && node.branch !== null}
             preview={preview.has(node.id)}
@@ -513,7 +516,7 @@ export function SkillTreeCanvas({
       {nodes.map((node) => {
         const view = state.nodes.get(node.id);
         if (!view) return null;
-        const shown = presentation?.get(node.id);
+        const shown = presentationOf(node.id);
         const left = (((shown?.visualX ?? 0) - x) / width) * 100;
         const top = (((shown?.visualY ?? 0) - y) / height) * 100;
         const dimmed =

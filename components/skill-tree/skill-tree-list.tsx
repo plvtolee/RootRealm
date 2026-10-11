@@ -12,7 +12,7 @@ import { cn } from "@/lib/cn";
 import { Badge } from "@/components/ui/badge";
 import { Text } from "@/components/ui/text";
 
-import type { SkillNodeView, SkillTreeState } from "@/lib/skills/view";
+import { STATUS_LABEL, type SkillNodeView, type SkillTreeState } from "@/lib/skills/view";
 import type { SkillNodePresentation } from "./skill-node-presentation";
 import { STATUS_BADGE_VARIANT } from "./skill-tree-presentation";
 import { BRANCH_RAIL_ORDER } from "./skill-branch-rail";

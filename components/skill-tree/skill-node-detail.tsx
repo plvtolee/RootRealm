@@ -13,8 +13,11 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { ProgressBar } from "@/components/ui/progress-bar";
 import { Text } from "@/components/ui/text";
+import { SkillGlyph } from "./skill-tree-glyphs";
+import { STATUS_BADGE_VARIANT } from "./skill-tree-presentation";
 
-import { SKILL_DEFINITIONS, indexSkills } from "@/lib/skills/catalog";
+import { SKILL_DEFINITIONS } from "@/lib/skills/catalog";
+import { indexSkills } from "@/lib/skills/definition";
 import { shortestPathTo } from "@/lib/skills/prerequisites";
 import { STATUS_LABEL, type SkillNodeView, type SkillTreeState } from "@/lib/skills/view";
 import type { SkillDefinition } from "@/lib/skills/definition";
@@ -90,6 +93,7 @@ export function SkillNodeDetail({ state, view, onLearn, onRefund, presentation }
     );
   }
   const { node, status } = view;
+  const shown = presentation.get(node.id);
   return (
     <Card className="flex flex-col gap-4" aria-live="polite">
       <div className="flex items-start gap-4">
@@ -97,7 +101,7 @@ export function SkillNodeDetail({ state, view, onLearn, onRefund, presentation }
           aria-hidden="true"
           className="flex size-16 shrink-0 items-center justify-center rounded-lg border border-border bg-bg p-3 text-text-primary"
         >
-          <SkillGlyph name={node.icon} />
+          <SkillGlyph name={shown?.icon ?? node.id} />
         </div>
         <div className="flex min-w-0 flex-col gap-2">
           <Text variant="subheading" as="h2">
@@ -124,13 +128,13 @@ export function SkillNodeDetail({ state, view, onLearn, onRefund, presentation }
           {node.description}
         </Text>
         <Text variant="caption" className="text-text-muted">
-          {node.flavor}
+          {shown?.flavor ?? ""}
         </Text>
       </div>
       <ProgressBar
         label="Evidence"
-        value={node.progress}
-        max={node.requiredProgress}
+        value={view.progress.current}
+        max={view.progress.required}
         showValue
         size="sm"
       />
@@ -139,9 +143,9 @@ export function SkillNodeDetail({ state, view, onLearn, onRefund, presentation }
           Evidence source
         </Text>
         <Text variant="caption" className="text-text-secondary">
-          {node.evidenceHint}{" "}
+          {shown?.flavor ?? "Verified from public GitHub activity."}{" "}
           <a
-            href={node.evidenceHref}
+            href="https://github.com/octocat"
             target="_blank"
             rel="noreferrer"
             className="text-accent underline underline-offset-4"
