@@ -251,3 +251,29 @@ export function satisfiesRequirement(
   if (requirement.kind === "attribute_units") return false; // handled by progress
   return evaluateRequirement(requirement, events) >= requirement.count;
 }
+/**
+ * Whether one event contributes to a countable requirement.
+ *
+ * The per-event predicate behind each counter above, exported so a caller that
+ * needs the matching events (for example, an achievement's evidence references)
+ * uses the same rule as the count. Keeping one definition means the count and the
+ * references cannot disagree.
+ */
+export function contributesTo(
+  requirement: EvidenceRequirement,
+  event: DeveloperEvent,
+): boolean {
+  switch (requirement.kind) {
+    case "merged_pull_requests":
+      return event.kind === "pull_request" && event.evidence.merged === true && event.evidence.action === "merged";
+    case "completed_reviews":
+      return event.kind === "review" && event.evidence.state === "approved" && event.evidence.action === "created" && event.evidence.subject === "review";
+    case "published_releases":
+      return event.kind === "release" && event.evidence.action === "published" && event.evidence.draft !== true;
+    case "qualifying_documentation":
+      return event.kind === "documentation" && (event.evidence.pagesCreated ?? 0) > 0;
+    default:
+      return false;
+  }
+}
+
