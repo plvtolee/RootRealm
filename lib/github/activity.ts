@@ -71,7 +71,7 @@
 import type { GitHubClient } from "./client";
 import { toFailure, type IngestionFailure } from "./failure";
 import type { RateLimitState } from "./rate-limit";
-import type { GitHubEvent } from "./types";
+import { parseEvent, type GitHubEvent } from "./types";
 
 /**
  * GitHub's documented maximum for this feed, in events.
@@ -569,6 +569,18 @@ function extractDocumentation(
 }
 
 /** Normalises one event, recording which expected fields GitHub omitted. */
+/**
+ * Normalizes one raw GitHub payload into an `ActivityRecord`.
+ *
+ * Exported for TASKS 5.12's fixtures, which build synthetic payloads without
+ * going through the network. It runs the same `parseEvent` validation the client
+ * runs, so a fixture cannot drift into a shape GitHub never sends — and it keeps
+ * normalization in one place rather than duplicated for tests.
+ */
+export function toActivityRecord(payload: unknown): ActivityRecord {
+  return toRecord(parseEvent(payload, "body"), {});
+}
+
 function toRecord(event: GitHubEvent, omitted: Omitted): ActivityRecord {
   const payload = event.payload;
   const type = event.type;
