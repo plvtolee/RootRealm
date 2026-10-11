@@ -60,7 +60,7 @@ const rejectedResult = {
 
 /* -------------------------------------------------------------------------- */
 
-describe("ledgerEntryFor — §17 fields", () => {
+describe("ledgerEntryFor Ã¢â‚¬â€ Ã‚Â§17 fields", () => {
   it("records every field TASKS 5.10 requires", () => {
     const entry = ledgerEntryFor({
       result: eligibleResult,
@@ -84,8 +84,8 @@ describe("ledgerEntryFor — §17 fields", () => {
     });
   });
 
-  it("uses the idempotency key as its identity (§18)", () => {
-    // §18: "a stable event identity plus an idempotency key". The key IS the
+  it("uses the idempotency key as its identity (Ã‚Â§18)", () => {
+    // Ã‚Â§18: "a stable event identity plus an idempotency key". The key IS the
     // record's id, so two entries colliding means the same event was awarded
     // twice under one version.
     const entry = ledgerEntryFor({
@@ -98,7 +98,7 @@ describe("ledgerEntryFor — §17 fields", () => {
   });
 
   it("carries the source URL through verbatim", () => {
-    // §10 "retain the source issue URL" and §17 "Source" both read this.
+    // Ã‚Â§10 "retain the source issue URL" and Ã‚Â§17 "Source" both read this.
     const entry = ledgerEntryFor({
       result: eligibleResult,
       event: event("pull_request:42", { sourceUrl: "https://example.test/pr/1" }),
@@ -129,7 +129,7 @@ describe("ledgerEntryFor — §17 fields", () => {
   });
 
   it("falls back to a stated ruleId when an award carried no attributes", () => {
-    // An XP-only award is legitimate (§15 keeps the axes separate).
+    // An XP-only award is legitimate (Ã‚Â§15 keeps the axes separate).
     const entry = ledgerEntryFor({
       result: { ...eligibleResult, attributeAwards: [] },
       event: event("pull_request:42"),
@@ -140,7 +140,7 @@ describe("ledgerEntryFor — §17 fields", () => {
   });
 });
 
-describe("ledgerEntryFor — rejects what it cannot explain", () => {
+describe("ledgerEntryFor Ã¢â‚¬â€ rejects what it cannot explain", () => {
   it("throws on an ineligible result", () => {
     expect(() =>
       ledgerEntryFor({
@@ -247,5 +247,77 @@ describe("ledgerEntriesFor", () => {
     });
 
     expect(JSON.parse(JSON.stringify(entry))).toEqual(entry);
+  });
+});
+
+describe("ledgerEntryFor — a composed award", () => {
+  const composed = {
+    ...eligibleResult,
+    xp: 42,
+    attributeAwards: [
+      {
+        attribute: "builder" as const,
+        amount: 1,
+        eventId: "pull_request:42",
+        ruleId: "pr.merged",
+      },
+      {
+        attribute: "debugger" as const,
+        amount: 1,
+        eventId: "pull_request:42",
+        ruleId: "pr.regression_test",
+      },
+    ],
+    breakdown: [
+      {
+        classification: "merged_pull_request" as const,
+        ruleId: "pr.merged",
+        xp: 30,
+      },
+      {
+        classification: "verified_regression_test" as const,
+        ruleId: "pr.regression_test",
+        xp: 12,
+      },
+    ],
+  };
+
+  it("persists the breakdown, so +42 survives as two explainable lines", () => {
+    // Without this the record would carry only a total, and a reader could not
+    // tell a composed award from a miscalibrated one (SCORING.md §17).
+    const entry = ledgerEntryFor({
+      result: composed,
+      event: event("pull_request:42"),
+      awardedAt: AWARDED_AT,
+    });
+
+    expect(entry.breakdown).toEqual(composed.breakdown);
+    expect(entry.breakdown?.reduce((total, line) => total + line.xp, 0)).toBe(
+      entry.xp,
+    );
+  });
+
+  it("omits the key entirely for a single-line award", () => {
+    // Absent rather than an empty array, so "one line" and "no breakdown recorded"
+    // are not the same claim.
+    const entry = ledgerEntryFor({
+      result: eligibleResult,
+      event: event("pull_request:42"),
+      awardedAt: AWARDED_AT,
+    });
+
+    expect(entry).not.toHaveProperty("breakdown");
+  });
+
+  it("still records one transaction, so §18's key is unchanged", () => {
+    // Two §4 lines for one event must not become two rows: the key is scoped to
+    // the event, and a second row would collide on the same primary key.
+    const entry = ledgerEntryFor({
+      result: composed,
+      event: event("pull_request:42"),
+      awardedAt: AWARDED_AT,
+    });
+
+    expect(entry.id).toBe("xp:octocat:pull_request:42:scoring-v1");
   });
 });

@@ -43,6 +43,10 @@ import {
   reject,
   type ScoringRule,
 } from "../rule";
+import {
+  additionalRegressionTestAward,
+  regressionTestXp,
+} from "./regression-test";
 import type { ScoreResult, ScoringVersion } from "../types";
 
 export const RULE_ID = "pr.merged";
@@ -119,15 +123,30 @@ export const pullRequestRule: ScoringRule = {
 
     const xp = version.xp.merged_pull_request;
 
+    // §13's regression-test line, folded into this award rather than issued as a
+    // second transaction: §18's idempotency key is scoped to the event, so a
+    // second award for the same pull request would collide on the same primary
+    // key. See the regression-test module header for why it cannot be its own
+    // rule.
+    const regressionTest = additionalRegressionTestAward(
+      evidence,
+      regressionTestXp(version),
+    );
+
     return award({
       event,
       version,
       ruleId: RULE_ID,
       classification,
       xp,
-      reason: "Merged implementation pull request",
+      reason:
+        regressionTest === null
+          ? "Merged implementation pull request"
+          : "Merged implementation pull request including a regression test",
       // §14, via the central table.
       attributes: attributeUnitsFor(classification),
+      additional:
+        regressionTest === null ? undefined : [regressionTest],
     });
   },
 };

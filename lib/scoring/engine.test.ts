@@ -55,6 +55,7 @@ describe("scoreEvent — dispatch (§33)", () => {
             merged: true,
             headRef: "feature",
             baseRef: "main",
+            testFiles: null,
           },
         }),
         "pr.merged",
@@ -207,6 +208,7 @@ describe("RULES registry", () => {
         merged: true,
         headRef: "feature",
         baseRef: "main",
+        testFiles: null,
       },
     }),
     event({
@@ -318,6 +320,7 @@ describe("summarize", () => {
         merged: true,
         headRef: "feature",
         baseRef: "main",
+        testFiles: null,
       },
     });
 

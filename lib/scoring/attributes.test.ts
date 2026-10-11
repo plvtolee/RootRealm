@@ -135,28 +135,19 @@ describe("Architect is awarded nothing (§14)", () => {
   });
 });
 
-describe("the two unawardable classifications map to nothing", () => {
-  it.each(["qualifying_commit", "verified_regression_test"] as const)(
-    "%s awards no attribute today",
-    (classification) => {
-      // No rule awards either, so neither produces an attribute award.
-      expect(ATTRIBUTE_MAPPING[classification]({})).toEqual([]);
-    },
-  );
+describe("qualifying_commit is the one classification mapping to nothing", () => {
+  it("awards no attribute, because no rule scores it", () => {
+    // §4's line is carried by `qualifying_push` instead — see the module header.
+    expect(ATTRIBUTE_MAPPING.qualifying_commit({})).toEqual([]);
+  });
 
   it("distinguishes an unvalued rule from an unqualifiable one", () => {
     // A commit has no XP value AND no evidence. A regression test HAS a value —
-    // §4 gives it +12 — but no ingested event can identify one, so the value is
-    // currently unreachable. Conflating the two would suggest the value itself
-    // is missing, when only the evidence is.
+    // §4 gives it +12 — and TASKS 5.8 now awards it from fetched filenames.
+    // Conflating the two would suggest the value itself is missing, when for the
+    // commit line only the evidence is.
     expect(SCORING_V1.xp.qualifying_commit).toBeNull();
     expect(SCORING_V1.xp.verified_regression_test).toBe(12);
-  });
-
-  it("records them as un-awarded rather than omitted", () => {
-    // An absent key would be invisible; an empty mapping is a decision.
-    expect(ALL_CLASSIFICATIONS).toContain("qualifying_commit");
-    expect(ALL_CLASSIFICATIONS).toContain("verified_regression_test");
   });
 
   it("gives Builder the push, which is §14's implementation work", () => {
@@ -166,6 +157,14 @@ describe("the two unawardable classifications map to nothing", () => {
     // than closed anything.
     expect(ATTRIBUTE_MAPPING.qualifying_push({})).toEqual([
       { attribute: "builder", amount: 1 },
+    ]);
+  });
+
+  it("gives Debugger the regression test (§13)", () => {
+    // §13: "This contributes primarily to: Debugger". TASKS 5.8 awards it, so this
+    // is now the second route to Debugger alongside a self-authored issue closure.
+    expect(ATTRIBUTE_MAPPING.verified_regression_test({})).toEqual([
+      { attribute: "debugger", amount: 1 },
     ]);
   });
 });

@@ -15,6 +15,7 @@ function pr(
     number?: number | null;
     confidence?: "verified" | "inferred";
     id?: string;
+    testFiles?: string[] | null;
   } = {},
 ): DeveloperEvent {
   const merged = over.merged === undefined ? true : over.merged;
@@ -38,6 +39,7 @@ function pr(
       merged,
       headRef: "feature",
       baseRef: "main",
+      testFiles: over.testFiles ?? null,
     },
   } as DeveloperEvent;
 }
@@ -65,7 +67,7 @@ const score = (event: DeveloperEvent) => pullRequestRule.evaluate(event, SCORING
 
 /* -------------------------------------------------------------------------- */
 
-describe("pullRequestRule — applicability", () => {
+describe("pullRequestRule â€” applicability", () => {
   it("declines an event that is not a pull request", () => {
     // null means "not my concern", which is distinct from an ineligible result.
     expect(score(push())).toBeNull();
@@ -77,8 +79,8 @@ describe("pullRequestRule — applicability", () => {
   });
 });
 
-describe("pullRequestRule — the merged case (§8)", () => {
-  it("awards the §4 value", () => {
+describe("pullRequestRule â€” the merged case (Â§8)", () => {
+  it("awards the Â§4 value", () => {
     const result = score(pr());
 
     expect(result?.eligible).toBe(true);
@@ -86,13 +88,13 @@ describe("pullRequestRule — the merged case (§8)", () => {
     expect(result?.classification).toBe("merged_pull_request");
   });
 
-  it("explains itself in the §17 vocabulary", () => {
+  it("explains itself in the Â§17 vocabulary", () => {
     const result = score(pr());
 
     expect(result?.reason).toBe("Merged implementation pull request");
   });
 
-  it("awards Builder, its primary attribute (§14)", () => {
+  it("awards Builder, its primary attribute (Â§14)", () => {
     const awards = score(pr())?.attributeAwards ?? [];
 
     expect(awards).toHaveLength(1);
@@ -103,13 +105,13 @@ describe("pullRequestRule — the merged case (§8)", () => {
     });
   });
 
-  it("invents no other attribute, since §8 defers those to separate rules", () => {
+  it("invents no other attribute, since Â§8 defers those to separate rules", () => {
     const attributes = (score(pr())?.attributeAwards ?? []).map((a) => a.attribute);
 
     expect(attributes).toEqual(["builder"]);
   });
 
-  it("stamps the scoring version that produced the award (§3)", () => {
+  it("stamps the scoring version that produced the award (Â§3)", () => {
     expect(score(pr())?.scoringVersion).toBe("scoring-v1");
   });
 
@@ -123,7 +125,7 @@ describe("pullRequestRule — the merged case (§8)", () => {
   });
 });
 
-describe("pullRequestRule — the undecidable merge (§8, TASKS 4.4)", () => {
+describe("pullRequestRule â€” the undecidable merge (Â§8, TASKS 4.4)", () => {
   it("declines a closed pull request as insufficient evidence, not as unmerged", () => {
     // `merged: null` is the `closed` action: GitHub does not say whether the
     // closure was a merge. Flattening it to false would assert something we
@@ -149,7 +151,7 @@ describe("pullRequestRule — the undecidable merge (§8, TASKS 4.4)", () => {
   });
 
   it("separates declined evidence from missing evidence", () => {
-    // The distinction §35 names two different reasons for.
+    // The distinction Â§35 names two different reasons for.
     const unknown = score(pr({ action: "closed", merged: null }));
     const unmerged = score(pr({ action: "closed", merged: false }));
 
@@ -163,7 +165,7 @@ describe("pullRequestRule — the undecidable merge (§8, TASKS 4.4)", () => {
   });
 });
 
-describe("pullRequestRule — attribution (§5 rule 3, §6)", () => {
+describe("pullRequestRule â€” attribution (Â§5 rule 3, Â§6)", () => {
   it("declines an event that is not attributable to the developer", () => {
     const result = score(pr({ confidence: "inferred" }));
 
@@ -177,14 +179,14 @@ describe("pullRequestRule — attribution (§5 rule 3, §6)", () => {
   });
 
   it("does not award inferred evidence the same treatment as verified", () => {
-    // §6: "Do not silently treat inferred data as verified."
+    // Â§6: "Do not silently treat inferred data as verified."
     expect(score(pr({ confidence: "inferred" }))?.xp).not.toBe(
       score(pr())?.xp,
     );
   });
 });
 
-describe("pullRequestRule — stable source (§8)", () => {
+describe("pullRequestRule â€” stable source (Â§8)", () => {
   it("declines a pull request with no number", () => {
     const result = score(pr({ number: null }));
 
@@ -201,7 +203,7 @@ describe("pullRequestRule — stable source (§8)", () => {
   });
 });
 
-describe("pullRequestRule — purity (§5.11)", () => {
+describe("pullRequestRule â€” purity (Â§5.11)", () => {
   it("returns the same result for the same input", () => {
     const event = pr();
 
@@ -220,4 +222,99 @@ describe("pullRequestRule — purity (§5.11)", () => {
   // "stamps the version it was given" is not tested here: ScoringVersionId is a
   // closed union with a single member, so a test could only assert the value it
   // passed. It becomes meaningful when a second version exists (TASKS 5.13).
+});
+
+/* -------------------------------------------------------------------------- */
+/* TASKS 5.8 — §13 regression test, folded into the same award                  */
+/* -------------------------------------------------------------------------- */
+
+/*
+ * §33 returns one ScoreResult per event and §18's idempotency key is scoped to
+ * the event, so a merged pull request carrying a test is one transaction spanning
+ * two §4 lines rather than two transactions. These assert the composition, since
+ * it is what makes the award explainable rather than an unexplained total.
+ */
+
+describe("§13 regression test, composed into the merge award", () => {
+  const withTest = (testFiles: string[] | null) =>
+    score(pr({ testFiles }))!;
+
+  it("adds §13's line when a merged pull request touched a test", () => {
+    const result = withTest(["internal/auth_test.go"]);
+
+    expect(result.eligible).toBe(true);
+    expect(result.xp).toBe(30 + 12);
+  });
+
+  it("names both lines, so +42 is explainable rather than a mystery", () => {
+    expect(withTest(["internal/auth_test.go"]).breakdown).toEqual([
+      { classification: "merged_pull_request", ruleId: "pr.merged", xp: 30 },
+      {
+        classification: "verified_regression_test",
+        ruleId: "pr.regression_test",
+        xp: 12,
+      },
+    ]);
+  });
+
+  it("attributes each line's units to the rule that earned them", () => {
+    // A Debugger point must be traceable to the test, not folded indistinguishably
+    // into the Builder points from the merge.
+    const result = withTest(["internal/auth_test.go"]);
+
+    expect(result.attributeAwards).toEqual([
+      { attribute: "builder", amount: 1, eventId: result.eventId, ruleId: "pr.merged" },
+      {
+        attribute: "debugger",
+        amount: 1,
+        eventId: result.eventId,
+        ruleId: "pr.regression_test",
+      },
+    ]);
+  });
+
+  it("says in its reason that a regression test was included", () => {
+    expect(withTest(["a_test.go"]).reason).toContain("regression test");
+  });
+
+  it("adds nothing when no test file was touched", () => {
+    const result = withTest(["src/auth.go"]);
+
+    expect(result.xp).toBe(30);
+    // Absent rather than a one-entry restatement of xp and classification.
+    expect(result.breakdown).toBeUndefined();
+    expect(result.reason).toBe("Merged implementation pull request");
+  });
+
+  it("adds nothing while test files have never been fetched", () => {
+    // The state every pull request is in until ingestion supplies filenames. The
+    // merge still pays; only §13's additional line is withheld.
+    const result = withTest(null);
+
+    expect(result.xp).toBe(30);
+    expect(result.breakdown).toBeUndefined();
+  });
+
+  it("adds nothing for an ambiguous test-shaped file", () => {
+    expect(withTest(["tests/helpers.ts"]).xp).toBe(30);
+  });
+
+  it("does not attach the test line when the merge itself was declined", () => {
+    const result = score(pr({ merged: false, action: "closed", testFiles: ["a_test.go"] }))!;
+
+    expect(result.eligible).toBe(false);
+    expect(result.xp).toBe(0);
+  });
+
+  it("awards once regardless of how many tests were added", () => {
+    // §13 gives a flat value with no per-file multiplier, and §20 forbids
+    // optimizing for volume.
+    const one = withTest(["pkg/auth_test.go"]);
+    const many = withTest(
+      Array.from({ length: 20 }, (_unused, i) => `pkg/case_${i}_test.go`),
+    );
+
+    expect(many.xp).toBe(one.xp);
+    expect(many.attributeAwards).toHaveLength(one.attributeAwards.length);
+  });
 });

@@ -729,6 +729,38 @@ Starting value:
 
 +12 XP
 
+**Implemented from fetched filenames.** §13 asks for a test "associated with
+fixing or preventing a defect". No ingested event carries file paths, so the
+changed filenames are fetched from
+`GET /repos/{owner}/{repo}/pulls/{n}/files` — one request per pull-request event,
+roughly thirty per 300-event feed, capped at one page of 100 files with
+truncation reported rather than assumed complete.
+
+A filename is a convention, not a certainty, so `lib/scoring/test-detection.ts`
+grades rather than returning a boolean: `strong` for a file that is a test by
+language convention, `weak` for the ambiguous middle (a shared helper, a
+`conftest.py`), `none` otherwise. Only `strong` is awarded, so §13's "verified"
+is honoured rather than approximated.
+
+**Composed into the merge award, not a second transaction.** §33 specifies
+`scoreEvent` returning a single `ScoreResult`, and §18's idempotency key is scoped
+to the event — so one event produces one transaction. A merged pull request
+carrying a regression test is genuinely two §4 lines, so it becomes one
+transaction spanning both, with a `breakdown` naming each line's classification,
+rule and XP. It also cannot be its own rule: dispatch is first-match and
+`pr.merged` claims every `pull_request`.
+
+**What is not verified.** §13's defect *association* is unchecked — that needs
+the pull request's issue links from the timeline API, which nothing ingests. The
+award rests on merge plus test file, and the narrower claim is the pinned one.
+§13's "meaningful" is likewise undecidable from a filename, and a generated test
+is indistinguishable from a written one.
+
+Pending: the ingestion task that actually calls the files endpoint. Until it
+lands, `testFiles` is `null` on every event and the `test_files_unavailable`
+limitation records the open question; the rule declines with that stated rather
+than guessing.
+
 ---
 
 ## TASK 5.9 — Six Attribute Mapping

@@ -36,23 +36,18 @@
  * many repositories, a large pull request — and §14 pre-empts exactly that with
  * "conservative because the underlying evidence is harder to infer".
  *
- * ## The two empty rows, and why they are empty for different reasons
+ * ## `qualifying_commit` is the one empty row
  *
- * `qualifying_commit` and `verified_regression_test` map to nothing, and the
- * reason is an evidence gap rather than a judgement about worth. They are not the
- * same gap, so they are worth telling apart:
+ * `qualifying_commit` maps to nothing, because TASKS 4.4 found no ingested event
+ * carrying a commit list. §4's line is carried instead by `qualifying_push`, which
+ * awards the same evidence at the one granularity the activity feed supports. If a
+ * commit source is ever added the two coexist: a push awards for landing code, and
+ * its commits additionally award per commit.
  *
- * - `verified_regression_test` **has a value** — §4 gives it `+12` — and no
- *   ingested event can identify one. It is waiting on data.
- * - `qualifying_commit` has **no value and no data**: §4's line is carried by
- *   `qualifying_push`, which awards the same evidence at the one granularity the
- *   activity feed supports. If a commit source is ever added the two coexist: a
- *   push awards for landing code, and its commits additionally award per commit.
- *
- * An empty row is therefore not by itself a problem; what matters is whether the
- * emptiness is *expected*. A test asserts every attribute is awarded, which is why
- * `qualifying_push` had to map to Builder for Architect to remain the only
- * unreachable one.
+ * An empty row is not by itself a problem; what matters is whether the emptiness is
+ * *expected*. A test asserts every attribute is awarded, which is why
+ * `qualifying_push` had to map to Builder and `verified_regression_test` to
+ * Debugger for Architect to remain the only unreachable one.
  */
 import {
   ATTRIBUTES,
@@ -142,8 +137,9 @@ export const ATTRIBUTE_MAPPING: Record<
   // §14 Scholar: "qualifying documentation".
   qualifying_documentation: () => [SCHOLAR],
 
-  // Deferred with TASKS 5.8 — no file-level evidence. §13 names Debugger.
-  verified_regression_test: () => none,
+  // §13: "This contributes primarily to: Debugger". Awarded by TASKS 5.8, from
+  // the filenames a merged pull request touched.
+  verified_regression_test: () => [DEBUGGER],
 
   // Architect is absent by design. See the module header: no available evidence
   // can distinguish architectural work, and §14 asks for it to be conservative.

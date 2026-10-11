@@ -289,6 +289,25 @@ export interface ScoreResult {
   readonly scoringVersion: ScoringVersionId;
   /** Present exactly when `eligible` is false. */
   readonly rejectionReason?: RejectionReason;
+  /**
+   * Every §4 line this award spans, when it spans more than one.
+   *
+   * `xp` is a single total because §18's idempotency key is scoped to the event,
+   * so one event produces one transaction — and §33's `scoreEvent` returns one
+   * `ScoreResult`. A merged pull request carrying a regression test is genuinely
+   * two lines of §4's table, and a bare `+42` would not say so.
+   *
+   * Absent for a single-line award, where `xp` and `classification` already say
+   * everything there is to say.
+   */
+  readonly breakdown?: readonly ScoreLine[];
+}
+
+/** One §4 line's share of a combined award. */
+export interface ScoreLine {
+  readonly classification: ScoringClassification;
+  readonly ruleId: string;
+  readonly xp: number;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -332,6 +351,17 @@ export interface XPTransaction {
   readonly reason: string;
   /** The rule that produced the award, e.g. `pr.merged`. */
   readonly ruleId: string;
+  /**
+   * Every §4 line this transaction spans, when it spans more than one.
+   *
+   * Carried from the `ScoreResult` unchanged. §17 requires the ledger to explain
+   * an award, and a bare `xp` total of 42 would not say whether that was one line
+   * miscalibrated or two lines correctly composed — so the breakdown has to
+   * survive persistence, not live only in the scoring result.
+   *
+   * Absent for a single-line award, matching {@link ScoreResult.breakdown}.
+   */
+  readonly breakdown?: readonly ScoreLine[];
   readonly attributeAwards: readonly AttributeAward[];
   /** The version that produced this award (§3). */
   readonly scoringVersion: ScoringVersionId;

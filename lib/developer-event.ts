@@ -119,6 +119,14 @@ export type EventLimitation =
   /** GitHub omitted the subject's author, so authorship is unattributable. */
   | "authorship_unknown"
   /**
+   * The pull request's changed files were never fetched (TASKS 5.8).
+   *
+   * Distinct from "fetched and found no tests", which is not a limitation at all
+   * but an answer. This one marks an unasked question, so a rule must decline and
+   * say why rather than treat the absence as a negative result.
+   */
+  | "test_files_unavailable"
+  /**
    * The repository was not among the developer's confirmed public repositories,
    * so attributing the event to them is an inference — it may be a fork, a
    * deleted repository, or one since transferred. SCORING.md §35 `not_attributable`.
@@ -139,6 +147,27 @@ export interface PullRequestEvidence {
   number: number | null;
   /** `opened`, `closed`, `merged`, `reopened`. */
   action: string | null;
+  /**
+   * Filenames the pull request touched, for TASKS 5.8's regression-test rule.
+   *
+   * Tri-state, and every state means something different:
+   *
+   * - `null` — the files endpoint was never consulted for this event, or the
+   *   consult failed. **Not** the same as "no tests": awarding nothing because a
+   *   fetch failed would silently under-credit a developer for our outage.
+   * - `[]` — consulted, and the pull request touched no test-shaped file.
+   * - non-empty — consulted, and these were the filenames.
+   *
+   * Only filenames are kept, not the diff. The response also carries a `patch`
+   * field that GitHub truncates server-side for large diffs with nothing marking
+   * it partial, so storing it would put a field in the record that lies about its
+   * own completeness.
+   *
+   * Absent until TASKS 5.8's ingestion task supplies it, at which point every
+   * event carries `null` and the rule declines with a stated reason rather than
+   * guessing.
+   */
+  testFiles: string[] | null;
   /**
    * `true` only for `action === "merged"`. `false` for a positive non-merge
    * action. `null` when the action cannot decide — `closed` and a missing action
@@ -422,11 +451,20 @@ function pullRequestLimitations(
   evidence: PullRequestEvidence,
   limitations: EventLimitation[],
 ): void {
-  // Verified absent across all sampled pull request events (TASKS 4.4).
+  // Verified absent across all sampled pull request events (TASKS 4.4). Note that
+  // this remains true even once TASKS 5.8 fetches changed *filenames*: the event's
+  // own payload still carries no `additions`, `deletions` or `changed_files`.
+  // Filenames and diff statistics are different facts.
   limitations.push("diff_stats_unavailable");
 
   if (evidence.action === "closed") {
     limitations.push("merge_status_unknown");
+  }
+
+  // Recorded so "we never asked" is distinguishable from "we asked and there were
+  // none" — the distinction TASKS 5.8's rule needs before it may decline.
+  if (evidence.testFiles === null) {
+    limitations.push("test_files_unavailable");
   }
 }
 
@@ -496,6 +534,12 @@ function toDeveloperEvent(
         merged: record.pullRequest?.merged ?? null,
         headRef: record.pullRequest?.headRef ?? null,
         baseRef: record.pullRequest?.baseRef ?? null,
+        // Always `null` here: no ingestion path supplies changed filenames yet.
+        // TASKS 5.8's ingestion task replaces this. Declining with a stated
+        // reason is the correct behaviour until then — the rule cannot tell a
+        // test from a README without file paths, and guessing is what §1's
+        // "evidence-backed" forbids.
+        testFiles: null,
       };
 
       pullRequestLimitations(evidence, limitations);

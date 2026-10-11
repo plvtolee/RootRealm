@@ -35,10 +35,14 @@ import {
   type Attribute,
   type AttributeAward,
   type RejectionReason,
+  type ScoreLine,
   type ScoreResult,
   type ScoringClassification,
   type ScoringVersion,
 } from "./types";
+
+/** Re-exported so rules can type a breakdown without importing `types` directly. */
+export type { ScoreLine as ScoreBreakdown } from "./types";
 
 /** One attribute's share of an award, before the rule's identity is attached. */
 export interface AttributeShare {
@@ -104,6 +108,13 @@ export function hasReference(value: string | number | null): boolean {
 /* Building results                                                            */
 /* -------------------------------------------------------------------------- */
 
+/**
+ * One §4 line's contribution to an award, so a combined award stays explainable.
+ *
+ * `SCORING.md` §17 wants the ledger to say *why* points were awarded. When one
+ * event earns two lines, a single `xp` total would not say so — a reader seeing
+ * `+42` would have to guess whether that was two lines or one miscalibrated one.
+ */
 export interface AwardInput {
   readonly event: DeveloperEvent;
   readonly version: ScoringVersion;
@@ -111,6 +122,29 @@ export interface AwardInput {
   readonly classification: ScoringClassification;
   readonly xp: number;
   readonly reason: string;
+  readonly attributes: readonly AttributeShare[];
+  /**
+   * Further §4 lines the same event earns, folded into this one award.
+   *
+   * TASKS 5.8 needs this. `SCORING.md` §33 specifies `scoreEvent` returning a
+   * single `ScoreResult`, and §18's idempotency key is scoped to the event, so one
+   * event produces exactly one transaction — two awards would collide on the same
+   * primary key. A merged pull request carrying a regression test is genuinely two
+   * §4 lines, so it becomes one transaction spanning both rather than two
+   * transactions claiming one event.
+   *
+   * Each line names its own classification, rule and XP, so the award still
+   * explains where every point came from (§17) and a re-tuned version can change
+   * one line without touching the other.
+   */
+  readonly additional?: readonly AdditionalAward[];
+}
+
+/** One §4 line earned by the same event as the primary award. */
+export interface AdditionalAward {
+  readonly classification: ScoringClassification;
+  readonly ruleId: string;
+  readonly xp: number;
   readonly attributes: readonly AttributeShare[];
 }
 
@@ -128,14 +162,47 @@ export function award(input: AwardInput): ScoreResult {
     ruleId,
   }));
 
+  // Each additional line contributes its own attributes under its own rule id, so
+  // a Debugger point from a regression test is traceable to the test and not
+  // folded indistinguishably into the Builder points from the merge.
+  let total = input.xp;
+  const breakdown: ScoreLine[] = [
+    {
+      classification: input.classification,
+      ruleId,
+      xp: input.xp,
+    },
+  ];
+
+  for (const line of input.additional ?? []) {
+    total += line.xp;
+    breakdown.push({
+      classification: line.classification,
+      ruleId: line.ruleId,
+      xp: line.xp,
+    });
+
+    for (const share of line.attributes) {
+      attributeAwards.push({
+        attribute: share.attribute,
+        amount: share.amount,
+        eventId: event.id,
+        ruleId: line.ruleId,
+      });
+    }
+  }
+
   return {
     eventId: event.id,
     eligible: true,
-    xp: input.xp,
+    xp: total,
     classification: input.classification,
     reason: input.reason,
     attributeAwards,
     scoringVersion: version.id,
+    // Present only when more than one §4 line was earned; a single-line award
+    // omits it rather than restating what `xp` and `classification` already say.
+    ...(breakdown.length > 1 ? { breakdown } : {}),
   };
 }
 

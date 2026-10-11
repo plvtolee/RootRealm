@@ -96,6 +96,10 @@ export function ledgerEntryFor({
     ruleId,
     attributeAwards: result.attributeAwards,
     scoringVersion: result.scoringVersion,
+    // §17 wants the award explained, so a composed award's line-by-line
+    // breakdown has to survive persistence. Absent rather than `[]` when the
+    // award spans one line, matching how `ScoreResult` reports it.
+    ...(result.breakdown === undefined ? {} : { breakdown: result.breakdown }),
     // §12 "retain the source issue URL" and §17 "Source" both read from here.
     sourceUrl: event.sourceUrl,
     awardedAt,
