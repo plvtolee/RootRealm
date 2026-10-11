@@ -12,7 +12,7 @@ import { ATTRIBUTE_LABEL, type AttributeKey } from "@/lib/attributes";
 import { cn } from "@/lib/cn";
 import { ATTRIBUTE_GLYPH } from "@/components/attributes/attribute-glyphs";
 
-import type { SkillTreeState } from "./skill-tree-logic";
+import type { SkillTreeState } from "@/lib/skills/view";
 import { BRANCH_TEXT_CLASS } from "./skill-tree-presentation";
 
 export const BRANCH_RAIL_ORDER: readonly AttributeKey[] = [

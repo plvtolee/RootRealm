@@ -14,14 +14,13 @@ import { Card } from "@/components/ui/card";
 import { ProgressBar } from "@/components/ui/progress-bar";
 import { Text } from "@/components/ui/text";
 
-import { SKILL_NODE_BY_ID, type SkillNode } from "./skill-tree-data";
-import { SkillGlyph } from "./skill-tree-glyphs";
-import { STATUS_BADGE_VARIANT } from "./skill-tree-presentation";
-import { STATUS_LABEL } from "./skill-tree-logic";
-import { cheapestPathTo } from "./skill-tree-logic";
-import type { SkillNodeView, SkillTreeState } from "./skill-tree-logic";
+import { SKILL_DEFINITIONS, indexSkills } from "@/lib/skills/catalog";
+import { shortestPathTo } from "@/lib/skills/prerequisites";
+import { STATUS_LABEL, type SkillNodeView, type SkillTreeState } from "@/lib/skills/view";
+import type { SkillDefinition } from "@/lib/skills/definition";
+import type { SkillNodePresentation } from "./skill-node-presentation";
 
-const TIER_LABEL: Record<SkillNode["tier"], string> = {
+const TIER_LABEL: Record<SkillDefinition["tier"], string> = {
   roots: "Roots",
   foundation: "Foundation",
   intermediate: "Intermediate",
@@ -29,7 +28,7 @@ const TIER_LABEL: Record<SkillNode["tier"], string> = {
   mastery: "Mastery",
 };
 
-const TYPE_LABEL: Record<SkillNode["type"], string> = {
+const TYPE_LABEL: Record<SkillDefinition["type"], string> = {
   core: "Core",
   keystone: "Keystone",
   notable: "Notable",
@@ -41,22 +40,24 @@ export type SkillNodeDetailProps = {
   view: SkillNodeView | null;
   onLearn: (id: string) => void;
   onRefund: (id: string) => void;
+  presentation: ReadonlyMap<string, SkillNodePresentation>;
 };
 function PathPreview({ state, view }: { state: SkillTreeState; view: SkillNodeView }) {
-  const preview = cheapestPathTo(state, view.node.id);
-  if (view.status === "learned" || !preview.reachable || preview.nodeIds.length === 0) {
+  const index = indexSkills(SKILL_DEFINITIONS);
+  const path = shortestPathTo(view.node.id, index, state.learnedIds);
+  if (view.status === "learned" || path === null || path.length === 0) {
     return null;
   }
-  const names = preview.nodeIds.map((id) => SKILL_NODE_BY_ID.get(id)?.title ?? id);
+  const names = path.map((id) => index.get(id)?.title ?? id);
   return (
     <div className="flex flex-col gap-2">
       <Text variant="label" className="uppercase text-text-muted">
-        Cheapest path — {preview.points} points
+        Path to unlock
       </Text>
       <ol className="flex flex-col gap-1">
         {names.map((name, index) => (
           <Text
-            key={preview.nodeIds[index]}
+            key={path[index]}
             as="li"
             variant="caption"
             className={cn(
@@ -72,7 +73,9 @@ function PathPreview({ state, view }: { state: SkillTreeState; view: SkillNodeVi
   );
 }
 
-export function SkillNodeDetail({ state, view, onLearn, onRefund }: SkillNodeDetailProps) {
+export function SkillNodeDetail({ state, view, onLearn, onRefund, presentation }: SkillNodeDetailProps) {
+  const index = indexSkills(SKILL_DEFINITIONS);
+
   if (!view) {
     return (
       <Card className="flex flex-col gap-3">
@@ -158,7 +161,7 @@ export function SkillNodeDetail({ state, view, onLearn, onRefund }: SkillNodeDet
         ) : (
           <ul className="flex flex-col gap-1">
             {node.prerequisiteIds.map((id) => {
-              const prereq = SKILL_NODE_BY_ID.get(id);
+              const prereq = index.get(id);
               const met = state.learnedIds.has(id);
               return (
                 <Text
@@ -180,16 +183,16 @@ export function SkillNodeDetail({ state, view, onLearn, onRefund }: SkillNodeDet
           Rewards
         </Text>
         <ul className="flex flex-col gap-1">
-          {node.effects.map((effect) => (
+          {(presentation.get(node.id)?.effects ?? []).map((effect) => (
             <Text key={effect} as="li" variant="caption" className="text-text-secondary">
               + {effect}
             </Text>
           ))}
           <Text as="li" variant="caption" className="text-text-secondary">
-            + {node.xpReward} XP
+            + {presentation.get(node.id)?.xpReward ?? 0} XP
           </Text>
           <Text as="li" variant="caption" className="text-text-secondary">
-            + {node.codeCoinReward} CodeCoins
+            + {presentation.get(node.id)?.codeCoinReward ?? 0} CodeCoins
           </Text>
         </ul>
       </div>

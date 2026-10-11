@@ -12,9 +12,9 @@ import { cn } from "@/lib/cn";
 import { Badge } from "@/components/ui/badge";
 import { Text } from "@/components/ui/text";
 
-import type { SkillNode } from "./skill-tree-data";
+import type { SkillNodeView, SkillTreeState } from "@/lib/skills/view";
+import type { SkillNodePresentation } from "./skill-node-presentation";
 import { STATUS_BADGE_VARIANT } from "./skill-tree-presentation";
-import { STATUS_LABEL, type SkillNodeView, type SkillTreeState } from "./skill-tree-logic";
 import { BRANCH_RAIL_ORDER } from "./skill-branch-rail";
 
 function orderedNodes(state: SkillTreeState): Array<{ branch: AttributeKey | null; nodes: SkillNodeView[] }> {
@@ -46,10 +46,11 @@ export type SkillTreeListProps = {
   state: SkillTreeState;
   selectedId: string | null;
   onSelect: (id: string) => void;
-  nodeLabel: (node: SkillNode) => string;
+  nodeLabel: (node: SkillNodeView["node"]) => string;
+  presentation: ReadonlyMap<string, SkillNodePresentation>;
 };
 
-export function SkillTreeList({ state, selectedId, onSelect, nodeLabel }: SkillTreeListProps) {
+export function SkillTreeList({ state, selectedId, onSelect, nodeLabel, presentation }: SkillTreeListProps) {
   return (
     <div className="flex flex-col gap-6">
       {orderedNodes(state).map(({ branch, nodes }) => (
@@ -84,7 +85,7 @@ export function SkillTreeList({ state, selectedId, onSelect, nodeLabel }: SkillT
                         </Badge>
                       </span>
                       <Text variant="caption" className="mt-1 block text-text-muted">
-                        Progress: {view.node.progress}/{view.node.requiredProgress} · Cost: {view.node.cost} points
+                        Progress: {view.progress.current}/{view.progress.required} · Cost: {view.node.cost} points
                       </Text>
                       <Text variant="caption" className="mt-1 block text-text-secondary">
                         Requirements: {view.node.prerequisiteIds.length === 0
@@ -94,7 +95,7 @@ export function SkillTreeList({ state, selectedId, onSelect, nodeLabel }: SkillT
                               .join(" or ")}
                       </Text>
                       <Text variant="caption" className="mt-1 block text-text-secondary">
-                        Rewards: {view.node.effects.join("; ")}; +{view.node.xpReward} XP; +{view.node.codeCoinReward} CodeCoins
+                        Rewards: {presentation.get(view.node.id)?.effects.join("; ") ?? "—"}; +{presentation.get(view.node.id)?.xpReward ?? 0} XP; +{presentation.get(view.node.id)?.codeCoinReward ?? 0} CodeCoins
                       </Text>
                     </span>
                   </button>

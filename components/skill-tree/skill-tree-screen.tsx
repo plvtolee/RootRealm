@@ -1,17 +1,27 @@
 /**
- * RootRealm — skill tree screen (TASKS §2.3–2.6).
+ * RootRealm — skill tree screen (TASKS §2.3–2.6, 6.6).
  *
- * Client component owning the prototype's UI state: the learned id list
- * (from `INITIAL_LEARNED_IDS`, no persistence), the selected node, the
- * branch highlight and the map/list toggle. Every render derives
- * `computeSkillTreeState` from the learned ids and hands views down —
- * the screen never duplicates eligibility logic.
+ * Client component owning the UI state: the learned id list, the selected node,
+ * the branch highlight and the map/list toggle. Every render derives
+ * `computeSkillTreeView` from the learned ids and hands views down — the screen
+ * never duplicates eligibility logic.
+ *
+ * TASKS 6.6 replaced the prototype's mock `SKILL_NODES` with the real catalog
+ * (`lib/skills/catalog.ts`), and `computeSkillTreeState` with
+ * `computeSkillTreeView` (`lib/skills/view.ts`). The screen consumes domain
+ * state: events and learned ids in, a derived view model out. It holds no
+ * eligibility rules of its own.
  */
-
 "use client";
 
 import { useMemo, useState } from "react";
 
+import type { DeveloperEvent } from "@/lib/developer-event";
+import { SKILL_DEFINITIONS } from "@/lib/skills/catalog";
+import { evaluateAllProgress } from "@/lib/skills/progress";
+import { refund, unlock } from "@/lib/skills/unlock";
+import { computeSkillNodePresentation, computeSkillTreeView, SKILL_POINT_BUDGET } from "@/lib/skills/view";
+import type { SkillNodeView, SkillTreeState } from "@/lib/skills/view";
 import type { AttributeKey } from "@/lib/attributes";
 import { cn } from "@/lib/cn";
 import { Badge } from "@/components/ui/badge";
@@ -19,47 +29,84 @@ import { Card } from "@/components/ui/card";
 import { ProgressBar } from "@/components/ui/progress-bar";
 import { Text } from "@/components/ui/text";
 
-import { INITIAL_LEARNED_IDS } from "./skill-tree-data";
-import type { SkillNode } from "./skill-tree-data";
 import { SkillBranchRail } from "./skill-branch-rail";
 import { SkillNodeDetail } from "./skill-node-detail";
 import { SkillTreeCanvas } from "./skill-tree-canvas";
 import { SkillTreeList } from "./skill-tree-list";
-import { cheapestPathTo } from "./skill-tree-logic";
-import { computeSkillTreeState } from "./skill-tree-logic";
-import { learnNode } from "./skill-tree-logic";
-import { refundNode } from "./skill-tree-logic";
 
 type ViewMode = "map" | "list";
 type UnlockEvent = { nodeId: string; fromId: string; revision: number };
 
-function nodeLabel(node: SkillNode, status: string): string {
+function nodeLabel(node: SkillNodeView["node"], status: string): string {
   return `${node.title} — ${status}`;
 }
 
-export function SkillTreeScreen() {
-  const [learnedIds, setLearnedIds] = useState<readonly string[]>(INITIAL_LEARNED_IDS);
+export function SkillTreeScreen({
+  events = [],
+  developerLogin = "octocat",
+}: {
+  /** The developer's normalized events, for evidence. Empty until ingestion is wired. */
+  events?: readonly DeveloperEvent[];
+  /** Who this tree belongs to. Required by the unlock records. */
+  developerLogin?: string;
+}) {
+  const [learnedIds, setLearnedIds] = useState<readonly string[]>(["origin"]);
   const [selectedId, setSelectedId] = useState<string | null>("origin");
   const [activeBranch, setActiveBranch] = useState<AttributeKey | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>("map");
   const [unlockEvent, setUnlockEvent] = useState<UnlockEvent | null>(null);
 
-  const state = useMemo(() => computeSkillTreeState(learnedIds), [learnedIds]);
+  const state = useMemo<SkillTreeState>(
+    () => computeSkillTreeView(learnedIds, events),
+    [learnedIds, events],
+  );
+
+  const presentation = useMemo(
+    () => computeSkillNodePresentation(),
+    [],
+  );
+
   const selectedView = selectedId ? (state.nodes.get(selectedId) ?? null) : null;
+
   const previewIds = useMemo(() => {
     if (!selectedView || selectedView.status === "learned") return new Set<string>();
-    return new Set(cheapestPathTo(state, selectedView.node.id).nodeIds);
-  }, [state, selectedView]);
+    // The cheapest path is derived from the view's own prerequisite info, so the
+    // preview cannot disagree with what the node requires.
+    return new Set(selectedView.missingPrerequisiteIds);
+  }, [selectedView]);
 
   function handleLearn(id: string) {
-    const next = learnNode(state, id);
-    if (!next) return;
+    const progress = evaluateAllProgress(SKILL_DEFINITIONS, events, {
+      learnedIds: new Set(learnedIds),
+    }).find((entry) => entry.skillId === id);
+
+    const node = SKILL_DEFINITIONS.find((candidate) => candidate.id === id);
+    if (progress === undefined || node === undefined) return;
+
+    const result = unlock(
+      {
+        progress,
+        developerLogin,
+        scoringVersionId: "scoring-v1",
+        unlockedAt: new Date().toISOString(),
+      },
+      new Set(learnedIds),
+      node,
+    );
+
+    if (result.duplicate) return;
 
     const view = state.nodes.get(id);
-    const fromId = view?.node.prerequisiteIds.find((prerequisiteId) => state.learnedIds.has(prerequisiteId));
-    setLearnedIds(next);
+    const fromId = view?.node.prerequisiteIds.find((prerequisiteId) =>
+      learnedIds.includes(prerequisiteId),
+    );
+    setLearnedIds(result.learnedIds);
 
-    if (viewMode === "map" && fromId && !window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    if (
+      viewMode === "map" &&
+      fromId &&
+      !window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    ) {
       setUnlockEvent((current) => ({
         nodeId: id,
         fromId,
@@ -71,8 +118,7 @@ export function SkillTreeScreen() {
   }
 
   function handleRefund(id: string) {
-    const next = refundNode(state, id);
-    if (next) setLearnedIds(next);
+    setLearnedIds(refund(id, new Set(learnedIds)));
   }
 
   return (
@@ -82,17 +128,14 @@ export function SkillTreeScreen() {
           <Text variant="heading" as="h1">
             Skill Tree
           </Text>
-          <Badge variant="accent" size="sm">
-            Prototype
-          </Badge>
           <Text variant="caption" className="text-text-muted">
-            {state.pointsLeft} of 22 points left
+            {state.pointsLeft} of {SKILL_POINT_BUDGET} points left
           </Text>
         </div>
         <ProgressBar
           label="Skill points"
           value={state.spentPoints}
-          max={22}
+          max={SKILL_POINT_BUDGET}
           showValue
           size="sm"
         />
@@ -143,14 +186,26 @@ export function SkillTreeScreen() {
                 state={state}
                 selectedId={selectedId}
                 onSelect={setSelectedId}
-                nodeLabel={(node) => nodeLabel(node, state.nodes.get(node.id)?.status ?? "locked")}
+                nodeLabel={(node) =>
+                  nodeLabel(
+                    node,
+                    state.nodes.get(node.id)?.status ?? "locked",
+                  )
+                }
+                presentation={presentation}
               />
             </Card>
           )}
         </div>
 
         <div className="lg:col-span-2 xl:col-span-1">
-          <SkillNodeDetail state={state} view={selectedView} onLearn={handleLearn} onRefund={handleRefund} />
+          <SkillNodeDetail
+            state={state}
+            view={selectedView}
+            onLearn={handleLearn}
+            onRefund={handleRefund}
+            presentation={presentation}
+          />
         </div>
       </div>
     </div>
