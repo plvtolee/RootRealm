@@ -21,6 +21,7 @@
  * convention.
  */
 import { GitHubError, isGitHubError, kindForStatus } from "./errors";
+import { assertServerOnly } from "./server-only";
 import { RateLimitTracker, type RateLimitState } from "./rate-limit";
 import { ValidationError } from "./validate";
 import type {
@@ -128,12 +129,8 @@ export interface PaginatedResult<T> {
  * plain `Error`: this is a programming error at import time, not one of the
  * transport failures `kind` describes.
  */
-function assertServerOnly() {
-  if (typeof window !== "undefined") {
-    throw new Error(
-      "GitHubClient must not be constructed in the browser — the API token is server-side only.",
-    );
-  }
+function assertClientServerOnly() {
+  assertServerOnly("GitHubClient");
 }
 
 /** Trims and validates a username before it can reach the network. */
@@ -182,7 +179,7 @@ export class GitHubClient {
   readonly rateLimit: RateLimitTracker;
 
   constructor(options: GitHubClientOptions = {}) {
-    assertServerOnly();
+    assertClientServerOnly();
     this.token = options.token;
     this.fetchImpl = options.fetch ?? fetch;
     this.now = options.now ?? (() => Date.now());

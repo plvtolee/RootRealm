@@ -16,6 +16,7 @@ import { ATTRIBUTE_LABEL } from "@/lib/attributes";
 import type { AggregatedProfile } from "@/lib/profile/aggregate";
 import type { ProfileExplanation } from "@/lib/profile/service";
 import { AttributeSection } from "./attribute-section";
+import { ClaimProfileCard } from "./claim-profile-card";
 import { FeaturedProjectCard } from "./featured-project-card";
 import { RecentAchievements } from "./recent-achievements";
 
@@ -264,6 +265,8 @@ function PreviewBody({ payload }: { payload: NonNullable<PreviewPayload["preview
           .map((view) => ({ name: view.definition.title, rarity: view.definition.rarity }))}
         moreCount={Math.max(0, profile.achievements.earnedCount - 4)}
       />
+
+      <ClaimProfileCard login={character.login} />
 
       <EvidenceTransparency coverage={coverage} explanations={explanations} />
     </div>
