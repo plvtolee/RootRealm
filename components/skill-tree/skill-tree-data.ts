@@ -75,13 +75,24 @@ export type SkillNode = {
   icon: string;
   /** Evidence the real system would require (contract `requiredProgress`). */
   requiredProgress: number;
-  /** Static mock evidence snapshot; equals `requiredProgress` unless listed. */
+  /**
+   * Static mock evidence snapshot; equals `requiredProgress` unless listed.
+   *
+   * NOT a measurement — see DATA_CONTRACT §5. TASKS 6.4 computes real progress in
+   * `lib/skills`, and TASKS 6.1's `SkillDefinition` deliberately omits this field
+   * rather than carry a mock in a domain shape.
+   */
   progress: number;
   /** Evidence line for the detail panel (TASKS §2.5). */
   evidenceHint: string;
   /** Mock source URL for the evidence shown in the prototype. */
   evidenceHref: string;
-  /** Rewards displayed by the detail panel (contract `xpReward`/`codeCoinReward`). */
+  /**
+   * Rewards displayed by the detail panel (contract `xpReward`/`codeCoinReward`).
+   *
+   * Display values. Whether a node *grants* anything is a SCORING.md §29 decision
+   * this phase does not make, so nothing here reads them.
+   */
   xpReward: number;
   codeCoinReward: number;
 };

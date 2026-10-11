@@ -22,7 +22,8 @@ import { ATTRIBUTE_LABEL, type AttributeKey } from "@/lib/attributes";
  * The six character attributes — DATA_CONTRACT §14 `AttributeType`. The union
  * and its display names live in `lib/attributes.ts`, because the skill tree
  * branches by the same vocabulary (TASKS §2.3, DATA_CONTRACT §16
- * `SkillNode.category`); they are re-exported here so every existing profile
+ * `SkillNode.branch`; the contract's name for it is `category`, see DATA_CONTRACT
+ * §16 and §11.1); they are re-exported here so every existing profile
  * import keeps working unchanged.
  */
 export type { AttributeKey };

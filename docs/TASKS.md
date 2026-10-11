@@ -83,14 +83,27 @@ Acceptance criteria:
 
 Create and maintain:
 
-- PRD.md
-- ARCHITECTURE.md
-- DATA_CONTRACT.md
-- DESIGN_SYSTEM.md
-- SCORING.md
-- TASKS.md
-- AGENTS.md
-- CLAUDE.md
+- PRD.md ✅
+- ARCHITECTURE.md ❌ **missing**
+- DATA_CONTRACT.md ✅
+- DESIGN_SYSTEM.md ❌ **missing**
+- SCORING.md ✅
+- TASKS.md ✅
+- AGENTS.md ✅
+- CLAUDE.md ✅
+
+**Two still outstanding.** `DATA_CONTRACT.md` was written retrospectively from the
+code after nine source files had begun citing it, and it records the drift it
+found (§11.1). `ARCHITECTURE.md` and `DESIGN_SYSTEM.md` are cited across the
+tree — `AGENTS.md` calls DESIGN_SYSTEM "the source of truth for the visual
+language" and refers to its §3, §5, §13–§17, §24, §29–§33 — but neither file
+exists.
+
+These are not cosmetic. Every visual decision in `components/skill-tree` and
+`components/profile` cites DESIGN_SYSTEM sections that resolve to nothing, so
+"the approved references say" is currently unfalsifiable. They must be written
+from `references/approved-ui/` rather than from memory, which is why they have
+been left rather than invented.
 
 Acceptance criteria:
 

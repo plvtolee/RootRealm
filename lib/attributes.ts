@@ -5,7 +5,8 @@
  * The vocabulary is shared, so it lives in one place: the profile screen
  * summarises the six attribute values (TASKS §2.1) and the skill tree uses the
  * same six keys as node categories (TASKS §2.3, DATA_CONTRACT §16
- * `SkillNode.category`). Two screens cannot drift if they spell the attributes
+ * `SkillNode.branch`; the contract's name for it is `category` — see DATA_CONTRACT
+ * §16 and §11.1). Two screens cannot drift if they spell the attributes
  * from the same union and the same display names.
  *
  * Notes:
