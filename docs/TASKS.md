@@ -84,26 +84,31 @@ Acceptance criteria:
 Create and maintain:
 
 - PRD.md ✅
-- ARCHITECTURE.md ❌ **missing**
+- ARCHITECTURE.md ✅
 - DATA_CONTRACT.md ✅
-- DESIGN_SYSTEM.md ❌ **missing**
+- DESIGN_SYSTEM.md ✅
 - SCORING.md ✅
 - TASKS.md ✅
 - AGENTS.md ✅
 - CLAUDE.md ✅
 
-**Two still outstanding.** `DATA_CONTRACT.md` was written retrospectively from the
-code after nine source files had begun citing it, and it records the drift it
-found (§11.1). `ARCHITECTURE.md` and `DESIGN_SYSTEM.md` are cited across the
-tree — `AGENTS.md` calls DESIGN_SYSTEM "the source of truth for the visual
-language" and refers to its §3, §5, §13–§17, §24, §29–§33 — but neither file
-exists.
+**All present.** `DATA_CONTRACT.md` was written retrospectively, after nine source
+files had begun citing it, and it records the drift it found (§11.1).
+`ARCHITECTURE.md` §7 and §5 were updated to match the implementation, which
+diverged from both sketches deliberately — §7.1 and §5.1 record each divergence
+and its reason.
 
-These are not cosmetic. Every visual decision in `components/skill-tree` and
-`components/profile` cites DESIGN_SYSTEM sections that resolve to nothing, so
-"the approved references say" is currently unfalsifiable. They must be written
-from `references/approved-ui/` rather than from memory, which is why they have
-been left rather than invented.
+Two vocabulary decisions are left open rather than settled by accident:
+
+- **Skill node state names.** DESIGN_SYSTEM §17 specifies `Locked / In Progress /
+  Eligible / Unlocked / Selected`. The prototype's `SkillNodeStatus` uses
+  `locked | in-progress | eligible | learned`, deliberately dropping `selected`
+  as a view concern. So `learned` and `Unlocked` name the same state, and TASK 6.5
+  should pick the domain term deliberately rather than inherit whichever it reads
+  first.
+- **Attribute colour.** `lib/attributes.ts` attaches no colour to an attribute,
+  because DESIGN_SYSTEM defines no attribute→colour mapping. That absence is
+  load-bearing and should stay deliberate.
 
 Acceptance criteria:
 

@@ -168,4 +168,89 @@ describe("§11 — the sections cited in code exist in the document", () => {
 
 /* -------------------------------------------------------------------------- */
 
+const DESIGN_SYSTEM = "docs/DESIGN_SYSTEM.md";
+const ARCHITECTURE = "docs/ARCHITECTURE.md";
+
+describe("DESIGN_SYSTEM.md — the source of truth for visual language", () => {
+  /** Section headings, as `# N. Title`. */
+  const sections = (path: string): number[] =>
+    [...readFileSync(path, "utf8").matchAll(/^# (\d+)\. /gm)]
+      .map((match) => Number(match[1]))
+      .filter((n) => !Number.isNaN(n));
+
+  it("exists", () => {
+    expect(existsSync(DESIGN_SYSTEM)).toBe(true);
+  });
+
+  it("defines the spacing scale the token layer implements", () => {
+    // §6's list is the same eight values `styles/tokens/space.css` declares, plus
+    // the zero every scale needs. If either moved, the token header's own citation
+    // of §6 would be wrong.
+    const tokens = readFileSync("styles/tokens/space.css", "utf8");
+    const px = [...tokens.matchAll(/\/\* (\d+)px \*\//g)].map((m) => Number(m[1]));
+
+    expect(px).toEqual([0, 4, 8, 12, 16, 24, 32, 48, 64]);
+  });
+
+  it("still resolves every section AGENTS.md and the tree cite", () => {
+    // The failure this guards: a document present but renumbered, so a dozen
+    // "DESIGN_SYSTEM §17" references quietly point at the wrong rule.
+    const cited = [3, 5, 7, 8, 9, 11, 12, 13, 15, 16, 17, 19, 22, 24, 25, 26, 27, 29, 30, 31, 33];
+    const have = sections(DESIGN_SYSTEM);
+
+    for (const section of cited) {
+      expect(have, `DESIGN_SYSTEM §${section}`).toContain(section);
+    }
+  });
+
+  it("keeps the six typography roles §5 names", () => {
+    // §5 lists exactly six, and AGENTS.md's Task 1.2 block table depends on that
+    // count being six rather than a number that drifts.
+    const text = readFileSync(DESIGN_SYSTEM, "utf8");
+    const typography = text.slice(text.indexOf("# 5. Typography"), text.indexOf("# 6."));
+
+    for (const role of ["Display", "Heading", "Subheading", "Body", "Caption", "Label"]) {
+      expect(typography, role).toContain(role);
+    }
+  });
+});
+
+describe("ARCHITECTURE.md — matches the implementation", () => {
+  it("exists", () => {
+    expect(existsSync(ARCHITECTURE)).toBe(true);
+  });
+
+  it("describes the DeveloperEvent the code actually defines", () => {
+    // §7 originally sketched `metadata: Record<string, unknown>` and a `"commit"`
+    // kind. The implementation diverged deliberately — a loose bag defeats type
+    // checking, and no ingested event carries commits. §7.1 records why; this
+    // asserts the corrected body is there, so the drift cannot reappear silently.
+    const text = readFileSync(ARCHITECTURE, "utf8");
+
+    expect(text).toContain("DeveloperEventEvidence");
+    expect(text).toContain("limitations");
+    expect(text).toContain("7.1 Divergence");
+  });
+
+  it("records the frontend layout it actually uses", () => {
+    // §5 suggested a features/ layer that was never built; §5.1 says so.
+    expect(readFileSync(ARCHITECTURE, "utf8")).toContain("5.1 As implemented");
+  });
+
+  it("does not claim a `commit` kind survives in the canonical event", () => {
+    // The single most consequential divergence: naming the kind `commit` would
+    // have invited scoring per-commit volume from data containing no commits.
+    const section = readFileSync(ARCHITECTURE, "utf8");
+    const asImplemented = section.slice(
+      section.indexOf("**As implemented**"),
+      section.indexOf("## 7.1"),
+    );
+
+    expect(asImplemented).not.toContain('"commit"');
+    expect(asImplemented).toContain('"push"');
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+
 import { existsSync, readFileSync } from "node:fs";
