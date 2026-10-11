@@ -5,21 +5,25 @@ import { useMemo, useState, useRef, useEffect } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { AwardGlyph, CalendarGlyph, ShieldGlyph, SparkleGlyph, StarGlyph } from "@/components/ui/content-glyphs";
+import { AwardGlyph, ShieldGlyph, SparkleGlyph, StarGlyph } from "@/components/ui/content-glyphs";
 import { ProgressBar } from "@/components/ui/progress-bar";
 import { Text } from "@/components/ui/text";
 import { cn } from "@/lib/cn";
 import { playAchievementReveal } from "@/lib/motion";
+import type { DeveloperEvent } from "@/lib/developer-event";
+import type { AchievementRarity } from "@/lib/achievements/definition";
+import { computeAchievementView, type AchievementView } from "@/lib/achievements/view";
 
-import {
-  ACHIEVEMENT_FILTERS,
-  ACHIEVEMENT_RARITY_LABEL,
-  MOCK_ACHIEVEMENTS,
-  type Achievement,
-  type AchievementRarity,
-} from "./achievement-data";
+type SortMode = "Catalog" | "Name" | "Rarity";
 
-type SortMode = "Newest" | "Oldest" | "Name" | "Rarity";
+const ACHIEVEMENT_FILTERS = ["All", "Common", "Rare", "Epic", "Legendary"] as const;
+
+const ACHIEVEMENT_RARITY_LABEL: Record<AchievementRarity, string> = {
+  common: "Common",
+  rare: "Rare",
+  epic: "Epic",
+  legendary: "Legendary",
+};
 
 const RARITY_ORDER: Record<AchievementRarity, number> = {
   legendary: 0,
@@ -36,17 +40,18 @@ const RARITY_STYLE: Record<AchievementRarity, { tone: "neutral" | "accent" | "wa
 };
 
 function AchievementCard({
-  achievement,
+  view,
   index,
   revealing,
   onRevealEnd,
 }: {
-  achievement: Achievement;
+  view: AchievementView;
   index: number;
   revealing?: boolean;
   onRevealEnd?: () => void;
 }) {
-  const rarity = RARITY_STYLE[achievement.rarity];
+  const { definition, progress, earned } = view;
+  const rarity = RARITY_STYLE[definition.rarity];
   const AchievementIcon = rarity.icon;
   const cardRef = useRef<HTMLDivElement | null>(null);
 
@@ -55,8 +60,8 @@ function AchievementCard({
      fought React remounts). Reduced motion collapses to the final state. */
   useEffect(() => {
     if (!revealing || !cardRef.current) return;
-    playAchievementReveal(cardRef.current, achievement.rarity);
-  }, [revealing, achievement.rarity]);
+    playAchievementReveal(cardRef.current, definition.rarity);
+  }, [revealing, definition.rarity]);
 
   return (
     <Card
@@ -65,6 +70,7 @@ function AchievementCard({
       padding="md"
       className={cn(
         "group relative flex min-h-(--achievement-card-min-height) flex-col overflow-hidden transition-colors duration-(--motion-base) ease-standard hover:border-border-strong motion-reduce:transition-none",
+        !earned && "opacity-80",
       )}
       onAnimationEnd={revealing ? onRevealEnd : undefined}
     >
@@ -72,83 +78,88 @@ function AchievementCard({
         <div
           className={cn(
             "flex size-(--achievement-icon-size) shrink-0 items-center justify-center rounded-lg border border-border bg-surface-secondary text-heading text-text-primary transition-colors duration-(--motion-base) ease-standard group-hover:border-border-strong motion-reduce:transition-none",
-            achievement.rarity === "legendary" && "text-warning",
-            achievement.rarity === "epic" && "text-accent",
+            definition.rarity === "legendary" && "text-warning",
+            definition.rarity === "epic" && "text-accent",
           )}
           aria-hidden="true"
         >
-            <AchievementIcon className="size-(--achievement-glyph-size)" />
+          <AchievementIcon className="size-(--achievement-glyph-size)" />
         </div>
-        <Badge variant={rarity.tone} size="sm">{ACHIEVEMENT_RARITY_LABEL[achievement.rarity]}</Badge>
+        <Badge variant={rarity.tone} size="sm">{ACHIEVEMENT_RARITY_LABEL[definition.rarity]}</Badge>
       </div>
 
       <div className="space-y-2">
-        <Text variant="subheading" as="h3" className="text-text-primary">{achievement.title}</Text>
-        <Text variant="body" className="text-text-secondary">{achievement.description}</Text>
-        <Text variant="caption" className="text-text-muted">Criteria: {achievement.criteria}</Text>
+        <Text variant="subheading" as="h3" className="text-text-primary">{definition.title}</Text>
+        <Text variant="body" className="text-text-secondary">{definition.description}</Text>
       </div>
 
-      <div className="mt-auto pt-6">
-        <div className="mb-3 flex items-center justify-between gap-2 border-t border-border pt-3">
-          <a
-            href={achievement.evidenceHref}
-            target="_blank"
-            rel="noreferrer"
-            className="truncate text-caption text-accent underline underline-offset-4"
-          >
-            Evidence: {achievement.source}
-          </a>
-          <Text variant="caption" className="shrink-0 text-text-secondary">+{achievement.skillPoints} SP</Text>
+      <div className="mt-auto space-y-3 pt-6">
+        <div className="flex items-center justify-between gap-2 border-t border-border pt-3">
+          <Text variant="caption" className="text-text-muted">
+            {earned ? "Earned" : `${progress.current} of ${progress.required}`}
+          </Text>
+          <span className="text-label text-text-disabled" aria-label={`Achievement ${index + 1}`}>
+            {String(index + 1).padStart(2, "0")}
+          </span>
         </div>
-        <div className="flex items-center gap-2 text-text-muted">
-          <CalendarGlyph className="size-4 shrink-0" />
-          <Text variant="caption">Earned {achievement.unlockedAt}</Text>
-          <span className="ml-auto text-label text-text-disabled" aria-label={`Achievement ${index + 1}`}>{String(index + 1).padStart(2, "0")}</span>
-        </div>
+        {earned ? null : (
+          <ProgressBar
+            aria-label={`${definition.title} progress`}
+            value={progress.current}
+            max={progress.required}
+            size="sm"
+          />
+        )}
       </div>
     </Card>
   );
 }
 
-export function AchievementScreen() {
+export function AchievementScreen({
+  events = [],
+  earnedIds = [],
+}: {
+  /** The developer's normalized events. Empty until ingestion is wired. */
+  events?: readonly DeveloperEvent[];
+  /** Recorded achievement unlocks (TASKS 7.3). Empty until they are persisted. */
+  earnedIds?: readonly string[];
+}) {
   const [selectedFilter, setSelectedFilter] = useState<(typeof ACHIEVEMENT_FILTERS)[number]>("All");
-  const [sortMode, setSortMode] = useState<SortMode>("Newest");
+  const [sortMode, setSortMode] = useState<SortMode>("Catalog");
   const [animating, setAnimating] = useState<ReadonlySet<string>>(new Set());
   const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
 
-  const totalPoints = MOCK_ACHIEVEMENTS.reduce((sum, achievement) => sum + achievement.skillPoints, 0);
-  const rarityCounts = useMemo(() => MOCK_ACHIEVEMENTS.reduce<Record<AchievementRarity, number>>((counts, item) => {
-    counts[item.rarity] += 1;
-    return counts;
-  }, { common: 0, rare: 0, epic: 0, legendary: 0 }), []);
+  const state = useMemo(
+    () => computeAchievementView(events, new Set(earnedIds)),
+    [events, earnedIds],
+  );
 
   const visibleAchievements = useMemo(() => {
     const filtered = selectedFilter === "All"
-      ? [...MOCK_ACHIEVEMENTS]
-      : MOCK_ACHIEVEMENTS.filter((achievement) => achievement.rarity === selectedFilter.toLowerCase());
+      ? [...state.achievements]
+      : state.achievements.filter((view) => view.definition.rarity === selectedFilter.toLowerCase());
 
     return filtered.sort((a, b) => {
-      if (sortMode === "Name") return a.title.localeCompare(b.title);
-      if (sortMode === "Rarity") return RARITY_ORDER[a.rarity] - RARITY_ORDER[b.rarity];
-      const dateOrder = a.unlockedAt.localeCompare(b.unlockedAt);
-      return sortMode === "Newest" ? -dateOrder : dateOrder;
+      if (sortMode === "Name") return a.definition.title.localeCompare(b.definition.title);
+      if (sortMode === "Rarity") return RARITY_ORDER[a.definition.rarity] - RARITY_ORDER[b.definition.rarity];
+      return 0;
     });
-  }, [selectedFilter, sortMode]);
+  }, [selectedFilter, sortMode, state]);
 
   function handleDemoReveal() {
     timersRef.current.forEach((t) => clearTimeout(t));
     timersRef.current = [];
     setAnimating(new Set());
 
-    visibleAchievements.forEach((achievement, index) => {
+    visibleAchievements.forEach((view, index) => {
       timersRef.current.push(
         setTimeout(() => {
-          setAnimating((prev) => new Set([...prev, achievement.id]));
+          setAnimating((prev) => new Set([...prev, view.definition.id]));
           // Clear after animation completes
           setTimeout(() => {
             setAnimating((prev) => {
               const next = new Set(prev);
-              next.delete(achievement.id);
+              next.delete(view.definition.id);
               return next;
             });
           }, 600);
@@ -176,11 +187,9 @@ export function AchievementScreen() {
         <div className="flex items-end gap-8 lg:gap-12">
           <div>
             <Text variant="caption" className="mb-1 block text-text-muted">UNLOCKED</Text>
-            <Text variant="heading" as="p" className="text-text-primary">{MOCK_ACHIEVEMENTS.length}<span className="text-text-muted"> / 24</span></Text>
-          </div>
-          <div>
-            <Text variant="caption" className="mb-1 block text-text-muted">SKILL POINTS</Text>
-            <Text variant="heading" as="p" className="text-text-primary">{totalPoints}<span className="text-text-muted"> SP</span></Text>
+            <Text variant="heading" as="p" className="text-text-primary">
+              {state.earnedCount}<span className="text-text-muted"> / {state.totalCount}</span>
+            </Text>
           </div>
         </div>
       </header>
@@ -199,9 +208,9 @@ export function AchievementScreen() {
           <div className="space-y-3">
             <div className="flex items-baseline justify-between gap-3">
               <Text variant="body" className="text-text-secondary">Overall completion</Text>
-              <Text variant="caption" className="text-text-primary">{MOCK_ACHIEVEMENTS.length} of 24</Text>
+              <Text variant="caption" className="text-text-primary">{state.earnedCount} of {state.totalCount}</Text>
             </div>
-            <ProgressBar aria-label="Achievement collection completion" value={MOCK_ACHIEVEMENTS.length} max={24} size="sm" />
+            <ProgressBar aria-label="Achievement collection completion" value={state.earnedCount} max={state.totalCount} size="sm" />
           </div>
         </Card>
 
@@ -216,7 +225,7 @@ export function AchievementScreen() {
               </span>
               <div className="min-w-0">
                 <Text variant="caption" className="block truncate text-text-muted">{ACHIEVEMENT_RARITY_LABEL[rarity]}</Text>
-                <Text variant="subheading" as="p" className="text-text-primary">{String(rarityCounts[rarity]).padStart(2, "0")}</Text>
+                <Text variant="subheading" as="p" className="text-text-primary">{String(state.rarityCounts[rarity]).padStart(2, "0")}</Text>
               </div>
             </div>
           ))}
@@ -226,8 +235,8 @@ export function AchievementScreen() {
       <section aria-labelledby="collection-heading" className="space-y-6">
         <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
           <div className="space-y-2">
-            <Text variant="heading" as="h2" id="collection-heading" className="text-text-primary">Unlocked</Text>
-            <Text variant="caption" className="text-text-muted">Browse milestones by rarity and date earned.</Text>
+            <Text variant="heading" as="h2" id="collection-heading" className="text-text-primary">Collection</Text>
+            <Text variant="caption" className="text-text-muted">Browse achievements by rarity and progress.</Text>
           </div>
           <label className="flex min-h-(--control-height-md) items-center gap-3 self-start rounded-md border border-border bg-surface px-3 text-text-secondary md:self-auto">
             <Text variant="label" as="span" className="shrink-0 text-text-muted">SORT</Text>
@@ -237,7 +246,7 @@ export function AchievementScreen() {
               onChange={(event) => setSortMode(event.target.value as SortMode)}
               className="min-h-(--control-height-md) cursor-pointer bg-transparent pr-2 text-label text-text-primary outline-hidden"
             >
-              <option>Newest</option><option>Oldest</option><option>Name</option><option>Rarity</option>
+              <option value="Catalog">Catalog</option><option value="Name">Name</option><option value="Rarity">Rarity</option>
             </select>
           </label>
           {process.env.NODE_ENV !== "production" ? (
@@ -256,7 +265,7 @@ export function AchievementScreen() {
         <div className="flex gap-2 overflow-x-auto pb-1" role="group" aria-label="Filter achievements by rarity">
           {ACHIEVEMENT_FILTERS.map((filter) => {
             const active = selectedFilter === filter;
-            const count = filter === "All" ? MOCK_ACHIEVEMENTS.length : rarityCounts[filter.toLowerCase() as AchievementRarity];
+            const count = filter === "All" ? state.totalCount : state.rarityCounts[filter.toLowerCase() as AchievementRarity];
             return (
               <button
                 key={filter}
@@ -276,12 +285,12 @@ export function AchievementScreen() {
 
         {visibleAchievements.length ? (
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            {visibleAchievements.map((achievement, index) => {
-              const isAnimating = animating.has(achievement.id);
+            {visibleAchievements.map((view, index) => {
+              const isAnimating = animating.has(view.definition.id);
               return (
                 <AchievementCard
-                  key={`${achievement.id}-${isAnimating ? "r" : "s"}`}
-                  achievement={achievement}
+                  key={`${view.definition.id}-${isAnimating ? "r" : "s"}`}
+                  view={view}
                   index={index}
                   revealing={isAnimating}
                 />
