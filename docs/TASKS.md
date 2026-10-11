@@ -840,6 +840,70 @@ Initial prototype curve may be used for testing only.
 
 ---
 
+## TASK 5.14 — Phase 5 spec conformance audit
+
+Audit every Phase 5 task against its `SCORING.md` section, excluding 5.2 and 5.8
+(whose units were deliberately re-specified and are recorded under those tasks).
+
+**Result: conforms. All three gaps found have been fixed.**
+
+Verified against the document rather than against the tests:
+
+| § | Task | Result |
+| --- | --- | --- |
+| §8 | 5.3 | conforms — merged PR +30, Builder, `merged` tri-state preserved |
+| §9 | 5.4 | conforms — +15, Collaborator only; dismissed reviews declined |
+| §10 | 5.5 | conforms — +20, authorship splits Debugger/Maintainer, source URL retained |
+| §11 | 5.6 | conforms — +25, Maintainer, draft/prerelease handled |
+| §12 | 5.7 | conforms — +10, Scholar, creation-only |
+| §14 | 5.9 | conforms — Architect remains the only unawarded attribute, asserted |
+| §16 | 5.9 | conforms — `AttributeAward` matches the document's shape exactly |
+| §17 | 5.10 | conforms — all six fields present |
+| §18 | 5.11 | conforms — behaviour **and** reporting; `already_rewarded` emitted |
+| §24 | 5.13 | conforms — deterministic, versioned, validated on construction |
+| §33 | 5.10 | conforms — all four named interfaces now implemented |
+| §35 | — | all nine reasons declared and reachable |
+| §36 | 5.12 | conforms — all seven fixtures, including the added `empty` |
+| §36 | 6.2 | conforms — prerequisites evaluated, not merely declared |
+| §37 | — | Cases A–E now asserted as tests |
+
+**Gap 1 — fixed: the `empty` fixture.** §36 names seven fixtures; TASKS 5.12's
+own list named six and omitted `empty`. `inactive` does not substitute — a
+quiet account and an account that never had public activity are different
+first-run cases, and only one of them is a new user's first sync. Added, with
+the distinction documented at the fixture.
+
+**Gap 2 — fixed: `calculateAttributes` now exists.** §33 names four "preferred
+pure interfaces"; the fourth was missing.
+
+```ts
+calculateAttributes(events, scoringVersion): AttributeAward[]
+```
+
+It is deliberately *not* `summarize`'s `attributeTotals` reshaped. `summarize`
+answers "how many Builder units"; this answers "which Builder units, and for
+which events". A caller tracing where a total came from cannot get there from a
+tally, because a tally has thrown away `eventId` and `ruleId` — and the ledger was
+the only other place that per-award list existed, which would have forced a
+round-trip through persistence to answer a scoring question.
+
+**Gap 3 — fixed: `already_rewarded` is now emitted.** §37 Case D states that a
+second processing yields `0 XP` with reason `already_rewarded`, and §35 lists it
+as machine-readable. `filterNewAwards` returned `{ duplicate: boolean }` — a
+yes/no answer — so the vocabulary was declared in `RejectionReason` and asserted
+to exist, but nothing produced it, and a UI following §35 could not render §37's
+stated reason for a repeat award.
+
+`IdempotencyDecision.rejectionReason` now carries it. It is `null` for a rejected
+result: a rejection awarded nothing, so there is no previous award to be a repeat
+of, and claiming otherwise would assert an award that never happened.
+
+`spec-conformance.test.ts` now asserts §37's five worked cases directly. Each
+rule's own tests say it does what it says; these say what it says is what the
+document says — which nothing else checked.
+
+---
+
 # 7. PHASE 6 — SKILL SYSTEM
 
 ---
@@ -893,67 +957,9 @@ The visual tree must only consume domain state.
 
 ---
 
-## TASK 5.14 — Phase 5 spec conformance audit
-
-Audit every Phase 5 task against its `SCORING.md` section, excluding 5.2 and 5.8
-(whose units were deliberately re-specified and are recorded under those tasks).
-
-**Result: conforms, with two gaps found and one fixed.**
-
-Verified against the document rather than against the tests:
-
-| § | Task | Result |
-| --- | --- | --- |
-| §8 | 5.3 | conforms — merged PR +30, Builder, `merged` tri-state preserved |
-| §9 | 5.4 | conforms — +15, Collaborator only; dismissed reviews declined |
-| §10 | 5.5 | conforms — +20, authorship splits Debugger/Maintainer, source URL retained |
-| §11 | 5.6 | conforms — +25, Maintainer, draft/prerelease handled |
-| §12 | 5.7 | conforms — +10, Scholar, creation-only |
-| §14 | 5.9 | conforms — Architect remains the only unawarded attribute, asserted |
-| §16 | 5.9 | conforms — `AttributeAward` matches the document's shape exactly |
-| §17 | 5.10 | conforms — all six fields present |
-| §18 | 5.11 | conforms on behaviour, **gap on reporting** (below) |
-| §24 | 5.13 | conforms — deterministic, versioned, validated on construction |
-| §33 | 5.10 | conforms for 3 of 4 named interfaces (**gap**, below) |
-| §35 | — | all nine reasons declared |
-| §36 | 5.12 | **gap fixed** — `empty` fixture was missing |
-| §37 | — | Cases A–E now asserted as tests |
-
-**Gap 1 — fixed: the `empty` fixture.** §36 names seven fixtures; TASKS 5.12's
-own list named six and omitted `empty`. `inactive` does not substitute — a
-quiet account and an account that never had public activity are different
-first-run cases, and only one of them is a new user's first sync. Added, with
-the distinction documented at the fixture.
-
-**Gap 2 — open: `calculateAttributes` is not implemented.** §33 names four
-"preferred pure interfaces". Three exist. The fourth,
-
-```ts
-calculateAttributes(events, scoringVersion): AttributeAward[]
-```
-
-does not. `summarize` reports a `Record<Attribute, number>` tally, which is a
-total per attribute; the spec's function returns a flat list of awards, each
-carrying `eventId` and `ruleId` so an award can be traced to its source event.
-Those are different shapes serving different callers, and the ledger is the only
-place the per-award list currently exists — so a caller wanting "every Builder
-award with the event that earned it" must go through persistence. Worth building
-when TASKS 10.2 defines the storage.
-
-**Gap 3 — open: a repeat award carries no rejection reason.** §37 Case D states
-that a second processing of the same PR yields `0 XP` with reason
-`already_rewarded`, and §35 lists it as machine-readable. `filterNewAwards`
-returns `{ duplicate: boolean }` — a yes/no answer, not a `RejectionReason`. The
-behaviour is right; only the vocabulary is missing, so a UI following §35 has no
-way to render §37's stated reason. Declared in the union and asserted to exist,
-but nothing produces it. Recorded as a failing-shaped assertion in
-`spec-conformance.test.ts` so it fails when fixed.
-
-`spec-conformance.test.ts` now asserts §37's five worked cases directly. Each
-rule's own tests say it does what it says; these say what it says is what the
-document says — which nothing else checked.
-
 ---
+
+# 8. PHASE 7 — ACHIEVEMENTS
 
 ---
 

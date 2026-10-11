@@ -33,7 +33,7 @@
  * entire point of versioning, and freezing the version out of the key would
  * couple the persistence layer to a constant it cannot move.
  */
-import { idempotencyKey, type ScoringVersionId } from "./types";
+import { idempotencyKey, type RejectionReason, type ScoringVersionId } from "./types";
 
 /** One decision about whether an award should be recorded. */
 export interface IdempotencyDecision {
@@ -43,6 +43,21 @@ export interface IdempotencyDecision {
   key: string;
   /** Whether recording it would be a duplicate. */
   duplicate: boolean;
+  /**
+   * `already_rewarded` when this is a duplicate, otherwise `null`.
+   *
+   * `SCORING.md` §37 Case D states the reason explicitly — a second processing of
+   * the same pull request yields `0 XP`, reason `already_rewarded` — and §35 lists
+   * it as machine-readable so a UI can translate it. `duplicate: boolean` alone
+   * could not produce that string, so the vocabulary was declared but never
+   * emitted, and a UI following §35 had no way to render §37's stated reason.
+   *
+   * `null` for everything else, including an ineligible result. A rejection
+   * awarded nothing, so nothing can have been awarded already; reporting
+   * `already_rewarded` for a run of rejections would claim a previous award that
+   * never existed.
+   */
+  readonly rejectionReason: RejectionReason | null;
 }
 
 export interface IdempotentScoringOptions {
@@ -79,11 +94,15 @@ export function filterNewAwards(
   for (const result of results) {
     // A rejection produced no award, so it cannot be a double award.
     const key = idempotencyKey(developerLogin, result.eventId, scoringVersion);
+    const duplicate = result.eligible && seen.has(key);
 
     decisions.push({
       eventId: result.eventId,
       key,
-      duplicate: result.eligible && seen.has(key),
+      duplicate,
+      // §37 Case D's stated reason, emitted only when there genuinely was a
+      // previous award to be a repeat of.
+      rejectionReason: duplicate ? "already_rewarded" : null,
     });
 
     if (result.eligible) seen.add(key);

@@ -42,7 +42,7 @@ import { pushRule } from "./rules/push";
 import { releaseRule } from "./rules/release";
 import { reviewRule } from "./rules/review";
 import type { ScoringRule } from "./rule";
-import { ineligibleResult, type ScoreResult, type ScoringVersion } from "./types";
+import { ineligibleResult, type AttributeAward, type ScoreResult, type ScoringVersion } from "./types";
 
 /**
  * Every scoring rule, in dispatch order.
@@ -97,6 +97,39 @@ export interface ScoringSummary {
   /** Attribute units awarded, for every attribute including the empty ones. */
   attributeTotals: Record<string, number>;
   rejections: Record<string, number>;
+}
+
+/**
+ * Every attribute award a run produced, flattened across events.
+ *
+ * `SCORING.md` §33 names this as one of four "preferred pure interfaces", and it
+ * was the one missing: `summarize` answers "how many Builder units", while this
+ * answers "which Builder units, and for which events".
+ *
+ * Those are different questions for different callers, and conflating them is
+ * why this is not `summarize`'s `attributeTotals` reshaped. A caller wanting the
+ * award history behind a total — "which pull requests made this developer a
+ * Builder?" — needs `eventId` and `ruleId` on each award, and a tally has thrown
+ * both away. §17's ledger is the only other place that per-award list exists,
+ * which would force a caller to go through persistence to answer a scoring
+ * question.
+ *
+ * Ordering follows the input events, and within one event the order the rule
+ * produced. Deterministic by construction, as §33 requires.
+ */
+export function calculateAttributes(
+  events: readonly DeveloperEvent[],
+  version: ScoringVersion,
+): AttributeAward[] {
+  const awards: AttributeAward[] = [];
+
+  for (const result of scoreEvents(events, version)) {
+    // A rejected event awarded nothing, so it contributes no units.
+    if (!result.eligible) continue;
+    awards.push(...result.attributeAwards);
+  }
+
+  return awards;
 }
 
 /**

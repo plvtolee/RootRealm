@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { scoreEvent } from "./engine";
+import { calculateAttributes, scoreEvent, scoreEvents, summarize } from "./engine";
 import { filterNewAwards } from "./idempotency";
 import { scoringFixtures } from "./fixtures";
+import { calculateLevel } from "./levels";
 import { SKILL_DEFINITIONS } from "../skills/catalog";
+import { evaluateAll } from "../skills/prerequisites";
 import {
   SCORING_V1,
   type RejectionReason,
@@ -54,6 +56,32 @@ const mergedPr = event({
     testFiles: null,
   },
 });
+
+/** §37 Case B and Case C, reused where a comparison needs more than one award. */
+const reviewCase = () =>
+  event({
+    id: "review:1",
+    kind: "review",
+    evidence: {
+      number: 42,
+      state: "approved",
+      action: "created",
+      subject: "review",
+    },
+  });
+
+const releaseCase = () =>
+  event({
+    id: "release:1",
+    kind: "release",
+    evidence: {
+      tag: "v1.0.0",
+      name: "One",
+      action: "published",
+      draft: false,
+      prerelease: false,
+    },
+  });
 
 describe("§37 Case A — merged PR", () => {
   it("awards +30 XP and a Builder contribution", () => {
@@ -128,18 +156,14 @@ describe("§37 Case D — duplicate PR", () => {
 
   it("reports the second pass as `already_rewarded`", () => {
     /*
-     * §37 Case D states the reason explicitly, and §35 lists
-     * `already_rewarded` among the machine-readable reasons.
+     * §37 Case D states the reason explicitly, and §35 lists `already_rewarded`
+     * among the machine-readable reasons.
      *
-     * This currently cannot be satisfied: `filterNewAwards` returns
-     * `{ duplicate: boolean }`, which is a yes/no answer, not a
-     * `RejectionReason`. The value is declared in `RejectionReason` and asserted
-     * to exist by `types.test.ts`, but nothing produces it — so a UI following
-     * §35 has no way to render §37's reason for a repeat award.
-     *
-     * Asserted as `expect.anything()` on a field that does not exist yet would
-     * pass vacuously, which is worse than this comment. Recorded as a documented
-     * gap for TASKS 5.11's follow-up rather than faked.
+     * This was the gap the conformance audit found: `filterNewAwards` returned
+     * `{ duplicate: boolean }`, a yes/no answer, so the vocabulary was declared in
+     * `RejectionReason` and asserted to exist by `types.test.ts` — but nothing
+     * produced it, and a UI following §35 had no way to render §37's reason for a
+     * repeat award.
      */
     const run = [
       { eventId: "pull_request:1", eligible: true, scoringVersion: "scoring-v1" as const },
@@ -149,8 +173,33 @@ describe("§37 Case D — duplicate PR", () => {
       alreadyAwarded: first.map((entry) => entry.key),
     })[0];
 
-    // The gap, asserted so it fails when fixed and can be updated deliberately.
-    expect(decision).not.toHaveProperty("rejectionReason");
+    expect(decision.duplicate).toBe(true);
+    expect(decision.rejectionReason).toBe("already_rewarded");
+  });
+
+  it("reports no reason for a first processing", () => {
+    const run = [
+      { eventId: "pull_request:1", eligible: true, scoringVersion: "scoring-v1" as const },
+    ];
+
+    expect(filterNewAwards(run, "octocat", "scoring-v1")[0].rejectionReason).toBeNull();
+  });
+
+  it("does not claim already_rewarded for an event that was never awarded", () => {
+    /*
+     * A rejected result awarded nothing, so there is no previous award to repeat.
+     * Reporting `already_rewarded` here would assert an award that never
+     * happened — the same conflation the `duplicate` flag already avoids.
+     */
+    const run = [
+      { eventId: "push:1", eligible: false, scoringVersion: "scoring-v1" as const },
+    ];
+    const first = filterNewAwards(run, "octocat", "scoring-v1");
+    const second = filterNewAwards(run, "octocat", "scoring-v1", {
+      alreadyAwarded: first.map((entry) => entry.key),
+    });
+
+    expect(second[0].rejectionReason).toBeNull();
   });
 });
 
@@ -238,11 +287,87 @@ describe("§36 — the fixtures it names all exist", () => {
 });
 
 describe("§36 — skill prerequisites", () => {
-  it("the prerequisite graph is evaluated in TASKS 6.2, not yet", () => {
+  it("are evaluated, not merely declared", () => {
     // §36 lists prerequisites among the things the scoring engine must have unit
-    // tests for. The catalog exists (6.1) but evaluation is 6.2, so this records
-    // the gap rather than pretending it is covered.
+    // tests for. This records that TASKS 6.2 closed that item: the catalog alone
+    // would not satisfy it.
     expect(SKILL_DEFINITIONS.length).toBeGreaterThan(0);
-    expect(SKILL_DEFINITIONS.some((n) => n.prerequisiteIds.length > 0)).toBe(true);
+    expect(
+      evaluateAll(SKILL_DEFINITIONS, ["origin"]).get("builder-roots")?.satisfied,
+    ).toBe(true);
+    expect(evaluateAll(SKILL_DEFINITIONS, []).get("builder-roots")?.satisfied).toBe(
+      false,
+    );
+  });
+});
+
+describe("§33 — every named interface exists", () => {
+  it("scoreEvent, scoreEvents and calculateLevel are implemented", () => {
+    expect(typeof scoreEvent).toBe("function");
+    expect(typeof scoreEvents).toBe("function");
+    expect(typeof calculateLevel).toBe("function");
+  });
+
+  it("calculateAttributes returns a flat, traceable award list", () => {
+    const awards = calculateAttributes([mergedPr], SCORING_V1);
+
+    expect(awards).toEqual([
+      {
+        attribute: "builder",
+        amount: 1,
+        eventId: "pull_request:1",
+        ruleId: "pr.merged",
+      },
+    ]);
+  });
+
+  it("calculateAttributes answers a different question from summarize", () => {
+    /*
+     * §33 names calculateAttributes returning `AttributeAward[]` — a flat list
+     * where each award keeps `eventId` and `ruleId`. summarize answers "how many
+     * Builder units"; this answers "which, and for what". A caller tracing where a
+     * total came from cannot get there from a tally, so collapsing the two would
+     * force a round-trip through persistence for a scoring question.
+     */
+    const events = [mergedPr, reviewCase(), releaseCase()];
+    const awards = calculateAttributes(events, SCORING_V1);
+    const summary = summarize(scoreEvents(events, SCORING_V1));
+
+    // Same units, different shape: one keeps provenance, one does not.
+    const total = awards.reduce((sum, award) => sum + award.amount, 0);
+    const tallied = Object.values(summary.attributeTotals).reduce((a, b) => a + b, 0);
+
+    expect(total).toBe(tallied);
+    expect(awards.every((award) => award.eventId.length > 0)).toBe(true);
+    expect(awards.every((award) => award.ruleId.length > 0)).toBe(true);
+  });
+
+  it("carries no awards for a rejected event", () => {
+    const opened = event({
+      id: "pull_request:2",
+      kind: "pull_request",
+      evidence: {
+        number: 43,
+        action: "opened",
+        merged: false,
+        headRef: "f",
+        baseRef: "main",
+        testFiles: null,
+      },
+    });
+
+    expect(calculateAttributes([opened], SCORING_V1)).toEqual([]);
+  });
+
+  it("is empty for an empty run rather than throwing", () => {
+    expect(calculateAttributes([], SCORING_V1)).toEqual([]);
+  });
+
+  it("is deterministic", () => {
+    const events = [mergedPr, reviewCase()];
+
+    expect(calculateAttributes(events, SCORING_V1)).toEqual(
+      calculateAttributes(events, SCORING_V1),
+    );
   });
 });
