@@ -1,12 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { DeveloperEvent } from "../developer-event";
-import {
-  ledgerEntriesFor,
-  ledgerEntryFor,
-  type LedgerInput,
-} from "./ledger";
-import { SCORING_V1 } from "./types";
+import { ledgerEntriesFor, ledgerEntryFor } from "./ledger";
 
 const AWARDED_AT = "2026-10-11T00:00:00Z";
 

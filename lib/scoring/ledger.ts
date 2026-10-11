@@ -39,8 +39,13 @@
 import type { DeveloperEvent } from "../developer-event";
 import { idempotencyKey, type ScoreResult, type XPTransaction } from "./types";
 
-/** One award, ready to persist. */
-export interface LedgerEntry extends XPTransaction {}
+/**
+ * A recorded award, ready to persist.
+ *
+ * A type alias rather than an empty interface extending `XPTransaction`, which
+ * adds nothing and is flagged as equivalent to its supertype.
+ */
+export type LedgerEntry = XPTransaction;
 
 export interface LedgerInput {
   /** The scored result, which must be eligible. */
