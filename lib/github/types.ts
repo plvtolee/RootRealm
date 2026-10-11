@@ -94,6 +94,57 @@ export interface GitHubRepository {
   pushedAt: string | null;
 }
 
+/**
+ * `GET /repos/{owner}/{repo}/pulls/{n}/files` — one entry per changed file.
+ *
+ * Added for TASKS 5.8. `SCORING.md` §13 awards `+12 XP` for a verified regression
+ * test, and "verified" is the operative word: identifying a test means seeing a
+ * test file, which no event in the activity feed exposes. The pull request event's
+ * `payload.pull_request` is a five-field stub with no `changed_files`, so this is
+ * a separate fetch rather than a field we failed to read.
+ *
+ * ## Why only these fields
+ *
+ * The response also carries `blob_url`, `raw_url`, `contents_url` and a `patch`
+ * field holding the diff. None is kept:
+ *
+ * - `patch` is **truncated server-side** for large diffs, so a caller reading it
+ *   would see a partial diff with nothing marking it as partial. A field that lies
+ *   about its own completeness is worse than an absent one;
+ * - the URLs are derivable from `owner/name` and the PR number, and storing them
+ *   would fix the fetch's answer into the record instead of describing the work.
+ *
+ * What §13 needs is *which* files changed, and `filename` plus `status` decide
+ * that. `additions`/`deletions` are kept because size is a plausible secondary
+ * signal for §13's "meaningful test coverage" and for §14's Architect, and
+ * discarding them now would mean re-fetching later.
+ */
+export interface GitHubPullRequestFile {
+  /** Repository-relative path, as GitHub reports it. */
+  filename: string;
+  /** `added`, `modified`, `removed`, `renamed`. Null when GitHub omitted it. */
+  status: string | null;
+  /** Previous path, present only for `renamed` and `copied` entries. */
+  previousFilename: string | null;
+  additions: number | null;
+  deletions: number | null;
+}
+
+export function parsePullRequestFile(
+  value: unknown,
+  path: string,
+): GitHubPullRequestFile {
+  const raw = obj(value, path);
+
+  return {
+    filename: str(raw, "filename", path, { required: true }) as string,
+    status: str(raw, "status", path),
+    previousFilename: str(raw, "previous_filename", path),
+    additions: num(raw, "additions", path),
+    deletions: num(raw, "deletions", path),
+  };
+}
+
 export function parseRepository(value: unknown, path: string): GitHubRepository {
   const raw = obj(value, path);
   const owner = obj(raw.owner, `${path}.owner`);
@@ -194,4 +245,11 @@ export function parseRepositoryList(
 
 export function parseEventList(value: unknown, path: string): GitHubEvent[] {
   return parseEach(value, path, parseEvent);
+}
+
+export function parsePullRequestFileList(
+  value: unknown,
+  path: string,
+): GitHubPullRequestFile[] {
+  return parseEach(value, path, parsePullRequestFile);
 }

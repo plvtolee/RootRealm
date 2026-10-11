@@ -25,11 +25,13 @@ import { RateLimitTracker, type RateLimitState } from "./rate-limit";
 import { ValidationError } from "./validate";
 import type {
   GitHubEvent,
+  GitHubPullRequestFile,
   GitHubRepository,
   GitHubUser,
 } from "./types";
 import {
   parseEventList,
+  parsePullRequestFileList,
   parseRepositoryList,
   parseUser,
 } from "./types";
@@ -56,6 +58,23 @@ const PER_PAGE = 100;
  * because one wasted request against a 60/hour anonymous budget is 1.7% of it.
  */
 export const EVENT_MAX_PAGES = 3;
+
+/**
+ * `GET /repos/{owner}/{repo}/pulls/{n}/files` is served in pages of up to 100 and
+ * stops at 3000 files (30 pages).
+ *
+ * Capped at one page. TASKS 5.8 needs *whether a test file was touched*, not a
+ * full diff, and a test file appearing after the first hundred changed files is
+ * vanishingly rare next to a refactor or a lockfile. One request per pull request
+ * is what keeps this affordable at all — a 300-event feed holds roughly thirty
+ * pull requests, so the whole walk costs about thirty calls.
+ *
+ * A PR that exceeds the cap is reported as {@link PaginatedResult.truncated} rather
+ * than silently reported as complete. A truncated list means "no test file among
+ * the first hundred", which is weaker evidence than "no test file", and the two
+ * must not collapse into one another downstream.
+ */
+export const FILE_MAX_PAGES = 1;
 
 export interface GitHubClientOptions {
   /**
@@ -122,6 +141,31 @@ export function assertValidUsername(username: string): string {
   const trimmed = username.trim();
   if (!LOGIN_PATTERN.test(trimmed)) {
     throw new GitHubError(`"${username}" is not a valid GitHub username`, {
+      kind: "invalid_username",
+    });
+  }
+  return trimmed;
+}
+
+/**
+ * Validates a repository name before it can reach the network.
+ *
+ * Deliberately a different pattern from {@link assertValidUsername}: a username
+ * is alphanumeric with single hyphens, but a repository name may contain `.`
+ * (`.github`, `socket.io`) and end in `.git`. Reusing the login pattern would
+ * reject legitimate repositories, and dropping validation entirely would let a
+ * crafted name escape the path segment into the URL.
+ *
+ * The character class is deliberately narrow — GitHub's documented set — rather
+ * than a permissive "anything without a slash", because this string becomes a URL
+ * path segment.
+ */
+const REPO_PATTERN = /^[A-Za-z0-9._-]{1,100}$/;
+
+export function assertValidRepoName(repo: string): string {
+  const trimmed = repo.trim();
+  if (!REPO_PATTERN.test(trimmed) || trimmed === "." || trimmed === "..") {
+    throw new GitHubError(`"${repo}" is not a valid GitHub repository name`, {
       kind: "invalid_username",
     });
   }
@@ -212,6 +256,47 @@ export class GitHubClient {
       { per_page: PER_PAGE },
       parseEventList,
       { maxPages: EVENT_MAX_PAGES, ...options },
+    );
+  }
+
+  /* ---------------------------------------------------------------- */
+  /* TASK 5.8 — pull request files                                     */
+  /* ---------------------------------------------------------------- */
+
+  /**
+   * `GET /repos/{owner}/{repo}/pulls/{number}/files`, capped at
+   * {@link FILE_MAX_PAGES}.
+   *
+   * The one endpoint that exposes *which files* a pull request touched, and so
+   * the only evidence available for `SCORING.md` §13's "verified regression test".
+   * The activity feed cannot substitute: its `payload.pull_request` is a five-field
+   * stub carrying no `changed_files` (TASKS 4.4).
+   *
+   * Takes owner and repo separately rather than a `owner/name` string, so the two
+   * halves are each validated by their own rule — repository names permit `.` and
+   * usernames do not.
+   */
+  async listPullRequestFiles(
+    owner: string,
+    repo: string,
+    number: number,
+    options: RequestOptions = {},
+  ): Promise<PaginatedResult<GitHubPullRequestFile>> {
+    const login = assertValidUsername(owner);
+    const name = assertValidRepoName(repo);
+
+    if (!Number.isInteger(number) || number <= 0) {
+      throw new GitHubError(`"${number}" is not a valid pull request number`, {
+        kind: "invalid_username",
+      });
+    }
+
+    return this.paginate(
+      `/repos/${encodeURIComponent(login)}/${encodeURIComponent(name)}` +
+        `/pulls/${number}/files`,
+      { per_page: PER_PAGE },
+      parsePullRequestFileList,
+      { maxPages: FILE_MAX_PAGES, ...options },
     );
   }
 

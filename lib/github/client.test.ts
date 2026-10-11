@@ -1,6 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { GitHubClient, assertValidUsername, nextPageUrl } from "./client";
+import {
+  GitHubClient,
+  assertValidRepoName,
+  assertValidUsername,
+  nextPageUrl,
+} from "./client";
 import { GitHubError } from "./errors";
 
 const NOW = 1_700_000_000_000;
@@ -67,6 +72,32 @@ describe("username validation", () => {
       });
       expect(calls).toHaveLength(0);
     }
+  });
+});
+
+describe("repository name validation", () => {
+  it("accepts what GitHub actually allows", () => {
+    // A repository name is not a login: `.github`, `socket.io` and `my-repo.git`
+    // are all real, and a username pattern would reject every one of them.
+    for (const name of [".github", "socket.io", "my-repo", "a.b.c", "repo_2"]) {
+      expect(assertValidRepoName(name)).toBe(name);
+    }
+  });
+
+  it("trims before validating", () => {
+    expect(assertValidRepoName("  Hello-World  ")).toBe("Hello-World");
+  });
+
+  it("rejects anything that could escape its path segment", () => {
+    for (const name of ["a/b", "..", ".", "../etc", "repo?x=1", "repo#frag", ""]) {
+      expect(() => assertValidRepoName(name), name).toThrow(
+        /not a valid GitHub repository name/,
+      );
+    }
+  });
+
+  it("rejects a name that is too long to be real", () => {
+    expect(() => assertValidRepoName("a".repeat(101))).toThrow();
   });
 });
 
@@ -305,6 +336,129 @@ describe("listEvents", () => {
     // `forbidden` — turning a successful read into a 503 and losing the event.
     expect(result.items.map((e) => e.id)).toEqual(["1"]);
     expect(result.truncated).toBe(false);
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/* TASK 5.8 — pull request files                                       */
+/* ------------------------------------------------------------------ */
+
+describe("listPullRequestFiles", () => {
+  const file = (filename: string, over: Record<string, unknown> = {}) => ({
+    filename,
+    status: "modified",
+    additions: 10,
+    deletions: 2,
+    patch: "@@ -1 +1 @@\n-a\n+b",
+    ...over,
+  });
+
+  it("requests the right URL and parses what it needs", async () => {
+    const { client: api, calls } = client([
+      { body: [file("internal/auth_test.go"), file("src/auth.go")] },
+    ]);
+
+    const result = await api.listPullRequestFiles("octocat", "Hello-World", 82);
+
+    expect(calls[0].url).toBe(
+      `${API}/repos/octocat/Hello-World/pulls/82/files?per_page=100`,
+    );
+    expect(result.items.map((f) => f.filename)).toEqual([
+      "internal/auth_test.go",
+      "src/auth.go",
+    ]);
+  });
+
+  it("keeps status and size, and drops the truncated patch", async () => {
+    // `patch` is truncated server-side for large diffs and carries nothing saying
+    // so, so storing it would put a field in the record that lies about its own
+    // completeness.
+    const { client: api } = client([{ body: [file("a_test.go", { status: "removed" })] }]);
+
+    const [entry] = (await api.listPullRequestFiles("o", "r", 1)).items;
+
+    expect(entry.status).toBe("removed");
+    expect(entry.additions).toBe(10);
+    expect(entry.deletions).toBe(2);
+    expect(entry).not.toHaveProperty("patch");
+  });
+
+  it("carries previousFilename for a rename", async () => {
+    const { client: api } = client([
+      { body: [file("old_test.go", { status: "renamed", previous_filename: "new_test.go" })] },
+    ]);
+
+    const [entry] = (await api.listPullRequestFiles("o", "r", 1)).items;
+
+    expect(entry.previousFilename).toBe("new_test.go");
+  });
+
+  it("reports truncation instead of implying the list is complete", async () => {
+    // The cap is one page. A PR touching more files must be visibly partial,
+    // because "no test among the first hundred" is weaker than "no test".
+    const alwaysNext = {
+      body: [file("a.go")],
+      headers: {
+        link: `<${API}/repos/o/r/pulls/1/files?page=2>; rel="next"`,
+      },
+    };
+    const { client: api, calls } = client([alwaysNext, alwaysNext]);
+
+    const result = await api.listPullRequestFiles("o", "r", 1);
+
+    expect(calls).toHaveLength(1);
+    expect(result.pages).toBe(1);
+    expect(result.truncated).toBe(true);
+  });
+
+  it("returns an empty list for a pull request that changed nothing", async () => {
+    const { client: api } = client([{ body: [] }]);
+
+    await expect(
+      api.listPullRequestFiles("o", "r", 1),
+    ).resolves.toMatchObject({ items: [], truncated: false });
+  });
+
+  it("rejects a repository name that could escape its path segment", async () => {
+    const { client: api, calls } = client([{ body: [] }]);
+
+    await expect(api.listPullRequestFiles("o", "../../etc", 1)).rejects.toThrow(
+      /not a valid GitHub repository name/,
+    );
+    await expect(api.listPullRequestFiles("o", "a/b", 1)).rejects.toThrow();
+    expect(calls).toHaveLength(0);
+  });
+
+  it("accepts the repository names GitHub actually allows", async () => {
+    // `.github` and `socket.io` are real; the username pattern would reject both.
+    const { client: api } = client([{ body: [] }, { body: [] }]);
+
+    await expect(
+      api.listPullRequestFiles("o", ".github", 1),
+    ).resolves.toBeDefined();
+    await expect(
+      api.listPullRequestFiles("o", "socket.io", 1),
+    ).resolves.toBeDefined();
+  });
+
+  it("rejects a pull request number that is not a positive integer", async () => {
+    const { client: api, calls } = client([{ body: [] }]);
+
+    await expect(api.listPullRequestFiles("o", "r", 0)).rejects.toThrow(
+      /not a valid pull request number/,
+    );
+    await expect(api.listPullRequestFiles("o", "r", 1.5)).rejects.toThrow();
+    expect(calls).toHaveLength(0);
+  });
+
+  it("encodes the owner and repository into the path", async () => {
+    const { client: api, calls } = client([{ body: [] }]);
+
+    await api.listPullRequestFiles("octocat", "Hello-World", 82);
+
+    // Path segments are encoded, so a name containing `.` cannot be mistaken for
+    // an extension or smuggle a query parameter.
+    expect(calls[0].url).toContain("/repos/octocat/Hello-World/pulls/82/files");
   });
 });
 
