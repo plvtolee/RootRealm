@@ -10,11 +10,16 @@ const score = (events: readonly unknown[]) =>
 /* -------------------------------------------------------------------------- */
 
 describe("fixtures — completeness", () => {
-  it("covers all six shapes TASKS 5.12 names", () => {
+  it("covers all seven shapes SCORING.md §36 names", () => {
+    // §36 lists active, inactive, new, large, empty, duplicate activity and
+    // mixed activity. `empty` was missing until the §36 audit: `inactive` alone
+    // does not cover it, because a quiet account and an account that never had
+    // public activity are different first-run cases.
     expect(scoringFixtures.map((f) => f.profile).sort()).toEqual(
       [
         "active",
         "duplicate_activity",
+        "empty",
         "inactive",
         "large",
         "mixed_activity",

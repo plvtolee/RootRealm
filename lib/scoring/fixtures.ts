@@ -278,6 +278,7 @@ export interface Fixture {
     | "inactive"
     | "new"
     | "large"
+    | "empty"
     | "duplicate_activity"
     | "mixed_activity";
   /** The raw feed, before normalization. */
@@ -287,6 +288,27 @@ export interface Fixture {
 }
 
 const FIXTURES: readonly Fixture[] = [
+  {
+    /*
+     * `SCORING.md` §36 names seven fixtures. Five here differ in *kind* of event;
+     * `inactive` and `empty` are both zero-event feeds but are not the same case.
+     *
+     * `inactive` is an account that was busy and stopped — a real feed that has
+     * gone quiet, where a pipeline bug could look identical to a quiet month.
+     * `empty` is an account that never had public activity, which is a first-run
+     * case: no history at all, which is what a brand-new user sees on their first
+     * sync and must not be reported as an error.
+     *
+     * Collapsing them would lose whichever distinction it dropped, and §36 asks
+     * for both by name.
+     */
+    profile: "empty",
+    events: [],
+    notes: [
+      "no public activity ever, which is a first run rather than a failure",
+      "a new user syncing for the first time must see this, not an error",
+    ],
+  },
   {
     profile: "active",
     events: [
