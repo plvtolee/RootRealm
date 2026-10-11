@@ -640,6 +640,35 @@ Acceptance criteria:
 - explainable
 - test-covered
 
+**Implemented as push scoring.** TASKS 4.4 verified against the live API that a
+`PushEvent` carries no commit list — no count, no messages, no files — so §7's
+per-commit unit is not observable from the activity feed. Rather than leave the
+line unearned, the rule awards §7's `+3 XP` per **push**, under the
+classification `qualifying_push`.
+
+`qualifying_commit` remains `null` on `SCORING_V1` so the commit-level gap stays
+visible rather than being quietly satisfied by a different unit. If a commit
+source is added later, the two coexist: a push awards for landing code, and its
+commits additionally award per commit.
+
+Two consequences, both deliberate:
+
+- **Overlap with TASKS 5.3.** A merged pull request was usually pushed first, so
+  both events qualify and both are awarded. Accepted rather than worked around:
+  suppressing it needs the repository's default branch inside every rule, and §4's
+  own values keep it from dominating (`+3` against `+30`). If tuning shows this is
+  wrong, the fix is a new scoring version per §3.
+- **§7's repetition warning is only partly answerable.** A push where
+  `head === before` landed nothing and is declined under `anti_farming_rule`. A
+  long repetitive commit sequence *inside* one push is not detectable, because the
+  commit list does not exist in this data. The flat per-push award means splitting
+  work into more pushes cannot multiply the score, which is the half that is
+  fixable.
+
+Unblocking both consequences needs the same data: one request per push head
+(`GET /repos/{owner}/{repo}/commits/{sha}`) would count commits and close the
+repetition gap; the pull request files endpoint would expose changed paths.
+
 ---
 
 ## TASK 5.3 — Pull Request Scoring

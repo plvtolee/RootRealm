@@ -36,17 +36,23 @@
  * many repositories, a large pull request — and §14 pre-empts exactly that with
  * "conservative because the underlying evidence is harder to infer".
  *
- * ## The two deferred classifications
+ * ## The two empty rows, and why they are empty for different reasons
  *
- * `qualifying_commit` and `verified_regression_test` map to nothing today because
- * no rule awards either, and that is a matter of evidence rather than value.
+ * `qualifying_commit` and `verified_regression_test` map to nothing, and the
+ * reason is an evidence gap rather than a judgement about worth. They are not the
+ * same gap, so they are worth telling apart:
  *
- * The distinction matters: a commit has neither an XML value (§4 gives none, and
- * TASKS 5.2 is deferred) nor any evidence to qualify one. A regression test *has*
- * an XML value — §4 gives it `+12` — but no ingested event can identify one, so
- * that value is currently unreachable. Both rows are empty because both are
- * unawardable, and noting where they differ keeps the gap honest: the regression
- * test's value exists and is waiting on data, not on a decision about worth.
+ * - `verified_regression_test` **has a value** — §4 gives it `+12` — and no
+ *   ingested event can identify one. It is waiting on data.
+ * - `qualifying_commit` has **no value and no data**: §4's line is carried by
+ *   `qualifying_push`, which awards the same evidence at the one granularity the
+ *   activity feed supports. If a commit source is ever added the two coexist: a
+ *   push awards for landing code, and its commits additionally award per commit.
+ *
+ * An empty row is therefore not by itself a problem; what matters is whether the
+ * emptiness is *expected*. A test asserts every attribute is awarded, which is why
+ * `qualifying_push` had to map to Builder for Architect to remain the only
+ * unreachable one.
  */
 import {
   ATTRIBUTES,
@@ -107,9 +113,15 @@ export const ATTRIBUTE_MAPPING: Record<
   ScoringClassification,
   (context: MappingContext) => readonly AttributeMapping[]
 > = {
-  // Deferred with TASKS 5.2 — no evidence source. §14's "qualifying
-  // implementation work" would point at Builder.
+  // Still unawardable: TASKS 4.4 found no ingested event carrying a commit list,
+  // so no rule awards this classification and its §4 value is null. TASKS 5.2
+  // resolved the gap by scoring pushes as whole units — see `qualifying_push`.
   qualifying_commit: () => none,
+
+  // §14 Builder: "qualifying implementation work". A landed push is the
+  // implementation work we can actually see; the commit-level version of the
+  // claim is unavailable, so this is its evidence-backed stand-in.
+  qualifying_push: () => [BUILDER],
 
   // §14 Builder: "merged implementation PRs".
   merged_pull_request: () => [BUILDER],

@@ -38,6 +38,7 @@ import type { DeveloperEvent } from "../developer-event";
 import { documentationRule } from "./rules/documentation";
 import { issueRule } from "./rules/issue";
 import { pullRequestRule } from "./rules/pull-request";
+import { pushRule } from "./rules/push";
 import { releaseRule } from "./rules/release";
 import { reviewRule } from "./rules/review";
 import type { ScoringRule } from "./rule";
@@ -52,6 +53,7 @@ import { ineligibleResult, type ScoreResult, type ScoringVersion } from "./types
  * be made, were one ever needed.
  */
 export const RULES: readonly ScoringRule[] = [
+  pushRule,
   pullRequestRule,
   reviewRule,
   issueRule,

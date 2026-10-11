@@ -176,8 +176,13 @@ export function reject(input: RejectionInput): ScoreResult {
  * `qualifying_commit` is the live case: `SCORING.md` §4 gives it `+3`, but TASKS
  * 4.4 established that commit volume is not observable from the activity feed,
  * so `SCORING_V1.xp.qualifying_commit` is `null` and a rule must not invent a
- * value. Returning `null` rather than 0 keeps "undefined for this version"
- * distinguishable from "worth nothing".
+ * value. TASKS 5.2 scores that line as `qualifying_push` instead; the null stays
+ * so the commit-level gap remains visible rather than being quietly satisfied by
+ * a different unit.
+ *
+ * Returning `null` rather than 0 keeps "undefined for this version"
+ * distinguishable from "worth nothing" — a rule awarding 0 XP would look like a
+ * deliberate judgement rather than an absent value.
  */
 export function xpFor(
   version: ScoringVersion,

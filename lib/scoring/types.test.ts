@@ -27,6 +27,7 @@ const ATTRIBUTE_NAMES: Attribute[] = [
 
 const CLASSIFICATIONS: ScoringClassification[] = [
   "qualifying_commit",
+  "qualifying_push",
   "merged_pull_request",
   "completed_review",
   "linked_issue_closure",
@@ -98,6 +99,7 @@ describe("scoring version — §4 starting values", () => {
   it("carries the values the spec states", () => {
     expect(SCORING_V1.xp).toEqual({
       qualifying_commit: null,
+      qualifying_push: 3,
       merged_pull_request: 30,
       completed_review: 15,
       linked_issue_closure: 20,
@@ -110,8 +112,27 @@ describe("scoring version — §4 starting values", () => {
   it("declares commits unscorable rather than inventing a per-commit value", () => {
     // TASKS 4.4 verified that a PushEvent carries no commit list, so a per-commit
     // award is not computable from the activity feed. A number here would invite
-    // TASKS 5.2 to multiply by a count that does not exist.
+    // a rule to multiply by a count that does not exist.
     expect(SCORING_V1.xp.qualifying_commit).toBeNull();
+  });
+
+  it("scores §7's value per push, since that is the observable unit", () => {
+    // TASKS 5.2 resolved the §7 gap the second way §7 allows: award the same
+    // number, at the granularity the data supports. Naming it `qualifying_push`
+    // rather than reusing `qualifying_commit` is what keeps the null above honest.
+    expect(SCORING_V1.xp.qualifying_push).toBe(3);
+  });
+
+  it("keeps the push award below every larger unit of work", () => {
+    // §7 treats implementation work as the cheapest thing recognised. A push must
+    // not outweigh the pull request it usually becomes, or the overlap between
+    // them would invert the balance.
+    expect(SCORING_V1.xp.qualifying_push).toBeLessThan(
+      SCORING_V1.xp.merged_pull_request,
+    );
+    expect(SCORING_V1.xp.qualifying_push).toBeLessThan(
+      SCORING_V1.xp.qualifying_documentation,
+    );
   });
 
   it("awards whole integers only", () => {

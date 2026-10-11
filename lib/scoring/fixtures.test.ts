@@ -121,11 +121,31 @@ describe("runFixture — new", () => {
     expect(normalized.byKind.issue).toBe(1);
   });
 
-  it("qualifies neither, because neither has the evidence to", () => {
+  it("qualifies the push but not the opened issue", () => {
+    const { deduplicated } = runFixture("new");
+    const results = score(deduplicated.events);
+
+    // TASKS 5.2 changed this fixture's expected shape: a push now earns §7's
+    // value, while an opened issue is still not a closure.
+    expect(summarize(results).eligible).toBe(1);
+
+    // DeveloperEvent ids are occurrence-scoped: `<kind>:<github event id>`.
+    const push = results.find((r) => r.eventId === "push:push-1");
+    expect(push?.eligible).toBe(true);
+    expect(push?.classification).toBe("qualifying_push");
+
+    const issue = results.find((r) => r.eventId === "issue:issue-1");
+    expect(issue?.eligible).toBe(false);
+  });
+
+  it("earns a new developer only §7's smallest amount", () => {
+    // A first push is the only thing that qualifies here, so the total is exactly
+    // the push value — the floor of what implementation work is worth.
     const { deduplicated } = runFixture("new");
 
-    // A push carries no commit list; an opened issue is not a closure.
-    expect(summarize(score(deduplicated.events)).eligible).toBe(0);
+    expect(summarize(score(deduplicated.events)).totalXp).toBe(
+      SCORING_V1.xp.qualifying_push,
+    );
   });
 });
 

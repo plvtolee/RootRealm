@@ -23,6 +23,7 @@ describe("ATTRIBUTE_MAPPING — covers every classification (§14)", () => {
     expect(ALL_CLASSIFICATIONS.sort()).toEqual(
       [
         "qualifying_commit",
+        "qualifying_push",
         "merged_pull_request",
         "completed_review",
         "linked_issue_closure",
@@ -130,11 +131,11 @@ describe("Architect is awarded nothing (§14)", () => {
     // assertion is the conservatism — it forces a future implementer to confront
     // it rather than quietly filling the row in.
     expect(ATTRIBUTES).toContain("architect");
-    expect(ALL_CLASSIFICATIONS).toHaveLength(7);
+    expect(ALL_CLASSIFICATIONS).toHaveLength(8);
   });
 });
 
-describe("deferred classifications map to nothing", () => {
+describe("the two unawardable classifications map to nothing", () => {
   it.each(["qualifying_commit", "verified_regression_test"] as const)(
     "%s awards no attribute today",
     (classification) => {
@@ -156,6 +157,16 @@ describe("deferred classifications map to nothing", () => {
     // An absent key would be invisible; an empty mapping is a decision.
     expect(ALL_CLASSIFICATIONS).toContain("qualifying_commit");
     expect(ALL_CLASSIFICATIONS).toContain("verified_regression_test");
+  });
+
+  it("gives Builder the push, which is §14's implementation work", () => {
+    // §14 Builder: "qualifying implementation work". `qualifying_push` is the
+    // evidence-backed stand-in for the commit-level claim, so the push must land
+    // somewhere — otherwise adding it would have widened the Architect gap rather
+    // than closed anything.
+    expect(ATTRIBUTE_MAPPING.qualifying_push({})).toEqual([
+      { attribute: "builder", amount: 1 },
+    ]);
   });
 });
 

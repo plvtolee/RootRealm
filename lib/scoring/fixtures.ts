@@ -325,8 +325,9 @@ const FIXTURES: readonly Fixture[] = [
     ],
     notes: [
       "a first push and a first issue",
-      "neither qualifies: a push carries no commit list, an opened issue is not a closure",
-      "the whole run scores nothing, which must not be reported as an error",
+      "only the push qualifies, at §7's smallest value",
+      "an opened issue is not a closure",
+      "the near-empty run earns almost nothing, which must not be reported as an error",
     ],
   },
   {

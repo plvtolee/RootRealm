@@ -168,21 +168,60 @@ describe("the pipeline levels", () => {
 
 describe("the pipeline's evidence gaps survive every stage", () => {
   it("carries the push limitation into the scored events", () => {
-    const { deduplicated, results } = pipeline("large");
+    const { deduplicated } = pipeline("large");
     const pushes = deduplicated.events.filter((e) => e.kind === "push");
 
     for (const event of pushes) {
       expect(event.limitations).toContain("commit_count_unavailable");
     }
+  });
 
-    // None of them earned anything, which is the honest consequence.
-    const pushResults = results.filter((r) =>
-      pushes.some((e) => e.id === r.eventId),
+  it("awards a flat amount per push, so an unseen commit count cannot inflate it", () => {
+    // The limitation above says we cannot see how many commits a push carried.
+    // The award must therefore not vary with anything we cannot observe — a push
+    // is one unit regardless of its size. If this ever regressed to a per-commit
+    // multiplier, the limitation would have become a silent multiplier.
+    const { deduplicated, results } = pipeline("large");
+    const pushIds = new Set(
+      deduplicated.events.filter((e) => e.kind === "push").map((e) => e.id),
     );
+    const pushResults = results.filter((r) => pushIds.has(r.eventId));
 
+    expect(pushResults.length).toBeGreaterThan(0);
     for (const result of pushResults) {
-      expect(result.eligible).toBe(false);
+      expect(result.eligible).toBe(true);
+      expect(result.xp).toBe(SCORING_V1.xp.qualifying_push);
+      expect(result.attributeAwards).toHaveLength(1);
     }
+  });
+
+  it("counts a repeated sync's pushes once each, not twice", () => {
+    // `duplicate_activity` is 80 observations of 40 pushes. Every push is
+    // identical across the two copies, so each must be awarded exactly once —
+    // the deduplication and idempotency layers agreeing rather than one of them
+    // compensating for the other.
+    const { deduplicated, entries } = pipeline("duplicate_activity");
+
+    expect(deduplicated.events).toHaveLength(40);
+    expect(entries).toHaveLength(40);
+
+    const ids = entries.map((entry) => entry.id);
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  it("does not let the push line swamp the merge it usually becomes", () => {
+    // The push/pull-request overlap is accepted deliberately, but §4's values
+    // must keep it from dominating. Across a whole feed, push XP should be a
+    // minority of the total — otherwise every merged pull request would be
+    // outvoted by the pushes leading up to it.
+    const { results } = pipeline("large");
+    const summary = summarize(results);
+
+    const pushXp = results
+      .filter((r) => r.eligible && r.classification === "qualifying_push")
+      .reduce((total, r) => total + r.xp, 0);
+
+    expect(pushXp).toBeLessThan(summary.totalXp / 2);
   });
 
   it("records a ledger entry only for what it can cite", () => {

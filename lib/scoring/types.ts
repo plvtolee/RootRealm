@@ -87,8 +87,24 @@ export const ATTRIBUTES: readonly Attribute[] = [
  * uses.
  */
 export type ScoringClassification =
-  /** §7 — a commit that qualifies. See the note in `XpTable`. */
+  /**
+   * §7 — a commit that qualifies.
+   *
+   * Still unawardable: TASKS 4.4 verified that no ingested event carries a commit
+   * list. See {@link XpTable} — and `qualifying_push`, which awards the same
+   * evidence at a coarser unit rather than leaving the line unearned.
+   */
   | "qualifying_commit"
+  /**
+   * A push that landed code on a branch (§7's line, scored per push).
+   *
+   * Named for what is actually observed. §7 awards `+3 XP` per *qualifying
+   * commit*, but a `PushEvent` carries no commit list, so the unit we can
+   * honestly score is the push. Naming it `qualifying_commit` would assert a
+   * granularity the data does not have — the exact confusion the `push` event
+   * kind exists to avoid.
+   */
+  | "qualifying_push"
   /** §8 — a merged pull request. */
   | "merged_pull_request"
   /** §9 — a completed review. */
@@ -141,15 +157,39 @@ export type ScoringVersionId = "scoring-v1";
  * tuning" and "NOT final balance values", so they live on the version rather
  * than as constants — tuning produces a new version, not an edit to this one.
  *
- * `qualifying_commit` is `null` for a reason worth stating plainly: TASKS 4.4
- * verified against the live API that a `PushEvent` carries **no commit list**,
- * so a per-commit award cannot be computed from the activity feed. A `number`
- * here would invite TASKS 5.2 to multiply by a count that does not exist. It is
- * `null` until a source that can count commits is chosen, and TASKS 5.2 must
- * either resolve that or score pushes as whole units under a name that says so.
+ * ## `qualifying_commit` stays `null`, and `qualifying_push` takes its place
+ *
+ * TASKS 4.4 verified against the live API that a `PushEvent` carries **no commit
+ * list**, so §7's per-commit award cannot be computed from the activity feed. A
+ * `number` here would invite a rule to multiply by a count that does not exist.
+ *
+ * TASKS 5.2 resolved this the second way §7's own note allows — by scoring the
+ * push as a whole unit, under a name that says so:
+ *
+ * - `qualifying_commit` remains `null`, so §7's literal line stays visibly
+ *   unimplemented rather than quietly satisfied by a different unit. If a commit
+ *   source is ever added, the two coexist without ambiguity: a push awards once
+ *   for landing the code, and its commits can additionally award per commit.
+ * - `qualifying_push` carries the value. It is `+3`, §7's own number, applied per
+ *   push. That keeps the balance the spec intended — implementation work is the
+ *   smallest and cheapest thing recognised — while scoring only what the data can
+ *   support.
  */
 export interface XpTable {
+  /**
+   * §7 — deliberately `null`. See above. `null` rather than `0` so "unimplemented
+   * for this version" stays distinguishable from "worth nothing".
+   */
   readonly qualifying_commit: number | null;
+  /**
+   * §7's value, awarded per push.
+   *
+   * A push may contain one commit or fifty, and they are indistinguishable here,
+   * so this is a flat award per landed push rather than a per-commit one. That is
+   * the conservative direction: a developer cannot farm XP by splitting work into
+   * more pushes, and a single large push is not over-rewarded either.
+   */
+  readonly qualifying_push: number;
   readonly merged_pull_request: number;
   readonly completed_review: number;
   readonly linked_issue_closure: number;
@@ -173,16 +213,21 @@ export interface ScoringVersion {
  * The first scoring version (`SCORING.md` §4).
  *
  * `qualifying_commit` is `null` because commit volume is not observable from the
- * events feed — see {@link XpTable}.
+ * events feed; §7's line is scored per push as `qualifying_push` instead — see
+ * {@link XpTable}.
  */
 export const SCORING_V1: ScoringVersion = {
   id: "scoring-v1",
   introducedAt: "2026-10-11",
   notes:
     "Initial values from SCORING.md §4, which the spec describes as starting " +
-    "placeholders to be tuned against real profiles before launch.",
+    "placeholders to be tuned against real profiles before launch. §7's " +
+    "per-commit line is scored per push, as commit counts are not observable " +
+    "from the events feed.",
   xp: {
     qualifying_commit: null,
+    // §7's +3, awarded per push — see the note in {@link XpTable}.
+    qualifying_push: 3,
     merged_pull_request: 30,
     completed_review: 15,
     linked_issue_closure: 20,
