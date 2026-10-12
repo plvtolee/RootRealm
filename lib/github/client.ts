@@ -36,8 +36,8 @@ import {
   parseRepositoryList,
   parseUser,
 } from "./types";
+import { gitHubApiBase } from "./endpoints";
 
-const API_BASE = "https://api.github.com";
 const API_VERSION = "2022-11-28";
 const USER_AGENT = "RootRealm-Ingestion";
 
@@ -464,7 +464,7 @@ export class GitHubClient {
     path: string,
     query: RequestOptions["query"] = {},
   ): string {
-    const base = path.startsWith("http") ? path : `${API_BASE}${path}`;
+    const base = path.startsWith("http") ? path : `${gitHubApiBase()}${path}`;
     const params = new URLSearchParams();
 
     for (const [key, value] of Object.entries(query)) {
@@ -549,7 +549,7 @@ export function nextPageUrl(linkHeader: string | null): string | null {
 
     const [, url, params] = match;
     if (!/(^|;)\s*rel\s*=\s*"?next"?\s*(;|$)/i.test(params)) continue;
-    if (!url.startsWith(`${API_BASE}/`)) continue;
+    if (!url.startsWith(`${gitHubApiBase()}/`)) continue;
     return url;
   }
 

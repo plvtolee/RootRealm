@@ -48,6 +48,8 @@
 
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 
+import { gitHubApiBase, gitHubOAuthBase } from "../github/endpoints";
+
 /**
  * The one scope RootRealm requests.
  *
@@ -58,10 +60,25 @@ import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
  */
 export const GITHUB_SCOPES: readonly string[] = ["read:user"];
 
-const AUTHORIZE_URL = "https://github.com/login/oauth/authorize";
-const TOKEN_URL = "https://github.com/login/oauth/access_token";
-const USER_URL = "https://api.github.com/user";
 const API_VERSION = "2022-11-28";
+
+/** The OAuth authorize endpoint on the resolved host. */
+function authorizeUrl(): string {
+  return `${gitHubOAuthBase()}/login/oauth/authorize`;
+}
+
+/** The OAuth token endpoint on the resolved host. */
+function tokenUrl(): string {
+  return `${gitHubOAuthBase()}/login/oauth/access_token`;
+}
+
+/**
+ * The authenticated-user endpoint. This is the REST API base, not the OAuth web
+ * host, so it follows `GITHUB_API_BASE` rather than `GITHUB_OAUTH_BASE`.
+ */
+function userUrl(): string {
+  return `${gitHubApiBase()}/user`;
+}
 
 /** A verified GitHub identity, read with the access token. */
 export interface GitHubIdentity {
@@ -87,7 +104,7 @@ export interface AuthorizationUrlInput {
  * can still be routed to create one; the flow does not depend on it.
  */
 export function buildAuthorizationUrl(input: AuthorizationUrlInput): string {
-  const url = new URL(AUTHORIZE_URL);
+  const url = new URL(authorizeUrl());
   url.searchParams.set("client_id", input.clientId);
   url.searchParams.set("redirect_uri", input.redirectUri);
   url.searchParams.set("scope", (input.scopes ?? GITHUB_SCOPES).join(" "));
@@ -151,7 +168,7 @@ export interface ExchangeCodeInput {
 export async function exchangeCode(input: ExchangeCodeInput): Promise<TokenResult> {
   const fetchImpl = input.fetchImpl ?? fetch;
 
-  const response = await fetchImpl(TOKEN_URL, {
+  const response = await fetchImpl(tokenUrl(), {
     method: "POST",
     headers: {
       accept: "application/json",
@@ -193,7 +210,7 @@ export async function fetchIdentity(
   accessToken: string,
   fetchImpl: typeof fetch = fetch,
 ): Promise<GitHubIdentity | null> {
-  const response = await fetchImpl(USER_URL, {
+  const response = await fetchImpl(userUrl(), {
     headers: {
       accept: "application/vnd.github+json",
       authorization: `Bearer ${accessToken}`,

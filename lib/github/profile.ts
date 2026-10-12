@@ -23,6 +23,7 @@
  * `DeveloperEvent` is TASKS 4.5.
  */
 import { GitHubClient, type GitHubClientOptions } from "./client";
+import { isGitHubBaseOverridden } from "./endpoints";
 import { toFailure, type IngestionFailure } from "./failure";
 import type { RateLimitState } from "./rate-limit";
 import type { GitHubUser } from "./types";
@@ -73,8 +74,15 @@ export type ProfileResult =
 export function createProfileClient(
   options: GitHubClientOptions = {},
 ): GitHubClient {
+  // With a test endpoint override in force, the real token must not travel to it:
+  // the override points at a local mock, and sending a live credential to whatever
+  // host an environment variable names is exactly the mistake TASK 19.1 exists to
+  // prevent. An explicitly-passed token is still honored, so a unit test can
+  // inject one; only the environment-read token is withheld.
+  const fromEnvironment = isGitHubBaseOverridden() ? undefined : process.env.GITHUB_TOKEN;
+
   return new GitHubClient({
-    token: options.token ?? process.env.GITHUB_TOKEN,
+    token: options.token ?? fromEnvironment,
     ...options,
   });
 }
