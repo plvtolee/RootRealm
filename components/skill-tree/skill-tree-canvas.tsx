@@ -6,7 +6,7 @@
  * the SVG paints edges, shells, glyphs and the dotted grid behind them.
  */
 
-import { useId, useRef, useState, useEffect, type AnimationEvent, type CSSProperties, type PointerEvent, type WheelEvent } from "react";
+import { memo, useCallback, useId, useMemo, useRef, useEffect, type AnimationEvent, type CSSProperties, type PointerEvent, type WheelEvent } from "react";
 import { playSkillUnlock } from "@/lib/motion";
 
 import { cn } from "@/lib/cn";
@@ -16,7 +16,7 @@ import { SKILL_DEFINITIONS } from "@/lib/skills/catalog";
 import { indexSkills } from "@/lib/skills/definition";
 import type { SkillNodeView } from "@/lib/skills/view";
 import { STATUS_LABEL } from "@/lib/skills/view";
-import { ATTRIBUTE_LABEL } from "@/lib/attributes";
+import { ATTRIBUTE_LABEL, type AttributeKey } from "@/lib/attributes";
 import { NODE_RADIUS } from "./skill-tree-geometry";
 import { SKILL_TREE_VIEWBOX } from "./skill-tree-geometry";
 import { TIER_AXIS } from "./skill-tree-geometry";
@@ -220,8 +220,15 @@ const GLYPH_TONE: Record<SkillNodeStatus, string> = {
   eligible: "text-text-primary",
   learned: "text-text-primary",
 };
-/** Hexagon shell + glyph painted behind each HTML button. */
-function NodeShell({
+/**
+ * Hexagon shell + glyph painted behind each HTML button.
+ *
+ * Memoised (TASKS 18.1). A node's paint depends on its own status, its own
+ * selection and the branch filter — nothing else. Without the memo a single
+ * selection change re-rendered all 36 shells, each re-creating its paths, glyph
+ * and progress text, for a change that could have touched exactly one.
+ */
+function NodeShellImpl({
   node,
   status,
   dimmed,
@@ -241,8 +248,7 @@ function NodeShell({
   onUnlockAnimationEnd: (event: AnimationEvent<SVGGElement>) => void;
   presentation?: SkillNodePresentation;
   view?: SkillNodeView;
-}) {
-  const radius = NODE_RADIUS[node.type];
+}) {  const radius = NODE_RADIUS[node.type];
   const learned = status === "learned";
   const visualX = presentation?.visualX ?? 0;
   const visualY = presentation?.visualY ?? 0;
@@ -351,6 +357,64 @@ function NodeShell({
     </g>
   );
 }
+
+/** The memoised node shell the canvas renders. */
+const NodeShell = memo(NodeShellImpl);
+
+/**
+ * One focusable node position in the map.
+ *
+ * Memoised, and deliberately rendered without the canvas's viewport in its props:
+ * a drag rewrites the `viewBox` attribute imperatively (see `applyViewport`), so
+ * panning never re-renders these at all. The positions are percentages of the
+ * *un-zoomed* tree, which is why they can stay constant while the viewBox moves.
+ */
+function NodeButtonImpl({
+  node,
+  status,
+  branch,
+  selected,
+  dimmed,
+  left,
+  top,
+  onPointerDown,
+  onClick,
+}: {
+  node: SkillDefinition;
+  status: SkillNodeStatus;
+  branch: AttributeKey | null;
+  selected: boolean;
+  /** Filtered out by the branch rail: stays in place, stays focusable, recedes. */
+  dimmed: boolean;
+  left: number;
+  top: number;
+  onPointerDown: (event: PointerEvent<HTMLButtonElement>) => void;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onPointerDown={onPointerDown}
+      onClick={onClick}
+      aria-pressed={selected}
+      style={{ left: `${left}%`, top: `${top}%` }}
+      className={cn(
+        "absolute -translate-x-1/2 -translate-y-1/2 rounded-full",
+        "h-(--control-height-md) w-(--control-height-md) cursor-pointer",
+        "focus-visible:outline-2 focus-visible:outline-accent",
+        dimmed && "opacity-40",
+      )}
+    >
+      <span className="sr-only">
+        {node.title} — {STATUS_LABEL[status]}
+        {branch ? `, ${ATTRIBUTE_LABEL[branch as AttributeKey]}` : ""}
+      </span>
+    </button>
+  );
+}
+
+const NodeButton = memo(NodeButtonImpl);
+
 export function SkillTreeCanvas({
   state,
   previewIds,
@@ -361,12 +425,44 @@ export function SkillTreeCanvas({
   onSelect,
 }: SkillTreeCanvasProps) {
   const gridId = useId().replace(/[^a-zA-Z0-9]/g, "grid");
-  const [viewport, setViewport] = useState<Viewport>(SKILL_TREE_VIEWBOX);
+  const svgRef = useRef<SVGSVGElement | null>(null);
+  /**
+   * The pan/zoom viewport, held in a ref rather than in state (TASKS 18.1).
+   *
+   * This was the canvas's largest cost. A drag fired `setViewport` on every
+   * pointer move, which re-rendered the whole tree — all 36 shells, 36 focus
+   * buttons, every edge — 60 times a second, to move a viewBox attribute. The
+   * nodes' data never changes during a pan, so none of it needed re-rendering.
+   *
+   * The viewBox is now written straight to the `<svg>` element. Nothing in the
+   * tree reads the viewport for paint — node positions are percentages of the
+   * un-zoomed tree — so writing the attribute is genuinely all the browser needs.
+   * React state is used only where it earns its keep: the branch filter and the
+   * unlock animation.
+   */
+  const viewportRef = useRef<Viewport>(SKILL_TREE_VIEWBOX);
   const dragRef = useRef<{ pointerId: number; startX: number; startY: number; viewport: Viewport } | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const preview = previewIds ?? new Set<string>();
-  const statusById: SkillStatusById = new Map(
-    [...state.nodes.entries()].map(([id, view]) => [id, view.status]),
+
+  /** Writes the viewport to the `<svg>`. The one place it changes on screen. */
+  const applyViewport = useCallback((next: Viewport) => {
+    viewportRef.current = next;
+    const svg = svgRef.current;
+    if (svg === null) return;
+    svg.setAttribute("viewBox", `${next.x} ${next.y} ${next.width} ${next.height}`);
+  }, []);
+
+  /**
+   * The status of every node, memoised on the nodes themselves.
+   *
+   * Rebuilt on every render before this — a fresh Map over 36 entries, thrown
+   * away if nothing else changed. It depends only on what a node's status is.
+   */
+  const statusById = useMemo(
+    () =>
+      new Map([...state.nodes.entries()].map(([id, view]) => [id, view.status])),
+    [state.nodes],
   );
 
   /**
@@ -375,8 +471,10 @@ export function SkillTreeCanvas({
    * `visualY` (TASKS 6.1), so a position has to come from here — and a missing
    * entry falls back to 0 rather than inventing one.
    */
-  const nodes = [...state.nodes.values()].map((view) => view.node);
-  const { x, y, width, height } = viewport;
+  const nodes = useMemo(
+    () => [...state.nodes.values()].map((view) => view.node),
+    [state.nodes],
+  );
 
   /* Phase 3 (Task 3.3): when the screen reports an unlock, hand the three
      animated elements to GSAP. The `revision` in the event makes this fire
@@ -401,10 +499,16 @@ export function SkillTreeCanvas({
 
   function handleWheel(event: WheelEvent<HTMLDivElement>) {
     const bounds = event.currentTarget.getBoundingClientRect();
-    const centerX = x + ((event.clientX - bounds.left) / bounds.width) * width;
-    const centerY = y + ((event.clientY - bounds.top) / bounds.height) * height;
+    const centerX = viewportRef.current.x + ((event.clientX - bounds.left) / bounds.width) * viewportRef.current.width;
+    const centerY = viewportRef.current.y + ((event.clientY - bounds.top) / bounds.height) * viewportRef.current.height;
     const factor = event.deltaY < 0 ? ZOOM_STEP : 1 / ZOOM_STEP;
-    setViewport((current) => clampViewport(zoomViewport(current, factor, centerX, centerY)));
+
+    // `passive` is not declared on the wheel handler, so the browser only waits
+    // for us if it has to; the attribute write happens in the same frame as the
+    // scroll, which is what keeps a zoom-trackpad gesture responsive.
+    applyViewport(
+      clampViewport(zoomViewport(viewportRef.current, factor, centerX, centerY)),
+    );
   }
 
   function handlePointerDown(event: PointerEvent<HTMLDivElement>) {
@@ -414,7 +518,7 @@ export function SkillTreeCanvas({
       pointerId: event.pointerId,
       startX: event.clientX,
       startY: event.clientY,
-      viewport,
+      viewport: viewportRef.current,
     };
   }
 
@@ -424,7 +528,10 @@ export function SkillTreeCanvas({
     const bounds = event.currentTarget.getBoundingClientRect();
     const deltaX = ((event.clientX - drag.startX) / bounds.width) * drag.viewport.width;
     const deltaY = ((event.clientY - drag.startY) / bounds.height) * drag.viewport.height;
-    setViewport(clampViewport({ ...drag.viewport, x: drag.viewport.x - deltaX, y: drag.viewport.y - deltaY }));
+
+    applyViewport(
+      clampViewport({ ...drag.viewport, x: drag.viewport.x - deltaX, y: drag.viewport.y - deltaY }),
+    );
   }
 
   function handlePointerEnd(event: PointerEvent<HTMLDivElement>) {
@@ -435,15 +542,14 @@ export function SkillTreeCanvas({
   }
 
   function resetViewport() {
-    setViewport(SKILL_TREE_VIEWBOX);
+    applyViewport(SKILL_TREE_VIEWBOX);
   }
 
   function zoomAtCenter(factor: number) {
-    setViewport((current) => {
-      const centerX = current.x + current.width / 2;
-      const centerY = current.y + current.height / 2;
-      return clampViewport(zoomViewport(current, factor, centerX, centerY));
-    });
+    const next = clampViewport(
+      zoomViewport(viewportRef.current, factor, viewportRef.current.x + viewportRef.current.width / 2, viewportRef.current.y + viewportRef.current.height / 2),
+    );
+    applyViewport(next);
   }
 
   return (
@@ -486,10 +592,17 @@ export function SkillTreeCanvas({
           Fit
         </button>
       </div>
+      {/*
+        The initial viewBox is the constant, not the ref. Reading a ref during
+        render is exactly what React forbids, and the constant is what the ref is
+        initialised to: nothing can move the viewport before the first paint,
+        because every writer is an event handler or an effect that runs after it.
+      */}
       <svg
-        viewBox={`${x} ${y} ${width} ${height}`}
+        ref={svgRef}
+        viewBox={`${SKILL_TREE_VIEWBOX.x} ${SKILL_TREE_VIEWBOX.y} ${SKILL_TREE_VIEWBOX.width} ${SKILL_TREE_VIEWBOX.height}`}
         className="block h-(--skill-canvas-height) w-full"
-        style={{ aspectRatio: `${width} / ${height}` }}
+        style={{ aspectRatio: `${SKILL_TREE_VIEWBOX.width} / ${SKILL_TREE_VIEWBOX.height}` }}
         role="img"
         aria-label={`Skill tree map: six branches growing from the Origin, ${nodes.length} nodes. Each node is a focusable button; for the same nodes as a readable list, choose the List view.`}
       >
@@ -515,38 +628,34 @@ export function SkillTreeCanvas({
           />
         ))}
       </svg>
+      {/*
+        (TASKS 18.1) The node positions are percentages of the *un-zoomed* tree,
+        so they do not need the viewport to be correct — which is what lets them
+        be memoised and stay mounted across a pan. A dimmed node used to come
+        from the same filter that draws the shells; it is derived here.
+      */}
       {nodes.map((node) => {
         const view = state.nodes.get(node.id);
         if (!view) return null;
         const shown = presentationOf(node.id);
-        const left = (((shown?.visualX ?? 0) - x) / width) * 100;
-        const top = (((shown?.visualY ?? 0) - y) / height) * 100;
+        const left = ((shown?.visualX ?? 0) - SKILL_TREE_VIEWBOX.x) / SKILL_TREE_VIEWBOX.width * 100;
+        const top = ((shown?.visualY ?? 0) - SKILL_TREE_VIEWBOX.y) / SKILL_TREE_VIEWBOX.height * 100;
         const dimmed =
           activeBranch != null && node.branch !== activeBranch && node.branch !== null;
+
         return (
-          <button
+          <NodeButton
             key={node.id}
-            type="button"
+            node={node}
+            status={view.status}
+            branch={node.branch}
+            selected={selectedId === node.id}
+            dimmed={dimmed}
+            left={left}
+            top={top}
             onPointerDown={(event) => event.stopPropagation()}
             onClick={() => onSelect(node.id)}
-            aria-pressed={selectedId === node.id}
-            style={{ left: `${left}%`, top: `${top}%` }}
-            className={cn(
-              "absolute -translate-x-1/2 -translate-y-1/2 rounded-full",
-              "h-(--control-height-md) w-(--control-height-md) cursor-pointer",
-              "focus-visible:outline-2 focus-visible:outline-accent",
-              dimmed && "opacity-40",
-            )}
-          >
-            <span className="sr-only">
-              {/* (17.3) The name comes from here, not an `aria-label`: a label that
-                  replaced this text would have to repeat the status and branch
-                  anyway, and the visible status word is what a sighted user
-                  reads — `STATUS_LABEL`, never the raw `in-progress` enum. */}
-              {node.title} — {STATUS_LABEL[view.status]}
-              {node.branch ? `, ${ATTRIBUTE_LABEL[node.branch]}` : ""}
-            </span>
-          </button>
+          />
         );
       })}
     </div>
