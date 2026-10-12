@@ -35,6 +35,7 @@ function complete(
   definition: QuestDefinition,
   events: readonly DeveloperEvent[],
   completedKeys: { has: (key: string) => boolean } = none,
+  currencyKeys: { has: (key: string) => boolean } = none,
 ) {
   return completeQuest({
     definition,
@@ -43,6 +44,7 @@ function complete(
     at: AT,
     scoringVersionId: "scoring-v1",
     completedKeys,
+    currencyKeys,
   });
 }
 
@@ -108,6 +110,7 @@ describe("quest completion (12.3)", () => {
       at: new Date("2026-10-13T09:00:00.000Z"),
       scoringVersionId: "scoring-v1",
       completedKeys: { has: (k) => k === key },
+      currencyKeys: none,
     });
 
     expect(outcome.ok).toBe(true);

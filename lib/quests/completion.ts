@@ -34,7 +34,8 @@
  */
 import type { DeveloperEvent } from "../developer-event";
 import type { XPTransaction } from "../scoring/types";
-import { recordCurrencyTransaction, type CurrencyTransaction } from "../currency/ledger";
+import type { CurrencyTransaction } from "../currency/ledger";
+import { earnFromQuestCompletion } from "../currency/earn";
 import { evidenceEventsFor, evaluateQuest, type QuestProgress } from "./progress";
 import type { QuestDefinition } from "./definition";
 
@@ -105,29 +106,30 @@ export function completeQuest(input: {
   readonly scoringVersionId: string;
   /** Completion ids already recorded, for the duplicate check. */
   readonly completedKeys: { readonly has: (key: string) => boolean };
+  /**
+   * Currency keys already in the ledger (TASKS 14.3).
+   *
+   * Required rather than assumed empty: a completion writes a coin entry, and a
+   * caller that cannot say what the ledger already holds cannot know whether
+   * this completion pays a second time.
+   */
+  readonly currencyKeys: { readonly has: (key: string) => boolean };
 }): CompletionOutcome {
   const { definition, userId, events, at } = input;
 
-  const progress = evaluateQuest(definition, events, at);
-  if (!progress.met) {
-    return { ok: false, refusal: "not_met" };
+  const decision = claimDecision({
+    definition,
+    userId,
+    events,
+    at,
+    completedKeys: input.completedKeys,
+  });
+  if (decision.refusal !== null) {
+    return { ok: false, refusal: decision.refusal };
   }
 
+  const { progress, evidenceEventIds } = decision;
   const key = completionKey(userId, definition.id, progress.periodKey);
-  if (input.completedKeys.has(key)) {
-    return { ok: false, refusal: "already_completed" };
-  }
-
-  const evidence = evidenceEventsFor(definition, events, at);
-  const evidenceEventIds = evidence.map((event) => event.id);
-
-  // The clause. A met quest with no citable evidence would produce a completion
-  // that asserts work the record cannot show, so it is refused rather than
-  // written with an empty evidence list.
-  if (evidenceEventIds.length === 0) {
-    return { ok: false, refusal: "no_evidence" };
-  }
-
   const completedAt = at.toISOString();
 
   const completion: QuestCompletion = {
@@ -145,15 +147,17 @@ export function completeQuest(input: {
     result: {
       completion,
       xpTransaction: xpFor(definition, completion, input.scoringVersionId),
-      currencyTransaction: recordCurrencyTransaction(
+      // TASKS 14.3: the coin reward comes from the earn rules and is keyed in
+      // the ledger, so a re-delivered completion of the same period cannot pay
+      // twice even if the completion record itself is replayed.
+      currencyTransaction: earnFromQuestCompletion(
         {
+          definition,
           userId,
-          amount: definition.codeCoinReward,
-          reason: "quest_completion",
-          sourceId: `${definition.id}:${progress.periodKey}`,
+          periodKey: progress.periodKey,
           recordedAt: completedAt,
         },
-        { has: () => false },
+        input.currencyKeys,
       ),
       cosmeticGrant: cosmeticFor(definition, userId, progress.periodKey),
     },
@@ -205,10 +209,53 @@ function cosmeticFor(
 }
 
 /**
+ * Whether a quest is ready to claim, and the evidence that would be cited.
+ *
+ * The three refusals and the citable evidence, separated from the records a
+ * completion *writes*. "Can this be claimed?" is a question about evidence and
+ * period, and it is answerable without a ledger, a scoring version or a currency
+ * entry — which is why a screen asking it does not need to supply one.
+ *
+ * The evidence clause lives here: a met quest with no citable evidence is refused
+ * rather than completed with an empty evidence list, because such a record would
+ * assert work it cannot show.
+ */
+function claimDecision(input: {
+  readonly definition: QuestDefinition;
+  readonly userId: string;
+  readonly events: readonly DeveloperEvent[];
+  readonly at: Date;
+  readonly completedKeys: { readonly has: (key: string) => boolean };
+}): { readonly refusal: CompletionRefusal } | {
+  readonly refusal: null;
+  readonly progress: QuestProgress;
+  readonly evidenceEventIds: readonly string[];
+} {
+  const { definition, userId, events, at } = input;
+
+  const progress = evaluateQuest(definition, events, at);
+  if (!progress.met) {
+    return { refusal: "not_met" };
+  }
+
+  const key = completionKey(userId, definition.id, progress.periodKey);
+  if (input.completedKeys.has(key)) {
+    return { refusal: "already_completed" };
+  }
+
+  const evidenceEventIds = evidenceEventsFor(definition, events, at).map((event) => event.id);
+  if (evidenceEventIds.length === 0) {
+    return { refusal: "no_evidence" };
+  }
+
+  return { refusal: null, progress, evidenceEventIds };
+}
+
+/**
  * Whether a quest is ready to claim.
  *
- * A convenience over {@link completeQuest} for a UI that only needs the answer,
- * without producing the records.
+ * A convenience over {@link claimDecision} for a UI that only needs the answer,
+ * without producing the records or needing a ledger.
  */
 export function isClaimable(
   definition: QuestDefinition,
@@ -217,15 +264,7 @@ export function isClaimable(
   at: Date,
   completedKeys: { readonly has: (key: string) => boolean },
 ): boolean {
-  const outcome = completeQuest({
-    definition,
-    userId,
-    events,
-    at,
-    scoringVersionId: "scoring-v1",
-    completedKeys,
-  });
-  return outcome.ok;
+  return claimDecision({ definition, userId, events, at, completedKeys }).refusal === null;
 }
 
 /** The progress beside its definition, for a screen. */
