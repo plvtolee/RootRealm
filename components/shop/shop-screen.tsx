@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState, type ComponentType } from "react";
+import { useMemo, useState, useTransition, type ComponentType } from "react";
+import { useRouter } from "next/navigation";
 
 import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -15,204 +16,282 @@ import {
   type GlyphProps,
 } from "@/components/ui/content-glyphs";
 import { Text } from "@/components/ui/text";
+import { AvatarFrame, type AvatarFrameMode } from "@/components/profile/avatar-frame";
 import { cn } from "@/lib/cn";
+import type { CosmeticRarity, CosmeticSlot } from "@/lib/cosmetics/definition";
+import { SLOT_LABEL } from "@/lib/cosmetics/definition";
+import {
+  priceLabel,
+  SHOP_SLOTS,
+  type ShopItemView,
+  type ShopViewState,
+} from "@/lib/shop/view";
 
-import { MOCK_SHOP_ITEMS, SHOP_CATEGORIES, type ShopCategory, type ShopItem } from "./shop-data";
-
-type Accent = ShopItem["accent"];
-
-const ACCENT_STYLE: Record<Accent, { text: string; border: string; wash: string; label: string }> = {
-  silver: { text: "text-text-primary", border: "border-border-strong", wash: "bg-surface-secondary", label: "Monochrome" },
-  amber: { text: "text-warning", border: "border-warning", wash: "bg-warning/10", label: "Amber" },
-  blue: { text: "text-info", border: "border-info", wash: "bg-info/10", label: "Azure" },
-  green: { text: "text-success", border: "border-success", wash: "bg-success/10", label: "Verdant" },
-  red: { text: "text-danger", border: "border-danger", wash: "bg-danger/10", label: "Crimson" },
-  white: { text: "text-text-primary", border: "border-text-secondary", wash: "bg-state-hover", label: "Obsidian" },
+/**
+ * An appearance key resolved to semantic tokens.
+ *
+ * The catalog stores a key, never a colour (AGENTS.md rule 1). Unknown keys fall
+ * back to the neutral treatment: a cosmetic that renders as nothing is worse than
+ * one that renders as the default.
+ */
+const APPEARANCE: Record<string, { swatch: string; wash: string; text: string }> = {
+  neutral: {
+    swatch: "border-border bg-surface-secondary",
+    wash: "bg-surface-secondary",
+    text: "text-text-primary",
+  },
+  amber: { swatch: "border-warning bg-warning/10", wash: "bg-warning/10", text: "text-warning" },
+  cyan: { swatch: "border-info bg-info/10", wash: "bg-info/10", text: "text-info" },
+  violet: { swatch: "border-accent bg-accent/10", wash: "bg-accent/10", text: "text-accent" },
 };
 
-const RARITY_TONE: Record<ShopItem["rarity"], "neutral" | "accent" | "warning"> = {
+/** The effect appearances that exist as frame motions (TASKS 3.2). */
+const EFFECT_MODE: Record<string, AvatarFrameMode> = {
+  none: "none",
+  pulse: "pulse",
+  haze: "haze",
+  trail: "trail",
+};
+
+const RARITY_TONE: Record<CosmeticRarity, "neutral" | "accent" | "warning"> = {
   common: "neutral",
   rare: "accent",
-  epic: "warning",
+  epic: "accent",
+  legendary: "warning",
 };
 
-const CATEGORY_GLYPH: Record<ShopCategory, ComponentType<GlyphProps>> = {
-  Frames: StarGlyph,
-  Banners: GridGlyph,
-  Titles: TagGlyph,
-  Effects: SparkleGlyph,
-  Themes: GridGlyph,
+const SLOT_GLYPH: Record<CosmeticSlot, ComponentType<GlyphProps>> = {
+  frame: StarGlyph,
+  banner: GridGlyph,
+  title: TagGlyph,
+  theme: GridGlyph,
+  effect: SparkleGlyph,
 };
 
-function ItemGlyph({ item, large = false }: { item: ShopItem; large?: boolean }) {
-  const style = ACCENT_STYLE[item.accent];
-  const CategoryGlyph = CATEGORY_GLYPH[item.category];
+/** What the server said, translated into one line the screen can show. */
+const REFUSAL_COPY: Record<string, string> = {
+  insufficient_balance: "You need more CodeCoins for this one.",
+  already_owned: "It is already in your collection.",
+  already_charged: "This item was already charged for and is being reconciled.",
+  not_purchasable: "This one is a quest reward — it is earned, not bought.",
+  unknown_item: "That item is not in the catalog.",
+  not_owned: "It is not in your collection yet.",
+};
 
-  if (item.category === "Frames") {
+export type ShopScreenProps = {
+  /**
+   * The shop state for the signed-in developer.
+   *
+   * Read on the server (TASKS 15.3), which is why the screen takes a view rather
+   * than fetching one: the balance and ownership it shows are the server's
+   * answer, not a client's guess at it.
+   */
+  readonly view: ShopViewState | null;
+  /** No trusted session: nothing here is for sale. */
+  readonly signedOut?: boolean;
+  /** The previewed developer's login, used for the avatar fallback. */
+  readonly login?: string;
+  /** A GitHub avatar, when the account has one (TASKS 9.2). */
+  readonly avatarUrl?: string | null;
+  readonly className?: string;
+};
+
+/**
+ * The shop screen (TASKS 15.1–15.4).
+ *
+ * ## What changed from the prototype
+ *
+ * The catalog is the real one (TASKS 13.1), the balance is the real ledger
+ * balance, and the two actions are real transactions:
+ *
+ * - **15.1** rows come from `computeShopView` over the catalog and the wallet;
+ * - **15.2** the preview paints the selected item on the developer's own avatar;
+ * - **15.3** Buy posts an item id to `/api/shop/purchase`, where the balance
+ *   check, the charge and the ownership grant happen together;
+ * - **15.4** a purchase is followed by the equip, server-side, so "paid but not
+ *   worn" is not a state the client can produce.
+ *
+ * ## Why the client never computes affordability
+ *
+ * The view carries an `affordable` flag so the button can be disabled, but the
+ * decision belongs to the server at the moment of the request. A client that
+ * decided for itself would be answering for a balance that may already have
+ * changed — which is the race TASKS 14.4's atomic flow exists to close. So the
+ * screen renders the refusal the server sends, including the case where an item
+ * looked affordable a moment ago and no longer is.
+ */
+export function ShopScreen({ view, signedOut = false, login = "plvtolee", avatarUrl = null, className }: ShopScreenProps) {
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+  const [slot, setSlot] = useState<CosmeticSlot>("frame");
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const busy = pending;
+
+  /**
+   * Posts one action, then lets the server page re-render.
+   *
+   * The response's own view is discarded on purpose: the page reads the wallet
+   * again, so what the screen shows after an action is the same read any other
+   * render would get — not a state the client patched and is hoping matches.
+   */
+  function act(path: string, itemId: string): void {
+    setNotice(null);
+
+    void (async () => {
+      const response = await fetch(path, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ itemId }),
+      });
+
+      const body = (await response.json().catch(() => ({}))) as {
+        error?: string;
+        purchased?: { itemId: string; cost: number };
+      };
+
+      startTransition(() => {
+        router.refresh();
+        setNotice(
+          body.purchased !== undefined
+            ? `Unlocked for ${body.purchased.cost.toLocaleString("en-US")} CodeCoins and equipped.`
+            : response.ok
+              ? "Equipped."
+              : (REFUSAL_COPY[body.error ?? ""] ?? "That did not go through."),
+        );
+      });
+    })();
+  }
+
+  const items = useMemo(
+    () => (view === null ? [] : view.items.filter((item) => item.slot === slot)),
+    [view, slot],
+  );
+
+  const selected: ShopItemView | null = useMemo(() => {
+    if (view === null) return null;
+    const fromSlot = view.items.find((item) => item.definition.id === selectedId);
+    if (fromSlot !== undefined && fromSlot.slot === slot) return fromSlot;
+    return items[0] ?? view.items[0] ?? null;
+  }, [view, items, selectedId, slot]);
+
+  if (signedOut || view === null || selected === null) {
     return (
-      <div className={cn("relative flex items-center justify-center rounded-full border border-dashed", style.border, large ? "size-(--shop-glyph-size-lg)" : "size-(--avatar-size-xl)")}>
-        <span className={cn("absolute inset-2 rounded-full border", style.border)} />
-        {large ? <Avatar name="plvtolee" initials="PL" size="xl" className={cn("border border-border-strong", style.wash)} /> : <span className={cn("relative text-heading", style.text)}>PL</span>}
+      <div className={cn("flex flex-col gap-6", className)}>
+        <Text variant="heading" as="h1">
+          The Shop
+        </Text>
+        <Card className="border-border bg-surface-secondary p-6">
+          <Text variant="subheading" as="h2" className="text-text-primary">
+            Sign in to open the shop
+          </Text>
+          <Text variant="body" className="mt-2 text-text-secondary">
+            CodeCoins and purchased cosmetics belong to an account, so the shop
+            needs a signed session before it can show a balance or sell anything.
+          </Text>
+          <div className="mt-4">
+            <Button onClick={() => router.push("/api/auth/github")}>Sign in with GitHub</Button>
+          </div>
+        </Card>
       </div>
     );
   }
 
-  if (item.category === "Banners") {
-    return <div className={cn("flex w-full items-end overflow-hidden rounded-md border border-border p-3", style.wash, large ? "h-(--shop-banner-height-lg)" : "h-(--shop-banner-height-sm)")}><span className={cn("h-1 w-2/3 rounded-pill", style.text, "bg-current")} /></div>;
-  }
-
   return (
-    <div className={cn("flex items-center justify-center rounded-md border border-border", style.wash, large ? "size-(--shop-glyph-size-lg)" : "size-(--avatar-size-xl)")}>
-      <CategoryGlyph className={cn("size-(--shop-category-glyph-size)", style.text)} />
-    </div>
-  );
-}
-
-function ShopItemCard({
-  item,
-  selected,
-  onSelect,
-  onPreview,
-  onEquip,
-}: {
-  item: ShopItem;
-  selected: boolean;
-  onSelect: () => void;
-  onPreview: () => void;
-  onEquip: () => void;
-}) {
-  return (
-    <Card padding="none" className={cn("group flex h-full flex-col overflow-hidden transition-colors duration-(--motion-base) ease-standard motion-reduce:transition-none", selected && "border-border-strong")}>
-      <button type="button" onClick={onSelect} aria-pressed={selected} className="flex flex-1 flex-col p-4 text-left">
-        <div className="mb-4 flex min-h-(--shop-item-preview-height) w-full items-center justify-center rounded-md border border-border bg-bg p-4 transition-colors duration-(--motion-base) ease-standard group-hover:bg-surface-secondary motion-reduce:transition-none">
-          <ItemGlyph item={item} />
+    <div className={cn("flex flex-col gap-8", className)}>
+      <header className="flex flex-col gap-6 border-b border-border pb-6 md:flex-row md:items-end md:justify-between">
+        <div className="max-w-xl space-y-3">
+          <Text variant="label" className="text-text-muted">
+            ROOTREALM / EXCHANGE
+          </Text>
+          <Text variant="display" as="h1" className="text-text-primary">
+            The Shop
+          </Text>
+          <Text variant="body" className="text-text-secondary">
+            Every piece is earned, collected, and yours to equip. CodeCoins buy
+            cosmetics only — never progression.
+          </Text>
         </div>
-        <div className="flex w-full items-start justify-between gap-3">
-          <div className="min-w-0 space-y-1">
-            <Text variant="subheading" as="h3" className="truncate text-text-primary">{item.name}</Text>
-            <Text variant="caption" className="text-text-muted">{item.category.slice(0, -1) || item.category}</Text>
+
+        <Card variant="secondary" padding="md" className="flex w-fit items-center gap-4">
+          <span
+            aria-hidden="true"
+            className="flex size-(--shop-balance-icon-size) items-center justify-center rounded-md border border-border bg-surface"
+          >
+            <CoinGlyph className="size-(--icon-size-md) text-warning" />
+          </span>
+          <div>
+            <Text variant="caption" className="block text-text-muted">
+              YOUR BALANCE
+            </Text>
+            <Text variant="heading" as="p" className="text-text-primary">
+              {view.balance.toLocaleString()} <span className="text-text-secondary">CC</span>
+            </Text>
           </div>
-          <Badge variant={RARITY_TONE[item.rarity]} size="sm">{item.rarity}</Badge>
-        </div>
-      </button>
-
-      <div className="flex min-h-(--control-height-lg) items-center justify-between gap-3 border-t border-border px-4 py-3">
-        {item.owned ? (
-          <Text variant="caption" className="text-text-secondary">{item.equipped ? "Currently equipped" : "In your collection"}</Text>
-        ) : (
-          <span className="inline-flex items-center gap-2 text-label text-text-primary"><CoinGlyph className="size-(--icon-size-sm) text-warning" />{item.price.toLocaleString()}</span>
-        )}
-        <Button variant={item.owned ? "secondary" : "primary"} size="sm" onClick={item.owned ? onEquip : onPreview}>
-          {item.owned ? (item.equipped ? "Equipped" : "Equip") : "Preview"}
-        </Button>
-      </div>
-    </Card>
-  );
-}
-
-export function ShopScreen() {
-  const [items, setItems] = useState<readonly ShopItem[]>(MOCK_SHOP_ITEMS);
-  const [balance, setBalance] = useState(1250);
-  const [activeCategory, setActiveCategory] = useState<ShopCategory>("Frames");
-  const [selectedItemId, setSelectedItemId] = useState("oblivion");
-  const [notice, setNotice] = useState<string | null>(null);
-
-  const visibleItems = useMemo(() => items.filter((item) => item.category === activeCategory), [items, activeCategory]);
-  const selectedItem = visibleItems.find((item) => item.id === selectedItemId) ?? visibleItems[0] ?? items[0];
-
-  function selectCategory(category: ShopCategory) {
-    setActiveCategory(category);
-    const first = items.find((item) => item.category === category);
-    if (first) setSelectedItemId(first.id);
-    setNotice(null);
-  }
-
-  function equipItem(item: ShopItem) {
-    if (!item.owned) return;
-    setItems((current) => current.map((entry) => ({
-      ...entry,
-      equipped: entry.category === item.category ? entry.id === item.id : entry.equipped,
-    })));
-    setSelectedItemId(item.id);
-    setNotice(`${item.name} equipped.`);
-  }
-
-  function purchaseItem(item: ShopItem) {
-    if (item.owned) {
-      equipItem(item);
-      return;
-    }
-    if (balance < item.price) {
-      setNotice("You need more CodeCoins to unlock this item.");
-      return;
-    }
-    setBalance((current) => current - item.price);
-    setItems((current) => current.map((entry) => entry.id === item.id ? { ...entry, owned: true, equipped: true } : {
-      ...entry,
-      equipped: entry.category === item.category ? false : entry.equipped,
-    }));
-    setNotice(`${item.name} added to your collection and equipped.`);
-  }
-
-  if (!selectedItem) return null;
-  const selectedAccent = ACCENT_STYLE[selectedItem.accent];
-
-  return (
-    <div className="flex flex-col gap-8">
-      <header className="relative overflow-hidden border-b border-border pb-6">
-        <div aria-hidden="true" className="pointer-events-none absolute right-0 top-0 hidden text-text-disabled lg:block">
-          <svg viewBox="0 0 190 100" fill="none" className="w-(--shop-grid-width)"><path d="M190 0 90 100M150 0 50 100M110 0 10 100M70 0 0 70" stroke="currentColor" strokeWidth=".6" /></svg>
-        </div>
-        <div className="relative flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
-          <div className="max-w-xl space-y-3">
-            <Text variant="label" className="text-text-muted">ROOTREALM / EXCHANGE</Text>
-            <Text variant="display" as="h1" className="text-text-primary">The Shop</Text>
-            <Text variant="body" className="text-text-secondary">Personalize your presence. Every piece is earned, collected, and yours to equip.</Text>
-          </div>
-          <Card variant="secondary" padding="md" className="flex w-fit items-center gap-4">
-            <span aria-hidden="true" className="flex size-(--shop-balance-icon-size) items-center justify-center rounded-md border border-border bg-surface"><CoinGlyph className="size-(--icon-size-md) text-warning" /></span>
-            <div>
-              <Text variant="caption" className="block text-text-muted">YOUR BALANCE</Text>
-              <Text variant="heading" as="p" className="text-text-primary">{balance.toLocaleString()} <span className="text-text-secondary">CC</span></Text>
-            </div>
-          </Card>
-        </div>
+        </Card>
       </header>
 
       <section aria-label="Featured item" className="grid overflow-hidden rounded-lg border border-border bg-surface lg:grid-cols-[1.2fr_0.8fr]">
-        <div className="relative flex min-h-(--shop-featured-height) items-center justify-center overflow-hidden bg-surface-secondary p-8">
-          <div aria-hidden="true" className="pointer-events-none absolute inset-0 opacity-40">
-            <div className="absolute inset-y-0 left-1/2 border-l border-dashed border-border-strong" />
-            <div className="absolute inset-x-0 top-1/2 border-t border-dashed border-border-strong" />
-          </div>
-          <div className={cn("relative flex size-(--shop-featured-glyph-size) items-center justify-center rounded-full border border-dashed", selectedAccent.border)}>
-            <span className={cn("absolute inset-3 rounded-full border", selectedAccent.border)} />
-            <div className="relative flex items-center justify-center"><ItemGlyph item={selectedItem} large /></div>
-          </div>
-          <span className="absolute bottom-4 left-4 text-label text-text-muted">LIVE PREVIEW / {selectedItem.category.toUpperCase()}</span>
-        </div>
+        <PreviewPanel item={selected} login={login} avatarUrl={avatarUrl} />
 
         <div className="flex flex-col justify-center p-6 md:p-8">
           <div className="mb-6 flex flex-wrap items-center gap-2">
-            <Badge variant={RARITY_TONE[selectedItem.rarity]}>{selectedItem.rarity}</Badge>
-            <Text variant="caption" className="text-text-muted">{selectedAccent.label} series</Text>
+            <Badge variant={RARITY_TONE[selected.definition.rarity]}>{selected.definition.rarity}</Badge>
+            <Text variant="caption" className="text-text-muted">
+              {SLOT_LABEL[selected.slot]}
+            </Text>
           </div>
-          <Text variant="heading" as="h2" className="text-text-primary">{selectedItem.name}</Text>
-          <Text variant="body" className="mt-3 text-text-secondary">{selectedItem.description}</Text>
+
+          <Text variant="heading" as="h2" className="text-text-primary">
+            {selected.definition.name}
+          </Text>
+          <Text variant="body" className="mt-3 text-text-secondary">
+            {selected.definition.description}
+          </Text>
+
           <div className="mt-6 flex flex-wrap items-center gap-3">
-            {selectedItem.owned ? (
-              <Button variant={selectedItem.equipped ? "secondary" : "primary"} size="lg" onClick={() => equipItem(selectedItem)}>
-                {selectedItem.equipped ? "Currently equipped" : "Equip item"}
+            {selected.owned ? (
+              <Button
+                size="lg"
+                variant={selected.equipped ? "secondary" : "primary"}
+                loading={busy}
+                onClick={() => void act("/api/shop", selected.definition.id)}
+              >
+                {selected.equipped ? "Currently equipped" : "Equip item"}
               </Button>
+            ) : selected.purchasable ? (
+              <>
+                <Button
+                  size="lg"
+                  loading={busy}
+                  onClick={() => void act("/api/shop/purchase", selected.definition.id)}
+                >
+                  <CoinGlyph className="size-(--icon-size-md) text-warning" />
+                  {selected.definition.priceCodeCoins?.toLocaleString()} CC · Unlock
+                </Button>
+                {!selected.affordable ? (
+                  <Text variant="caption" className="text-text-muted">
+                    You need {(selected.definition.priceCodeCoins ?? 0) - view.balance} more.
+                  </Text>
+                ) : (
+                  <Text variant="caption" className="text-text-muted">
+                    One-time unlock
+                  </Text>
+                )}
+              </>
             ) : (
-              <Button size="lg" onClick={() => purchaseItem(selectedItem)}>
-                <CoinGlyph className="size-(--icon-size-md) text-warning" />{selectedItem.price.toLocaleString()} CC · Unlock
-              </Button>
+              <Text variant="label" className="text-text-secondary">
+                Earned from the quests that grant it.
+              </Text>
             )}
-            {!selectedItem.owned ? <Text variant="caption" className="text-text-muted">One-time unlock</Text> : null}
           </div>
+
           <div aria-live="polite" className="mt-4 min-h-(--shop-notice-min-height)">
-            {notice ? <Text variant="caption" className="text-text-secondary">{notice}</Text> : null}
+            {notice ? (
+              <Text variant="caption" className="text-text-secondary">
+                {notice}
+              </Text>
+            ) : null}
           </div>
         </div>
       </section>
@@ -220,25 +299,37 @@ export function ShopScreen() {
       <section aria-labelledby="catalog-heading" className="space-y-6">
         <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
           <div className="space-y-2">
-            <Text variant="heading" as="h2" id="catalog-heading" className="text-text-primary">Browse the collection</Text>
-            <Text variant="caption" className="text-text-muted">{visibleItems.length} pieces in {activeCategory.toLowerCase()}</Text>
+            <Text variant="heading" as="h2" id="catalog-heading" className="text-text-primary">
+              Browse the collection
+            </Text>
+            <Text variant="caption" className="text-text-muted">
+              {view.ownedCount} of {view.totalCount} owned · {view.lockedCount} still to unlock
+            </Text>
           </div>
-          <div role="group" aria-label="Shop categories" className="flex gap-2 overflow-x-auto pb-1">
-            {SHOP_CATEGORIES.map((category) => {
-              const active = activeCategory === category;
-              const count = items.filter((item) => item.category === category).length;
+
+          <div role="group" aria-label="Shop slots" className="flex gap-2 overflow-x-auto pb-1">
+            {SHOP_SLOTS.map((entry) => {
+              const active = entry === slot;
+              const count = view.items.filter((item) => item.slot === entry).length;
               return (
                 <button
-                  key={category}
+                  key={entry}
                   type="button"
                   aria-pressed={active}
-                  onClick={() => selectCategory(category)}
+                  onClick={() => {
+                    setSlot(entry);
+                    setSelectedId(null);
+                    setNotice(null);
+                  }}
                   className={cn(
                     "inline-flex min-h-(--control-height-md) shrink-0 items-center gap-2 rounded-md border px-3 text-label transition-colors duration-(--motion-fast) ease-standard motion-reduce:transition-none",
-                    active ? "border-border-strong bg-surface-secondary text-text-primary" : "border-border bg-surface text-text-secondary hover:border-border-strong hover:text-text-primary",
+                    active
+                      ? "border-border-strong bg-surface-secondary text-text-primary"
+                      : "border-border bg-surface text-text-secondary hover:border-border-strong hover:text-text-primary",
                   )}
                 >
-                  {category}<span className="text-caption text-text-muted">{String(count).padStart(2, "0")}</span>
+                  {SLOT_LABEL[entry]}
+                  <span className="text-caption text-text-muted">{String(count).padStart(2, "0")}</span>
                 </button>
               );
             })}
@@ -246,25 +337,154 @@ export function ShopScreen() {
         </div>
 
         <div className="grid items-stretch gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {visibleItems.map((item) => (
+          {items.map((item) => (
             <ShopItemCard
-              key={item.id}
+              key={item.definition.id}
               item={item}
-              selected={selectedItem.id === item.id}
-              onSelect={() => { setSelectedItemId(item.id); setNotice(null); }}
-              onPreview={() => { setSelectedItemId(item.id); setNotice(null); }}
-              onEquip={() => equipItem(item)}
+              selected={selected.definition.id === item.definition.id}
+              busy={busy}
+              onSelect={() => {
+                setSelectedId(item.definition.id);
+                setNotice(null);
+              }}
+              onEquip={() => void act("/api/shop", item.definition.id)}
+              onPurchase={() => void act("/api/shop/purchase", item.definition.id)}
             />
           ))}
         </div>
-        {!visibleItems.length ? (
-          <Card padding="lg" className="text-center">
-            <Text variant="subheading" as="h3" className="text-text-primary">A new collection is on its way.</Text>
-            <Text variant="body" className="mt-2 text-text-secondary">There are no {activeCategory.toLowerCase()} available just yet.</Text>
-          </Card>
-        ) : null}
       </section>
-      <Text variant="caption" className="text-text-muted">Demo shop · purchases and equipment are stored for this session only.</Text>
+
+      <Text variant="caption" className="text-text-muted">
+        Purchases and equips are recorded on the server. The wallet is held in
+        memory until Phase 10 gives it a database, so a restart loses it.
+      </Text>
     </div>
+  );
+}
+
+/** The live preview: the selected item on the developer's own avatar (15.2). */
+function PreviewPanel({
+  item,
+  login,
+  avatarUrl,
+}: {
+  item: ShopItemView;
+  login: string;
+  avatarUrl: string | null;
+}) {
+  const appearance = APPEARANCE[item.definition.appearance] ?? APPEARANCE.neutral;
+  const Glyph = SLOT_GLYPH[item.slot];
+  const isEffect = item.slot === "effect";
+
+  return (
+    <div className="relative flex min-h-(--shop-featured-height) items-center justify-center overflow-hidden bg-surface-secondary p-8">
+      <div aria-hidden="true" className="pointer-events-none absolute inset-0 opacity-40">
+        <div className="absolute inset-y-0 left-1/2 border-l border-dashed border-border-strong" />
+        <div className="absolute inset-x-0 top-1/2 border-t border-dashed border-border-strong" />
+      </div>
+
+      {isEffect ? (
+        <AvatarFrame
+          mode={EFFECT_MODE[item.definition.appearance] ?? "none"}
+          intensity={75}
+          glow
+          className={cn("relative border-2 p-1", appearance.swatch)}
+        >
+          {avatarUrl ? (
+            <Avatar src={avatarUrl} alt={login} size="xl" className="border border-border" />
+          ) : (
+            <Avatar name={login} size="xl" className="border border-border" />
+          )}
+        </AvatarFrame>
+      ) : (
+        <div
+          className={cn(
+            "relative flex size-(--shop-featured-glyph-size) items-center justify-center rounded-lg border border-dashed",
+            appearance.swatch,
+          )}
+        >
+          <Glyph className={cn("size-(--shop-category-glyph-size)", appearance.text)} />
+        </div>
+      )}
+
+      <span className="absolute bottom-4 left-4 text-label text-text-muted">
+        LIVE PREVIEW / {SLOT_LABEL[item.slot].toUpperCase()}
+      </span>
+    </div>
+  );
+}
+
+function ShopItemCard({
+  item,
+  selected,
+  busy,
+  onSelect,
+  onEquip,
+  onPurchase,
+}: {
+  item: ShopItemView;
+  selected: boolean;
+  busy: boolean;
+  onSelect: () => void;
+  onEquip: () => void;
+  onPurchase: () => void;
+}) {
+  const appearance = APPEARANCE[item.definition.appearance] ?? APPEARANCE.neutral;
+
+  return (
+    <Card
+      padding="none"
+      className={cn(
+        "group flex h-full flex-col overflow-hidden transition-colors duration-(--motion-base) ease-standard motion-reduce:transition-none",
+        selected && "border-border-strong",
+      )}
+    >
+      <button type="button" onClick={onSelect} aria-pressed={selected} className="flex flex-1 flex-col p-4 text-left">
+        <div className="mb-4 flex min-h-(--shop-item-preview-height) w-full items-center justify-center rounded-md border border-border bg-bg p-4 transition-colors duration-(--motion-base) ease-standard group-hover:bg-surface-secondary motion-reduce:transition-none">
+          <div className={cn("size-(--avatar-size-xl) rounded-lg border", appearance.swatch)} aria-hidden="true" />
+        </div>
+
+        <div className="flex w-full items-start justify-between gap-3">
+          <div className="min-w-0 space-y-1">
+            <Text variant="subheading" as="h3" className="truncate text-text-primary">
+              {item.definition.name}
+            </Text>
+            <Text variant="caption" className="text-text-muted">
+              {item.slotLabel}
+            </Text>
+          </div>
+          <Badge variant={RARITY_TONE[item.definition.rarity]} size="sm">
+            {item.definition.rarity}
+          </Badge>
+        </div>
+      </button>
+
+      <div className="flex min-h-(--control-height-lg) items-center justify-between gap-3 border-t border-border px-4 py-3">
+        {item.owned ? (
+          <Text variant="caption" className="text-text-secondary">
+            {item.equipped ? "Currently equipped" : "In your collection"}
+          </Text>
+        ) : (
+          <span className="inline-flex items-center gap-2 text-label text-text-primary">
+            <CoinGlyph className="size-(--icon-size-sm) text-warning" />
+            {priceLabel(item)}
+          </span>
+        )}
+
+        {item.owned ? (
+          <Button variant="secondary" size="sm" loading={busy} onClick={onEquip}>
+            {item.equipped ? "Equipped" : "Equip"}
+          </Button>
+        ) : item.purchasable ? (
+          <Button size="sm" loading={busy} onClick={onPurchase}>
+            Unlock
+          </Button>
+        ) : (
+          <Button variant="ghost" size="sm" onClick={onSelect}>
+            Preview
+          </Button>
+        )}
+      </div>
+    </Card>
   );
 }

@@ -10,6 +10,22 @@
 
 import { assertServerOnly } from "../github/server-only";
 
+/**
+ * Reads the session signing secret alone.
+ *
+ * Separate from {@link readAuthConfig} because a request that only *verifies* a
+ * session needs the secret and nothing else: an already-signed-in developer
+ * buying a cosmetic should not depend on the GitHub OAuth app being configured.
+ * Folding the secret into the OAuth config would make the shop 503 whenever
+ * login is misconfigured, which would be a lie about what is broken.
+ */
+export function readSessionSecret(env: NodeJS.ProcessEnv = process.env): string | null {
+  assertServerOnly("readSessionSecret");
+
+  const secret = env.SESSION_SECRET?.trim();
+  return secret && secret.length > 0 ? secret : null;
+}
+
 export interface AuthConfig {
   readonly clientId: string;
   readonly clientSecret: string;
