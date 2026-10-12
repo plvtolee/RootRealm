@@ -301,7 +301,6 @@ export function CustomizationScreen({
         <div className="space-y-4">
           <PreviewCard
             sections={view.slots}
-            equipped={worn}
             login={login}
             avatarUrl={avatarUrl}
             frameIntensity={frameIntensity}
@@ -481,14 +480,12 @@ function OptionCard({
 
 function PreviewCard({
   sections,
-  equipped,
   login,
   avatarUrl,
   frameIntensity,
   frameGlow,
 }: {
   sections: readonly CosmeticSlotView[];
-  equipped: EquippedCosmetics;
   login: string;
   avatarUrl: string | null;
   frameIntensity: number;
@@ -556,7 +553,6 @@ function PreviewCard({
           Preview only — the equipped loadout is held in this session until
           inventory storage is wired.
         </Text>
-        <span className="sr-only">{Object.keys(equipped).join(", ")}</span>
       </div>
     </Card>
   );

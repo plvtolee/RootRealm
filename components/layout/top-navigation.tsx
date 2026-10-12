@@ -49,9 +49,19 @@ export function TopNavigation({ className }: TopNavigationProps) {
         </nav>
 
         <div className="ml-auto flex items-center gap-4">
-          <div aria-label="6 stars" className="hidden h-(--control-height-md) items-center gap-2 rounded-pill border border-border px-4 text-label text-text-secondary lg:flex">
-            <span aria-hidden="true" className="text-accent-amber">*</span>
+          {/*
+            (17.3) A plain div has no role, so an `aria-label` on it is not
+            reliably exposed — the chip would be announced as a bare "6". Saying
+            "stars" in hidden text instead makes the visible number the start of
+            a name that reads correctly, and keeps WCAG 2.5.3 (Label in Name)
+            intact because the visible "6" is inside it.
+          */}
+          <div className="hidden h-(--control-height-md) items-center gap-2 rounded-pill border border-border px-4 text-label text-text-secondary lg:flex">
+            <span aria-hidden="true" className="text-accent-amber">
+              *
+            </span>
             <span>6</span>
+            <span className="sr-only">stars</span>
           </div>
         </div>
       </Container>

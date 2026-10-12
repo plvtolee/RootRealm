@@ -92,7 +92,7 @@ export function RecentAchievements({
         <li>
           <Link
             href="/achievements"
-            aria-label={`${moreCount} more achievements`}
+            aria-label={`+${moreCount} more achievements`}
             className={cn(
               "grid size-16 place-items-center rounded-md border border-border bg-surface text-heading text-text-secondary",
               "transition-colors duration-(--motion-fast) ease-standard hover:border-border-strong hover:bg-state-hover hover:text-text-primary motion-reduce:transition-none",

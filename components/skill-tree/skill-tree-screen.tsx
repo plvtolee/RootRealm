@@ -21,7 +21,7 @@ import { SKILL_DEFINITIONS } from "@/lib/skills/catalog";
 import { evaluateAllProgress } from "@/lib/skills/progress";
 import { refund, unlock } from "@/lib/skills/unlock";
 import { computeSkillTreeView, SKILL_POINT_BUDGET } from "@/lib/skills/view";
-import type { SkillNodeView, SkillTreeState } from "@/lib/skills/view";
+import type { SkillTreeState } from "@/lib/skills/view";
 import type { AttributeKey } from "@/lib/attributes";
 import { cn } from "@/lib/cn";
 import { Card } from "@/components/ui/card";

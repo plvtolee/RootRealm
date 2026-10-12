@@ -98,7 +98,14 @@ function AchievementCard({
           <Text variant="caption" className="text-text-muted">
             {earned ? "Earned" : `${progress.current} of ${progress.required}`}
           </Text>
-          <span className="text-label text-text-disabled" aria-label={`Achievement ${index + 1}`}>
+          {/*
+             (17.3) The index is decoration, not a name. `aria-label` on a plain
+             span with no role is ignored by most screen readers and, where it is
+             honoured, replaces "01" with "Achievement 01" — announcing the card's
+             position twice over. The card's heading already says which achievement
+             this is.
+           */}
+          <span aria-hidden="true" className="text-label text-text-disabled">
             {String(index + 1).padStart(2, "0")}
           </span>
         </div>
@@ -241,7 +248,7 @@ export function AchievementScreen({
           <label className="flex min-h-(--control-height-md) items-center gap-3 self-start rounded-md border border-border bg-surface px-3 text-text-secondary md:self-auto">
             <Text variant="label" as="span" className="shrink-0 text-text-muted">SORT</Text>
             <select
-              aria-label="Sort achievements"
+              aria-label="Sort"
               value={sortMode}
               onChange={(event) => setSortMode(event.target.value as SortMode)}
               className="min-h-(--control-height-md) cursor-pointer bg-transparent pr-2 text-label text-text-primary outline-hidden"
