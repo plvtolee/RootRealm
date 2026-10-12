@@ -30,10 +30,15 @@ const ROW = "flex items-center gap-3 px-3 py-3 text-body";
  * - it is a page-level `<nav>` labelled "Profile sections", distinct from the
  *   app's "Primary navigation" landmarks — it never replaces the approved top
  *   header or the mobile bottom bar (DESIGN_SYSTEM §22; Task 1.6)
- * - only Overview (this screen) and Achievements (`/achievements`) have real
- *   destinations. Repositories, Activity and Stats do not exist outside Phase 2,
- *   so they render as `aria-disabled` rows: present for visual parity with the
- *   reference, never as dead links (TASKS §0 reviewable state)
+ * - the primary bar holds five destinations (TASKS 1.5), so the secondary ones
+ *   live here: Achievements and Shop are primary *and* profile-local because a
+ *   developer's own achievements and their wardrobe are both about them, while
+ *   Quests, Customization and Leaderboard are reachable from here only. That is
+ *   why Leaderboard is on this list (17.1): it is not one of the five the spec
+ *   names, and without this row it would be unreachable
+ * - Repositories and Stats do not exist outside Phase 2, so they render as
+ *   `aria-disabled` rows: present for visual parity with the reference, never as
+ *   dead links (TASKS §0 reviewable state)
  * - the current row is a plain element with `aria-current="page"` — a link to
  *   the page you are already on would be a no-op stop in the tab order
  * - colour-only state changes, no motion beyond a transition (§11, §12)
@@ -97,6 +102,19 @@ export function ProfileMenu({ className }: ProfileMenuProps) {
           >
             <BarsGlyph className="size-4 shrink-0 text-text-secondary" />
             Customization
+          </Link>
+        </li>
+
+        <li>
+          <Link
+            href="/leaderboard"
+            className={cn(
+              ROW,
+              "rounded-md text-text-primary transition-colors duration-(--motion-fast) ease-standard hover:bg-state-hover motion-reduce:transition-none",
+            )}
+          >
+            <BarsGlyph className="size-4 shrink-0 text-text-secondary" />
+            Leaderboard
           </Link>
         </li>
 

@@ -3,8 +3,21 @@
  *
  * The accessible alternative to the canvas: every node as a full-size row
  * grouped by branch, each with its status, progress, requirements and rewards,
- * driving the same selection as the map. This is the precise-navigation path
- * on mobile and the keyboard / screen-reader path everywhere.
+ * driving the same selection as the map. This is the precise-navigation path on
+ * mobile and the keyboard / screen-reader path everywhere.
+ *
+ * ## Why no `aria-label` on a row (17.2, 17.3)
+ *
+ * The rows used to carry `aria-label={nodeLabel(node)}`, which replaced the whole
+ * row with a title. That threw away the status, progress, requirements and
+ * rewards — every reason a screen reader user would be on this screen instead of
+ * the map — and it broke WCAG 2.5.3 (Label in Name), because the visible title
+ * was not in the accessible name. The name now comes from the row's own text,
+ * which is the same information sighted users read.
+ *
+ * Keyboard operation needs no key handling of its own: each row is a real
+ * `<button>`, so tab reaches it and Enter/Space activate it. `nodeLabel` is still
+ * used for the visible status line.
  */
 
 import { ATTRIBUTE_LABEL, type AttributeKey } from "@/lib/attributes";
@@ -46,11 +59,10 @@ export type SkillTreeListProps = {
   state: SkillTreeState;
   selectedId: string | null;
   onSelect: (id: string) => void;
-  nodeLabel: (node: SkillNodeView["node"]) => string;
   presentation: ReadonlyMap<string, SkillNodePresentation>;
 };
 
-export function SkillTreeList({ state, selectedId, onSelect, nodeLabel, presentation }: SkillTreeListProps) {
+export function SkillTreeList({ state, selectedId, onSelect, presentation }: SkillTreeListProps) {
   return (
     <div className="flex flex-col gap-6">
       {orderedNodes(state).map(({ branch, nodes }) => (
@@ -67,7 +79,6 @@ export function SkillTreeList({ state, selectedId, onSelect, nodeLabel, presenta
                     type="button"
                     onClick={() => onSelect(view.node.id)}
                     aria-pressed={selected}
-                    aria-label={nodeLabel(view.node)}
                     className={cn(
                       "flex w-full items-start gap-3 rounded-lg border px-4 py-3 text-left transition-colors duration-(--motion-fast) ease-standard motion-reduce:transition-none",
                       selected
@@ -85,7 +96,8 @@ export function SkillTreeList({ state, selectedId, onSelect, nodeLabel, presenta
                         </Badge>
                       </span>
                       <Text variant="caption" className="mt-1 block text-text-muted">
-                        Progress: {view.progress.current}/{view.progress.required} · Cost: {view.node.cost} points
+                        Progress: {view.progress.current} of {view.progress.required} · Cost:{" "}
+                        {view.node.cost} points
                       </Text>
                       <Text variant="caption" className="mt-1 block text-text-secondary">
                         Requirements: {view.node.prerequisiteIds.length === 0

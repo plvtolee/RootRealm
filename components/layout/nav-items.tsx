@@ -1,12 +1,20 @@
 import type { ComponentType, ReactNode } from "react";
 
 /**
- * The primary navigation destinations (TASKS §1.5, DESIGN_SYSTEM §22).
+ * The primary navigation destinations (TASKS 1.5, DESIGN_SYSTEM §22).
  *
- * This module is the single source of truth for the app's routes: the mobile
- * bottom bar (Task 1.5), the desktop navigation (Task 1.6) and anything else
- * that needs to link to a primary screen must read `NAV_ITEMS` instead of
+ * This module is the single source of truth for the app's primary routes: the
+ * mobile bottom bar (Task 1.5), the desktop navigation (Task 1.6) and anything
+ * else that needs to link to a primary screen must read `NAV_ITEMS` instead of
  * restating hrefs, so the information architecture cannot drift apart.
+ *
+ * The list is TASKS 1.5's, in its order and no longer: Home, Skill Tree,
+ * Achievements, Shop, Profile. The Phase 17 audit (17.1) is what caught that
+ * Achievements had been dropped in favour of Leaderboard — a five-slot mobile bar
+ * is a design decision (DESIGN_SYSTEM §22), and quietly trading a specified
+ * destination for an unspecified one is how an architecture drifts. The secondary
+ * destinations (Leaderboard, Quests, Customization) are reachable from the
+ * profile menu, which is where "everything about one developer" belongs.
  *
  * Routes are canonical and stable:
  *
@@ -14,8 +22,8 @@ import type { ComponentType, ReactNode } from "react";
  * | ------------ | --------------- |
  * | Home         | `/`             |
  * | Skill Tree   | `/skill-tree`   |
+ * | Achievements | `/achievements` |
  * | Shop         | `/shop`         |
- * | Leaderboard  | `/leaderboard`  |
  * | Profile      | `/profile`      |
  *
  * Icons are inline SVG rather than a dependency: the project has no icon
@@ -77,14 +85,6 @@ function ProfileIcon({ className }: NavIconProps) {
   );
 }
 
-function LeaderboardIcon({ className }: NavIconProps) {
-  return (
-    <NavGlyph className={className}>
-      <path d="M4 20V10h4v10zM10 20V4h4v16zM16 20v-7h4v7z" />
-    </NavGlyph>
-  );
-}
-
 function ShoppingBagIcon({ className }: NavIconProps) {
   return (
     <NavGlyph className={className}>
@@ -95,11 +95,11 @@ function ShoppingBagIcon({ className }: NavIconProps) {
   );
 }
 
-function UserIcon({ className }: NavIconProps) {
+function AwardIcon({ className }: NavIconProps) {
   return (
     <NavGlyph className={className}>
-      <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" />
-      <circle cx="12" cy="7" r="4" />
+      <circle cx="12" cy="8" r="6" />
+      <path d="M15.5 13.5 17 22l-5-3-5 3 1.5-8.5" />
     </NavGlyph>
   );
 }
@@ -107,25 +107,31 @@ function UserIcon({ className }: NavIconProps) {
 export type NavItem = {
   /** Canonical route. Do not invent new primary hrefs outside this table. */
   href: string;
-  /** Visible and accessible destination name (TASKS §1.5 list, in order). */
+  /**
+   * Visible and accessible destination name.
+   *
+   * One string for both, deliberately. The mobile bar once shortened this to
+   * "Ranks" while announcing "Leaderboard", which breaks WCAG 2.5.3 (Label in
+   * Name): the accessible name has to contain what the user can see.
+   */
   label: string;
   /** Geometric icon rendered by the nav bars; the bar owns its size. */
   icon: ComponentType<NavIconProps>;
-  /**
-   * The signed-in account destination. Exactly one item carries it: the
-   * desktop header (Task 1.6) renders it as the avatar affordance on the
-   * right — as `references/approved-ui/` does — instead of a text link, while
-   * the mobile bar still shows it as a regular cell. The flag chooses the
-   * presentation only; the route table stays one list.
-   */
-  account?: boolean;
 };
 
+/**
+ * TASKS 1.5's five destinations, in order.
+ *
+ * `aria-current="page"` is applied per item by the bars, and `isNavActive`
+ * decides which — the array itself carries no state, so it can be read by a
+ * server component, a test, or anything else without pretending to know the
+ * current route.
+ */
 export const NAV_ITEMS: readonly NavItem[] = [
   { href: "/", label: "Home", icon: HomeIcon },
   { href: "/skill-tree", label: "Skill Tree", icon: SkillTreeIcon },
+  { href: "/achievements", label: "Achievements", icon: AwardIcon },
   { href: "/shop", label: "Shop", icon: ShoppingBagIcon },
-  { href: "/leaderboard", label: "Leaderboard", icon: LeaderboardIcon },
   { href: "/profile", label: "Profile", icon: ProfileIcon },
 ];
 

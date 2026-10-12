@@ -15,6 +15,8 @@ import type { SkillNodeStatus } from "@/lib/skills/progress";
 import { SKILL_DEFINITIONS } from "@/lib/skills/catalog";
 import { indexSkills } from "@/lib/skills/definition";
 import type { SkillNodeView } from "@/lib/skills/view";
+import { STATUS_LABEL } from "@/lib/skills/view";
+import { ATTRIBUTE_LABEL } from "@/lib/attributes";
 import { NODE_RADIUS } from "./skill-tree-geometry";
 import { SKILL_TREE_VIEWBOX } from "./skill-tree-geometry";
 import { TIER_AXIS } from "./skill-tree-geometry";
@@ -489,7 +491,7 @@ export function SkillTreeCanvas({
         className="block h-(--skill-canvas-height) w-full"
         style={{ aspectRatio: `${width} / ${height}` }}
         role="img"
-        aria-label="Skill tree map: six branches growing from the Origin. Use the list below for keyboard navigation."
+        aria-label={`Skill tree map: six branches growing from the Origin, ${nodes.length} nodes. Each node is a focusable button; for the same nodes as a readable list, choose the List view.`}
       >
         <MapBackdrop gridId={gridId} />
         <TreeEdges nodes={nodes} statusById={statusById} previewIds={preview} unlockEvent={unlockEvent} />
@@ -527,7 +529,6 @@ export function SkillTreeCanvas({
             type="button"
             onPointerDown={(event) => event.stopPropagation()}
             onClick={() => onSelect(node.id)}
-            aria-label={`${node.title} — ${view.status}`}
             aria-pressed={selectedId === node.id}
             style={{ left: `${left}%`, top: `${top}%` }}
             className={cn(
@@ -538,8 +539,12 @@ export function SkillTreeCanvas({
             )}
           >
             <span className="sr-only">
-              {node.title} ({view.status}
-              {node.branch ? `, ${node.branch}` : ""})
+              {/* (17.3) The name comes from here, not an `aria-label`: a label that
+                  replaced this text would have to repeat the status and branch
+                  anyway, and the visible status word is what a sighted user
+                  reads — `STATUS_LABEL`, never the raw `in-progress` enum. */}
+              {node.title} — {STATUS_LABEL[view.status]}
+              {node.branch ? `, ${ATTRIBUTE_LABEL[node.branch]}` : ""}
             </span>
           </button>
         );

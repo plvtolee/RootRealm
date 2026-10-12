@@ -37,10 +37,6 @@ import { SkillTreeList } from "./skill-tree-list";
 type ViewMode = "map" | "list";
 type UnlockEvent = { nodeId: string; fromId: string; revision: number };
 
-function nodeLabel(node: SkillNodeView["node"], status: string): string {
-  return `${node.title} — ${status}`;
-}
-
 export function SkillTreeScreen({
   events = [],
   developerLogin = "octocat",
@@ -183,12 +179,6 @@ export function SkillTreeScreen({
                 state={state}
                 selectedId={selectedId}
                 onSelect={setSelectedId}
-                nodeLabel={(node) =>
-                  nodeLabel(
-                    node,
-                    state.nodes.get(node.id)?.status ?? "locked",
-                  )
-                }
                 presentation={presentation}
               />
             </Card>
