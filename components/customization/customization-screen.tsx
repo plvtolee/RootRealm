@@ -9,221 +9,258 @@ import { Card } from "@/components/ui/card";
 import { Text } from "@/components/ui/text";
 import { AvatarFrame, type AvatarFrameMode } from "@/components/profile/avatar-frame";
 import { cn } from "@/lib/cn";
-
+import { DEFAULT_OWNED_IDS } from "@/lib/cosmetics/catalog";
+import type { CosmeticRarity, CosmeticSlot } from "@/lib/cosmetics/definition";
 import {
-  AVATAR_OPTIONS,
-  BANNER_OPTIONS,
-  CUSTOMIZATION_SECTIONS,
-  EFFECT_OPTIONS,
-  FRAME_OPTIONS,
-  MOCK_CUSTOMIZATION_STATE,
-  THEME_OPTIONS,
-  TITLE_OPTIONS,
-  type CustomizationOption,
-  type CustomizationSection,
-} from "./customization-data";
+  equipCosmetic,
+  equipOwnedDefaults,
+  unequipCosmetic,
+  type EquippedCosmetics,
+} from "@/lib/cosmetics/equip";
+import { initialInventory, type Inventory } from "@/lib/cosmetics/inventory";
+import {
+  computeCustomizationView,
+  type CosmeticOptionView,
+  type CosmeticSlotView,
+} from "@/lib/cosmetics/view";
 
-const OPTION_GROUPS: Record<CustomizationSection, readonly CustomizationOption[]> = {
-  Avatar: AVATAR_OPTIONS,
-  Frame: FRAME_OPTIONS,
-  Banner: BANNER_OPTIONS,
-  Title: TITLE_OPTIONS,
-  Theme: THEME_OPTIONS,
-  Effects: EFFECT_OPTIONS,
+/**
+ * Rarity is display-only (SCORING.md §27), so it is mapped onto the semantic
+ * badge tones rather than given product tokens of its own.
+ */
+const RARITY_TONE: Record<CosmeticRarity, "neutral" | "accent" | "warning"> = {
+  common: "neutral",
+  rare: "accent",
+  epic: "accent",
+  legendary: "warning",
 };
 
-const ACCENT_CLASS: Record<string, string> = {
+/**
+ * An appearance key resolved to semantic tokens.
+ *
+ * The catalog stores a key, never a colour (AGENTS.md rule 1), so this map is
+ * the only place an appearance becomes paint. An unknown key falls back to the
+ * neutral treatment rather than to nothing, because a cosmetic that renders as
+ * an empty box is worse than one that renders as the default.
+ */
+const APPEARANCE: Record<string, string> = {
+  neutral: "border-border bg-surface-secondary text-text-secondary",
   amber: "border-warning bg-warning/10 text-warning",
   cyan: "border-info bg-info/10 text-info",
   violet: "border-accent bg-accent/10 text-accent",
-  rose: "border-danger bg-danger/10 text-danger",
-  slate: "border-border bg-surface-secondary text-text-primary",
 };
 
-function PreviewCard({
-  selectedAvatar,
-  selectedFrame,
-  selectedBanner,
-  selectedTitle,
-  selectedTheme,
-  selectedEffect,
-  frameIntensity,
-  frameGlow,
-}: {
-  selectedAvatar: string;
-  selectedFrame: string;
-  selectedBanner: string;
-  selectedTitle: string;
-  selectedTheme: string;
-  selectedEffect: string;
-  frameIntensity: number;
-  frameGlow: boolean;
-}) {
-  const banner = BANNER_OPTIONS.find((option) => option.id === selectedBanner) ?? BANNER_OPTIONS[0];
-  const theme = THEME_OPTIONS.find((option) => option.id === selectedTheme) ?? THEME_OPTIONS[0];
-  const frame = FRAME_OPTIONS.find((option) => option.id === selectedFrame) ?? FRAME_OPTIONS[0];
-  const title = TITLE_OPTIONS.find((option) => option.id === selectedTitle) ?? TITLE_OPTIONS[0];
-  const avatar = AVATAR_OPTIONS.find((option) => option.id === selectedAvatar) ?? AVATAR_OPTIONS[0];
-  const effect = EFFECT_OPTIONS.find((option) => option.id === selectedEffect) ?? EFFECT_OPTIONS[0];
+const BANNER_WASH: Record<string, string> = {
+  neutral: "bg-surface-secondary",
+  amber: "bg-warning/10",
+  cyan: "bg-info/10",
+  violet: "bg-accent/10",
+};
 
-  return (
-    <Card className="overflow-hidden border-border bg-surface-secondary">
-      <div
-        className={cn(
-          "flex h-(--customization-banner-height) items-end justify-between border-b border-border px-4 pb-3",
-          theme.accent === "cyan"
-            ? "bg-info/10"
-            : theme.accent === "violet"
-              ? "bg-accent/10"
-              : theme.accent === "amber"
-                ? "bg-warning/10"
-                : "bg-surface-secondary",
-        )}
-      >
-        <div className="space-y-1">
-          <Text variant="label" className="text-text-secondary">
-            {banner.label} banner
-          </Text>
-          <Text variant="subheading" as="h2" className="text-text-primary">
-            {title.label}
-          </Text>
-        </div>
-        <Badge variant="neutral" size="sm">
-          {effect.label}
-        </Badge>
-      </div>
+const THEME_ACCENT: Record<string, string> = {
+  neutral: "text-text-primary",
+  amber: "text-warning",
+  cyan: "text-info",
+  violet: "text-accent",
+};
 
-      <div className="flex items-center gap-4 px-4 py-6">
-        <AvatarFrame
-          mode={selectedEffect as AvatarFrameMode}
-          intensity={frameIntensity}
-          glow={frameGlow}
-          className={cn("border-2 p-1", ACCENT_CLASS[frame.accent ?? "slate"])}
-        >
-          <Avatar name="plvtolee" initials="PL" size="xl" className="border border-border" />
-        </AvatarFrame>
+/**
+ * An effect appearance resolved to a frame motion.
+ *
+ * The catalog publishes effects, the motion layer publishes frame modes, and a
+ * cosmetic may only choose among modes that already exist — inventing one here
+ * would produce an item whose effect nothing animates.
+ */
+const EFFECT_MODE: Record<string, AvatarFrameMode> = {
+  none: "none",
+  pulse: "pulse",
+  haze: "haze",
+  trail: "trail",
+};
 
-        <div className="space-y-1">
-          <Text variant="heading" as="h3" className="text-text-primary">
-            plvtolee
-          </Text>
-          <Text variant="body" className="text-text-secondary">
-            {avatar.label} avatar · {frame.label} frame
-          </Text>
-        </div>
-      </div>
-    </Card>
-  );
-}
+export type CustomizationScreenProps = {
+  /**
+   * What the developer owns.
+   *
+   * Defaults to the starter set so the screen renders before any account or
+   * database is wired to it. Ownership is real state: an item not in this
+   * inventory cannot be equipped, whatever the catalog says.
+   */
+  inventory?: Inventory;
+  /** The starting loadout. Defaults to the starter set, one item per slot. */
+  initialEquipped?: EquippedCosmetics;
+  /** The previewed developer's login. Drives the avatar fallback. */
+  login?: string;
+  /** A GitHub avatar, when the account has one (TASKS 9.2). */
+  avatarUrl?: string | null;
+  className?: string;
+};
 
-export function CustomizationScreen() {
-  const [section, setSection] = useState<CustomizationSection>("Avatar");
-  const [selected, setSelected] = useState(MOCK_CUSTOMIZATION_STATE);
+/**
+ * The customization screen (TASKS 13.4).
+ *
+ * ```tsx
+ * // app/customization/page.tsx
+ * <CustomizationScreen />
+ * ```
+ *
+ * ## What changed from the prototype
+ *
+ * Every option used to come from `customization-data.ts`: hard-coded lists with no
+ * catalog behind them, an `owned` concept that did not exist, and a "Save changes"
+ * button that only wrote a line of text. Options now come from
+ * `computeCustomizationView`, which joins the catalog (13.1), the inventory (13.2)
+ * and the equipped set (13.3) — so an unowned item is locked for a reason and
+ * equipping goes through the same rule the domain uses, not a local flag.
+ *
+ * ## Why equipping is local state for now
+ *
+ * Persistence is Phase 10's schema and a later phase's storage; nothing writes
+ * an `inventory_items` row yet. The equip *rule* is real and shared, so wiring a
+ * store later changes where the map is saved and nothing about what it decides.
+ * That is stated here rather than hidden behind a save button that pretends.
+ *
+ * ## Why the avatar is not a section
+ *
+ * The prototype offered four avatar styles. Avatars are not cosmetics: there is
+ * no catalog entry, no price and no ownership behind them, and DESIGN_SYSTEM §20
+ * says the preview uses the current user's avatar. So the preview shows the
+ * account's avatar, and the five sections are the five slots the catalog
+ * publishes.
+ */
+export function CustomizationScreen({
+  inventory,
+  initialEquipped,
+  login = "plvtolee",
+  avatarUrl = null,
+  className,
+}: CustomizationScreenProps) {
+  const [activeSlot, setActiveSlot] = useState<CosmeticSlot>("frame");
+  const [notice, setNotice] = useState<string | null>(null);
   const [frameIntensity, setFrameIntensity] = useState(50);
   const [frameGlow, setFrameGlow] = useState(true);
-  const [message, setMessage] = useState<string | null>(null);
 
-  const activeOptions = useMemo(() => OPTION_GROUPS[section], [section]);
-
-  const currentBadge = (
-    {
-      Avatar: selected.avatar,
-      Frame: selected.frame,
-      Banner: selected.banner,
-      Title: selected.title,
-      Theme: selected.theme,
-      Effects: selected.effect,
-    }[section] ?? selected.avatar
+  const owned = useMemo(
+    () => inventory ?? initialInventory("guest", new Date(0).toISOString()),
+    [inventory],
+  );
+  const [equipped, setEquipped] = useState<EquippedCosmetics>(
+    () => initialEquipped ?? equipOwnedDefaults(owned, DEFAULT_OWNED_IDS),
   );
 
-  const sectionLabel = `${section} options`;
+  const view = useMemo(
+    () => computeCustomizationView(owned, equipped),
+    [owned, equipped],
+  );
+
+  const active = view.slots.find((section) => section.slot === activeSlot) ?? view.slots[0];
+
+  /** Equips or unequips, reporting the domain's refusal rather than inventing one. */
+  function select(option: CosmeticOptionView): void {
+    setNotice(null);
+
+    if (!option.owned) {
+      setNotice(
+        option.definition.priceCodeCoins === null
+          ? `${option.definition.name} is a quest reward — earn it from the quests that grant it.`
+          : `${option.definition.name} costs ${option.definition.priceCodeCoins.toLocaleString("en-US")} CodeCoins and is not owned yet.`,
+      );
+      return;
+    }
+
+    const outcome = equipCosmetic(owned, equipped, option.definition.id);
+    if (!outcome.ok) {
+      setNotice(`Cannot equip ${option.definition.name} (${outcome.refusal}).`);
+      return;
+    }
+
+    setEquipped(outcome.equipped);
+  }
+
+  function unequip(slot: CosmeticSlot): void {
+    setNotice(null);
+    setEquipped((previous) => unequipCosmetic(previous, slot));
+  }
 
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex flex-wrap gap-2">
-        {CUSTOMIZATION_SECTIONS.map((name) => (
+    <div className={cn("flex flex-col gap-6", className)}>
+      <header className="flex flex-wrap items-center justify-between gap-3">
+        <Text variant="heading" as="h1">
+          Customization
+        </Text>
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge variant="neutral" size="sm">
+            {view.ownedCount} of {view.totalCount} owned
+          </Badge>
+          <Badge variant="accent" size="sm">
+            {view.emptySlots.length} slot{view.emptySlots.length === 1 ? "" : "s"} empty
+          </Badge>
+        </div>
+      </header>
+
+      <nav aria-label="Cosmetic slots" className="flex flex-wrap gap-2">
+        {view.slots.map((section) => (
           <button
-            key={name}
+            key={section.slot}
             type="button"
-            onClick={() => setSection(name)}
+            onClick={() => {
+              setNotice(null);
+              setActiveSlot(section.slot);
+            }}
+            aria-current={section.slot === activeSlot ? "true" : undefined}
             className={cn(
               "rounded-md border px-3 py-2 text-label transition-colors duration-(--motion-fast) ease-standard motion-reduce:transition-none",
-              section === name
+              section.slot === activeSlot
                 ? "border-border-strong bg-surface-secondary text-text-primary"
                 : "border-border bg-surface text-text-secondary hover:border-border-strong hover:text-text-primary",
             )}
           >
-            {name}
+            {section.label}
           </button>
         ))}
-      </div>
+      </nav>
 
       <div className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
         <Card className="border-border bg-surface-secondary p-4">
           <div className="mb-4 flex items-center justify-between gap-3">
             <Text variant="subheading" as="h2" className="text-text-primary">
-              {sectionLabel}
+              {active.label} options
             </Text>
             <Badge variant="neutral" size="sm">
-              {activeOptions.length} items
+              {active.options.length} items
             </Badge>
           </div>
 
           <div className="grid gap-3 md:grid-cols-2">
-            {activeOptions.map((option) => {
-              const isSelected = option.id === currentBadge;
-
-              return (
-                <button
-                  key={option.id}
-                  type="button"
-                  onClick={() => {
-                    setMessage(null);
-                    if (section === "Avatar") setSelected((prev) => ({ ...prev, avatar: option.id }));
-                    if (section === "Frame") setSelected((prev) => ({ ...prev, frame: option.id }));
-                    if (section === "Banner") setSelected((prev) => ({ ...prev, banner: option.id }));
-                    if (section === "Title") setSelected((prev) => ({ ...prev, title: option.id }));
-                    if (section === "Theme") setSelected((prev) => ({ ...prev, theme: option.id }));
-                    if (section === "Effects") setSelected((prev) => ({ ...prev, effect: option.id }));
-                  }}
-                  className={cn(
-                    "flex flex-col items-start rounded-lg border p-3 text-left transition-colors duration-(--motion-fast) ease-standard motion-reduce:transition-none",
-                    isSelected
-                      ? "border-border-strong bg-surface text-text-primary"
-                      : "border-border bg-surface text-text-secondary hover:border-border-strong hover:text-text-primary",
-                  )}
-                >
-                  <div className={cn("mb-3 size-(--customization-option-swatch-size) rounded-md border", ACCENT_CLASS[option.accent ?? "slate"])} />
-                  <Text variant="label" className="text-text-primary">
-                    {option.label}
-                  </Text>
-                  {option.description ? (
-                    <Text variant="caption" className="mt-1 text-text-muted">
-                      {option.description}
-                    </Text>
-                  ) : null}
-                </button>
-              );
-            })}
+            {active.options.map((option) => (
+              <OptionCard
+                key={option.definition.id}
+                option={option}
+                onSelect={() => select(option)}
+                onUnequip={() => unequip(active.slot)}
+              />
+            ))}
           </div>
         </Card>
 
         <div className="space-y-4">
           <PreviewCard
-            selectedAvatar={selected.avatar}
-            selectedFrame={selected.frame}
-            selectedBanner={selected.banner}
-            selectedTitle={selected.title}
-            selectedTheme={selected.theme}
-            selectedEffect={selected.effect}
+            sections={view.slots}
+            equipped={equipped}
+            login={login}
+            avatarUrl={avatarUrl}
             frameIntensity={frameIntensity}
             frameGlow={frameGlow}
           />
 
           <Card className="border-border bg-surface-secondary p-4">
             <div className="flex items-center justify-between gap-3">
-              <label htmlFor="frame-intensity" className="text-label text-text-primary">Frame intensity</label>
-              <Text variant="caption" className="text-text-secondary">{frameIntensity}%</Text>
+              <label htmlFor="frame-intensity" className="text-label text-text-primary">
+                Frame intensity
+              </label>
+              <Text variant="caption" className="text-text-secondary">
+                {frameIntensity}%
+              </Text>
             </div>
             <input
               id="frame-intensity"
@@ -245,44 +282,206 @@ export function CustomizationScreen() {
               />
               Frame glow
             </label>
+            <Text variant="caption" className="mt-4 block text-text-muted">
+              Frame motion is a preview control: intensity and glow change how the
+              equipped effect reads, and neither is part of what the item owns.
+            </Text>
           </Card>
 
           <Card className="border-border bg-surface-secondary p-4">
             <Text variant="subheading" as="h3" className="mb-3 text-text-primary">
-              Live summary
+              Equipped
             </Text>
             <div className="space-y-2">
-              <Text variant="body" className="text-text-secondary">
-                Avatar: {AVATAR_OPTIONS.find((option) => option.id === selected.avatar)?.label ?? "Midnight"}
-              </Text>
-              <Text variant="body" className="text-text-secondary">
-                Theme: {THEME_OPTIONS.find((option) => option.id === selected.theme)?.label ?? "Graphite"}
-              </Text>
-              <Text variant="body" className="text-text-secondary">
-                Title: {TITLE_OPTIONS.find((option) => option.id === selected.title)?.label ?? "Builder"}
-              </Text>
+              {view.slots.map((section) => (
+                <div key={section.slot} className="flex items-center justify-between gap-3">
+                  <Text variant="body" className="text-text-secondary">
+                    {section.label}: {section.equipped?.name ?? "Nothing"}
+                  </Text>
+                  {section.equipped !== null ? (
+                    <Button variant="secondary" size="sm" onClick={() => unequip(section.slot)}>
+                      Remove
+                    </Button>
+                  ) : null}
+                </div>
+              ))}
             </div>
             <div className="mt-4 flex gap-2">
               <Button
                 variant="secondary"
                 size="sm"
                 onClick={() => {
-                  setSelected(MOCK_CUSTOMIZATION_STATE);
-                  setFrameIntensity(50);
-                  setFrameGlow(true);
-                  setMessage("Customization reset.");
+                  setNotice(null);
+                  setEquipped(equipOwnedDefaults(owned, DEFAULT_OWNED_IDS));
                 }}
               >
                 Reset
               </Button>
-              <Button onClick={() => setMessage("Customization saved for this session.")}>Save changes</Button>
             </div>
             <div aria-live="polite" className="mt-4 min-h-(--shop-notice-min-height)">
-              {message ? <Text variant="caption" className="text-text-secondary">{message}</Text> : null}
+              {notice ? (
+                <Text variant="caption" className="text-text-secondary">
+                  {notice}
+                </Text>
+              ) : null}
             </div>
           </Card>
         </div>
       </div>
     </div>
+  );
+}
+
+function OptionCard({
+  option,
+  onSelect,
+  onUnequip,
+}: {
+  option: CosmeticOptionView;
+  onSelect: () => void;
+  onUnequip: () => void;
+}) {
+  const { definition, owned, equipped } = option;
+
+  return (
+    <div
+      className={cn(
+        "flex flex-col items-start rounded-lg border p-3 text-left transition-colors duration-(--motion-fast) ease-standard motion-reduce:transition-none",
+        equipped
+          ? "border-border-strong bg-surface text-text-primary"
+          : "border-border bg-surface text-text-secondary",
+      )}
+    >
+      <div
+        aria-hidden="true"
+        className={cn(
+          "mb-3 size-(--customization-option-swatch-size) rounded-md border",
+          APPEARANCE[definition.appearance] ?? APPEARANCE.neutral,
+        )}
+      />
+
+      <Text variant="label" className="text-text-primary">
+        {definition.name}
+      </Text>
+      <Text variant="caption" className="mt-1 text-text-muted">
+        {definition.description}
+      </Text>
+
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <Badge variant={RARITY_TONE[definition.rarity]} size="sm">
+          {definition.rarity}
+        </Badge>
+        {equipped ? (
+          <Badge variant="success" size="sm">
+            Equipped
+          </Badge>
+        ) : owned ? (
+          <Badge variant="neutral" size="sm">
+            Owned
+          </Badge>
+        ) : (
+          <Badge variant="neutral" size="sm">
+            {definition.priceCodeCoins === null
+              ? "Quest reward"
+              : `${definition.priceCodeCoins.toLocaleString("en-US")} CodeCoins`}
+          </Badge>
+        )}
+      </div>
+
+      <div className="mt-3 flex gap-2">
+        {equipped ? (
+          <Button variant="secondary" size="sm" onClick={onUnequip}>
+            Unequip
+          </Button>
+        ) : (
+          <Button variant={owned ? "primary" : "secondary"} size="sm" onClick={onSelect}>
+            {owned ? "Equip" : "Locked"}
+          </Button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function PreviewCard({
+  sections,
+  equipped,
+  login,
+  avatarUrl,
+  frameIntensity,
+  frameGlow,
+}: {
+  sections: readonly CosmeticSlotView[];
+  equipped: EquippedCosmetics;
+  login: string;
+  avatarUrl: string | null;
+  frameIntensity: number;
+  frameGlow: boolean;
+}) {
+  const definitionFor = (slot: CosmeticSlot) =>
+    sections.find((section) => section.slot === slot)?.equipped ?? null;
+
+  const banner = definitionFor("banner");
+  const title = definitionFor("title");
+  const frame = definitionFor("frame");
+  const theme = definitionFor("theme");
+  const effect = definitionFor("effect");
+
+  return (
+    <Card className="overflow-hidden border-border bg-surface-secondary">
+      <div
+        className={cn(
+          "flex h-(--customization-banner-height) items-end justify-between border-b border-border px-4 pb-3",
+          BANNER_WASH[banner?.appearance ?? "neutral"] ?? BANNER_WASH.neutral,
+        )}
+      >
+        <div className="space-y-1">
+          <Text variant="label" className="text-text-secondary">
+            {banner?.name ?? "No banner"}
+          </Text>
+          <Text variant="subheading" as="h2" className="text-text-primary">
+            {title?.name ?? "No title"}
+          </Text>
+        </div>
+        <Badge variant="neutral" size="sm">
+          {effect?.name ?? "No effect"}
+        </Badge>
+      </div>
+
+      <div className="flex items-center gap-4 px-4 py-6">
+        <AvatarFrame
+          mode={EFFECT_MODE[effect?.appearance ?? "none"] ?? "none"}
+          intensity={frameIntensity}
+          glow={frameGlow}
+          className={cn(
+            "border-2 p-1",
+            APPEARANCE[frame?.appearance ?? "neutral"] ?? APPEARANCE.neutral,
+          )}
+        >
+          {avatarUrl ? (
+            <Avatar src={avatarUrl} alt={login} size="xl" className="border border-border" />
+          ) : (
+            <Avatar name={login} size="xl" className="border border-border" />
+          )}
+        </AvatarFrame>
+
+        <div className="space-y-1">
+          <Text variant="heading" as="h3" className={THEME_ACCENT[theme?.appearance ?? "neutral"] ?? "text-text-primary"}>
+            {login}
+          </Text>
+          <Text variant="body" className="text-text-secondary">
+            {frame ? `${frame.name} frame` : "No frame equipped"}
+          </Text>
+        </div>
+      </div>
+
+      <div className="border-t border-border px-4 py-3">
+        <Text variant="caption" className="text-text-muted">
+          Preview only — the equipped loadout is held in this session until
+          inventory storage is wired.
+        </Text>
+        <span className="sr-only">{Object.keys(equipped).join(", ")}</span>
+      </div>
+    </Card>
   );
 }
