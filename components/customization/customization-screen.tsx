@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 
 import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -11,18 +12,21 @@ import { AvatarFrame, type AvatarFrameMode } from "@/components/profile/avatar-f
 import { cn } from "@/lib/cn";
 import { DEFAULT_OWNED_IDS } from "@/lib/cosmetics/catalog";
 import type { CosmeticRarity, CosmeticSlot } from "@/lib/cosmetics/definition";
-import {
-  equipCosmetic,
-  equipOwnedDefaults,
-  unequipCosmetic,
-  type EquippedCosmetics,
-} from "@/lib/cosmetics/equip";
+import { equipOwnedDefaults, type EquippedCosmetics } from "@/lib/cosmetics/equip";
 import { initialInventory, type Inventory } from "@/lib/cosmetics/inventory";
 import {
   computeCustomizationView,
   type CosmeticOptionView,
   type CosmeticSlotView,
 } from "@/lib/cosmetics/view";
+
+/** What the server said, in one line the screen can show. */
+const REFUSAL_COPY: Record<string, string> = {
+  not_owned: "It is not in your collection yet.",
+  unknown_item: "That item is not in the catalog.",
+  unauthenticated: "Sign in with GitHub to change what you are wearing.",
+  bad_request: "That change was not understood.",
+};
 
 /**
  * Rarity is display-only (SCORING.md §27), so it is mapped onto the semantic
@@ -87,8 +91,21 @@ export type CustomizationScreenProps = {
    * inventory cannot be equipped, whatever the catalog says.
    */
   inventory?: Inventory;
-  /** The starting loadout. Defaults to the starter set, one item per slot. */
-  initialEquipped?: EquippedCosmetics;
+  /**
+   * What the developer is wearing, one item per slot.
+   *
+   * Read on the server from the same wallet the shop spends from, so a purchase
+   * in the shop is already owned here. Defaults to the starter loadout.
+   */
+  equipped?: EquippedCosmetics;
+  /**
+   * No trusted session.
+   *
+   * The preview still renders — a visitor can see the collection — but equip and
+   * unequip are disabled rather than optimistically applied to state nobody
+   * persists.
+   */
+  signedOut?: boolean;
   /** The previewed developer's login. Drives the avatar fallback. */
   login?: string;
   /** A GitHub avatar, when the account has one (TASKS 9.2). */
@@ -115,10 +132,17 @@ export type CustomizationScreenProps = {
  *
  * ## Why equipping is local state for now
  *
- * Persistence is Phase 10's schema and a later phase's storage; nothing writes
- * an `inventory_items` row yet. The equip *rule* is real and shared, so wiring a
- * store later changes where the map is saved and nothing about what it decides.
- * That is stated here rather than hidden behind a save button that pretends.
+ * ## Where the state lives
+ *
+ * Inventory and equipped state are read on the server (the same wallet the shop
+ * spends from), and equip/unequip post to `/api/shop` before the page re-reads.
+ * The prototype kept the loadout in component state and saved it with a button
+ * that only wrote a line of text; holding a second copy here meant buying
+ * something in the shop and not seeing it here, which is the opposite of what a
+ * shared collection means.
+ *
+ * The equip *rule* is still `equipCosmetic`'s (TASKS 13.3) — the client never
+ * decides, it posts an id and renders the server's answer.
  *
  * ## Why the avatar is not a section
  *
@@ -130,11 +154,14 @@ export type CustomizationScreenProps = {
  */
 export function CustomizationScreen({
   inventory,
-  initialEquipped,
+  equipped,
+  signedOut = false,
   login = "plvtolee",
   avatarUrl = null,
   className,
 }: CustomizationScreenProps) {
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
   const [activeSlot, setActiveSlot] = useState<CosmeticSlot>("frame");
   const [notice, setNotice] = useState<string | null>(null);
   const [frameIntensity, setFrameIntensity] = useState(50);
@@ -144,21 +171,39 @@ export function CustomizationScreen({
     () => inventory ?? initialInventory("guest", new Date(0).toISOString()),
     [inventory],
   );
-  const [equipped, setEquipped] = useState<EquippedCosmetics>(
-    () => initialEquipped ?? equipOwnedDefaults(owned, DEFAULT_OWNED_IDS),
+  const worn: EquippedCosmetics = useMemo(
+    () => equipped ?? equipOwnedDefaults(owned, DEFAULT_OWNED_IDS),
+    [equipped, owned],
   );
 
-  const view = useMemo(
-    () => computeCustomizationView(owned, equipped),
-    [owned, equipped],
-  );
+  const view = useMemo(() => computeCustomizationView(owned, worn), [owned, worn]);
 
   const active = view.slots.find((section) => section.slot === activeSlot) ?? view.slots[0];
 
-  /** Equips or unequips, reporting the domain's refusal rather than inventing one. */
-  function select(option: CosmeticOptionView): void {
+  /** Posts one change and lets the server page re-read the wallet. */
+  function post(path: string, body: Record<string, string>, success: string): void {
     setNotice(null);
 
+    void (async () => {
+      const response = await fetch(path, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(body),
+      });
+
+      const payload = (await response.json().catch(() => null)) as { error?: string } | null;
+
+      startTransition(() => {
+        router.refresh();
+        setNotice(
+          response.ok ? success : (REFUSAL_COPY[payload?.error ?? ""] ?? "That did not go through."),
+        );
+      });
+    })();
+  }
+
+  /** Equips an owned item, or explains why it cannot be equipped. */
+  function select(option: CosmeticOptionView): void {
     if (!option.owned) {
       setNotice(
         option.definition.priceCodeCoins === null
@@ -168,19 +213,28 @@ export function CustomizationScreen({
       return;
     }
 
-    const outcome = equipCosmetic(owned, equipped, option.definition.id);
-    if (!outcome.ok) {
-      setNotice(`Cannot equip ${option.definition.name} (${outcome.refusal}).`);
-      return;
+    if (!signedOut) {
+      post(
+        "/api/shop",
+        { itemId: option.definition.id },
+        `${option.definition.name} equipped.`,
+      );
     }
-
-    setEquipped(outcome.equipped);
   }
 
   function unequip(slot: CosmeticSlot): void {
-    setNotice(null);
-    setEquipped((previous) => unequipCosmetic(previous, slot));
+    if (signedOut) return;
+    const section = view.slots.find((entry) => entry.slot === slot);
+    post(
+      "/api/shop/unequip",
+      { slot },
+      section?.equipped === null || section === undefined
+        ? "Nothing was equipped."
+        : `${section.equipped.name} removed.`,
+    );
   }
+
+  const signedIn = !signedOut;
 
   return (
     <div className={cn("flex flex-col gap-6", className)}>
@@ -236,6 +290,7 @@ export function CustomizationScreen({
               <OptionCard
                 key={option.definition.id}
                 option={option}
+                disabled={pending || !signedIn}
                 onSelect={() => select(option)}
                 onUnequip={() => unequip(active.slot)}
               />
@@ -246,7 +301,7 @@ export function CustomizationScreen({
         <div className="space-y-4">
           <PreviewCard
             sections={view.slots}
-            equipped={equipped}
+            equipped={worn}
             login={login}
             avatarUrl={avatarUrl}
             frameIntensity={frameIntensity}
@@ -307,16 +362,30 @@ export function CustomizationScreen({
               ))}
             </div>
             <div className="mt-4 flex gap-2">
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => {
-                  setNotice(null);
-                  setEquipped(equipOwnedDefaults(owned, DEFAULT_OWNED_IDS));
-                }}
-              >
-                Reset
-              </Button>
+              {signedIn ? (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  disabled={pending}
+                  onClick={() => {
+                    setNotice(null);
+                    // Reset is five unequips, expressed as the five unequips it is:
+                    // there is no "reset" verb in the domain, and inventing one
+                    // here would be a second way to change the equipped set.
+                    for (const section of view.slots) {
+                      if (section.equipped !== null) {
+                        post(
+                          "/api/shop/unequip",
+                          { slot: section.slot },
+                          `${section.label} cleared.`,
+                        );
+                      }
+                    }
+                  }}
+                >
+                  Clear all
+                </Button>
+              ) : null}
             </div>
             <div aria-live="polite" className="mt-4 min-h-(--shop-notice-min-height)">
               {notice ? (
@@ -334,10 +403,12 @@ export function CustomizationScreen({
 
 function OptionCard({
   option,
+  disabled,
   onSelect,
   onUnequip,
 }: {
   option: CosmeticOptionView;
+  disabled: boolean;
   onSelect: () => void;
   onUnequip: () => void;
 }) {
@@ -390,11 +461,16 @@ function OptionCard({
 
       <div className="mt-3 flex gap-2">
         {equipped ? (
-          <Button variant="secondary" size="sm" onClick={onUnequip}>
+          <Button variant="secondary" size="sm" disabled={disabled} onClick={onUnequip}>
             Unequip
           </Button>
         ) : (
-          <Button variant={owned ? "primary" : "secondary"} size="sm" onClick={onSelect}>
+          <Button
+            variant={owned ? "primary" : "secondary"}
+            size="sm"
+            disabled={disabled}
+            onClick={onSelect}
+          >
             {owned ? "Equip" : "Locked"}
           </Button>
         )}

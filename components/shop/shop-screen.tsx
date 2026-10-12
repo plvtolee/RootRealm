@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/content-glyphs";
 import { Text } from "@/components/ui/text";
 import { AvatarFrame, type AvatarFrameMode } from "@/components/profile/avatar-frame";
+import { DevFundButton } from "@/components/dev/dev-fund-button";
 import { cn } from "@/lib/cn";
 import type { CosmeticRarity, CosmeticSlot } from "@/lib/cosmetics/definition";
 import { SLOT_LABEL } from "@/lib/cosmetics/definition";
@@ -93,6 +94,14 @@ export type ShopScreenProps = {
   readonly login?: string;
   /** A GitHub avatar, when the account has one (TASKS 9.2). */
   readonly avatarUrl?: string | null;
+  /**
+   * Render the development funding control in the signed-out state.
+   *
+   * Passed by the server page rather than read from `process.env` here, so the
+   * flag is decided in one place (the page) and the component has no opinion
+   * about environments.
+   */
+  readonly devHarness?: boolean;
   readonly className?: string;
 };
 
@@ -120,7 +129,7 @@ export type ShopScreenProps = {
  * screen renders the refusal the server sends, including the case where an item
  * looked affordable a moment ago and no longer is.
  */
-export function ShopScreen({ view, signedOut = false, login = "plvtolee", avatarUrl = null, className }: ShopScreenProps) {
+export function ShopScreen({ view, signedOut = false, devHarness = false, login = "plvtolee", avatarUrl = null, className }: ShopScreenProps) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [slot, setSlot] = useState<CosmeticSlot>("frame");
@@ -189,8 +198,9 @@ export function ShopScreen({ view, signedOut = false, login = "plvtolee", avatar
             CodeCoins and purchased cosmetics belong to an account, so the shop
             needs a signed session before it can show a balance or sell anything.
           </Text>
-          <div className="mt-4">
+          <div className="mt-4 flex flex-wrap items-center gap-3">
             <Button onClick={() => router.push("/api/auth/github")}>Sign in with GitHub</Button>
+            {devHarness ? <DevFundButton label="Fund a development wallet" /> : null}
           </div>
         </Card>
       </div>

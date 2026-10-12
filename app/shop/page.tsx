@@ -22,7 +22,7 @@ export default async function ShopPage() {
   const userId = userIdFromCookieHeader(cookieStore.toString());
 
   if (userId === null) {
-    return <ShopScreen view={null} signedOut />;
+    return <ShopScreen view={null} signedOut devHarness={process.env.NODE_ENV !== "production"} />;
   }
 
   return <ShopScreen view={await shopStateFor(userId)} />;
