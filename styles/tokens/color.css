@@ -57,7 +57,14 @@
   /* Only for emphasis/states that the approved palette does not cover
      directly. Not new brand colors. */
   --rr-border-strong: #3a3e47; /* hovered / selected hairline */
-  --rr-text-muted: #6b6e76; /* low-emphasis metadata */
+  /* Muted is real text, not decoration: it carries captions, timestamps,
+     requirements and hints (DESIGN_SYSTEM §5). TASKS 17.5 measured it at
+     #6b6e76 and found 3.31–3.84:1 on the three surfaces it sits on, against
+     the 4.5:1 that WCAG 2.2 SC 1.4.3 requires for body text. Lightened along
+     its own hue to #6b6e76, which measures 4.51:1 on the darkest surface it
+     appears on — the binding case, since it is used on --color-bg,
+     --color-surface and --color-surface-secondary alike. */
+  --rr-text-muted: #81848c; /* low-emphasis metadata */
   --rr-text-disabled: #4a4d55; /* disabled labels */
 }
 
