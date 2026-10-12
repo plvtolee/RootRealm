@@ -1,5 +1,5 @@
 /**
- * RootRealm — `GET /api/github/profile-preview` (TASKS 8.2).
+ * RootRealm — `GET /api/github/profile-preview` (TASKS 8.2, 19.1, 19.2).
  *
  * The server boundary for the public profile preview. It is deliberately thin:
  * one input in, one service call, one HTTP status out. All the ingestion,
@@ -8,22 +8,50 @@
  *
  * The preview is computed per request and stored nowhere — persistence is
  * Phase 10 — which is why the route is dynamic.
+ *
+ * ## Security (19.1, 19.2)
+ *
+ * The route answers through `safeJson`, which checks the response against every
+ * credential this process holds. The preview is the one route that calls GitHub
+ * with `GITHUB_TOKEN` in hand, which makes it the one route where an echo is
+ * possible — so it is the one that most needs the check.
+ *
+ * The username is validated against GitHub's own shape before it is used: a
+ * 64-character or non-alphanumeric login is a 400 rather than a wasted upstream
+ * request and a confusing 404.
  */
 import { statusForReason } from "@/lib/github/failure";
 import { errorStateFor } from "@/lib/github/error-states";
 import { buildProfilePreview } from "@/lib/profile/service";
+import { parseGitHubLogin, safeJson } from "@/lib/security/server";
 
 export const dynamic = "force-dynamic";
 
 /** `GET /api/github/profile-preview?username=<login>`. */
 export async function GET(request: Request): Promise<Response> {
-  const username = new URL(request.url).searchParams.get("username") ?? "";
+  const raw = new URL(request.url).searchParams.get("username");
+  const parsed = parseGitHubLogin(raw);
 
-  const result = await buildProfilePreview(username, { signal: request.signal });
+  if (!parsed.ok) {
+    return safeJson(
+      {
+        preview: null,
+        failure: {
+          reason: "invalid_username",
+          message: "That is not a GitHub username.",
+          retryAfterMs: null,
+        },
+        rateLimit: null,
+      },
+      { status: 400 },
+    );
+  }
+
+  const result = await buildProfilePreview(parsed.login, { signal: request.signal });
 
   if (!result.ok) {
     const { reason, retryAfterMs } = result.failure;
-    return Response.json(
+    return safeJson(
       {
         preview: null,
         failure: {
@@ -44,7 +72,7 @@ export async function GET(request: Request): Promise<Response> {
     );
   }
 
-  return Response.json(
+  return safeJson(
     {
       preview: result.preview,
       failure: null,

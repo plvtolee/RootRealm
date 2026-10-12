@@ -26,6 +26,8 @@ import {
 } from "../currency/store";
 import { assertServerOnly } from "../github/server-only";
 
+import { parseItemId, safeJson } from "../security/server";
+
 import { computeShopView, type ShopViewState } from "./view";
 
 /**
@@ -97,7 +99,7 @@ export async function balanceFor(userId: string): Promise<number> {
 }
 
 /** The 401 every shop route answers with when there is no trusted session. */
-export const UNAUTHENTICATED: Response = Response.json(
+export const UNAUTHENTICATED = safeJson(
   {
     error: "unauthenticated",
     message: "Sign in with GitHub to use the shop.",
@@ -105,25 +107,27 @@ export const UNAUTHENTICATED: Response = Response.json(
   { status: 401 },
 );
 
+/** The 400 for a body that is not a purchase or equip request. */
+export const BAD_REQUEST = safeJson(
+  { error: "bad_request", message: "Send { itemId } as JSON." },
+  { status: 400 },
+);
+
 /**
  * Reads an `itemId` from a JSON body.
  *
- * Returns null for a body that is not JSON or carries no item id, which the
- * routes answer as 400. The id is a catalog lookup in both the purchase and the
- * equip path, so nothing downstream has to defend against a shape.
+ * The shape is validated here rather than in each route: a catalog id is bounded
+ * and safe to use as a key or a URL, so anything else is a 400 before it reaches
+ * the purchase flow. Returns null for a body that is not JSON or carries no item
+ * id. The id is a catalog lookup in both the purchase and the equip path, so
+ * nothing downstream has to defend against a shape.
  */
 export function itemIdFrom(request: Request): Promise<string | null> {
   return request
     .json()
     .then((body: unknown) => {
-      const id = (body as { itemId?: unknown } | null)?.itemId;
-      return typeof id === "string" && id.length > 0 ? id : null;
+      const parsed = parseItemId((body as { itemId?: unknown } | null)?.itemId);
+      return parsed.ok ? parsed.itemId : null;
     })
     .catch(() => null);
 }
-
-/** The 400 for a body that is not a purchase or equip request. */
-export const BAD_REQUEST: Response = Response.json(
-  { error: "bad_request", message: "Send { itemId } as JSON." },
-  { status: 400 },
-);
