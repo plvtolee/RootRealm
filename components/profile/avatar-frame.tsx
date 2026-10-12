@@ -4,7 +4,7 @@ import { useEffect, useRef } from "react";
 import type { CSSProperties, ReactNode } from "react";
 
 import { cn } from "@/lib/cn";
-import { playAvatarFrame, stopAvatarFrame } from "@/lib/motion";
+import { onReducedMotionChange, playAvatarFrame, stopAvatarFrame } from "@/lib/motion";
 
 export type AvatarFrameMode = "none" | "pulse" | "haze" | "trail";
 
@@ -64,6 +64,26 @@ export function AvatarFrame({
     if (!el) return;
     playAvatarFrame(el, { mode: activeMode, intensity: strength, glow });
     return () => stopAvatarFrame(el);
+  }, [activeMode, strength, glow]);
+
+  /*
+    (TASKS 17.4) The effect above starts the loop once, but the preference can
+    change while the page is open: a developer who turns reduced motion on at the
+    OS level mid-session would otherwise keep watching a looping ring, because
+    the check that suppressed it was made when the loop started. Subscribing
+    means the loop stops the moment the preference is switched on — and starts
+    again if it is switched off.
+  */
+  useEffect(() => {
+    return onReducedMotionChange((reduced) => {
+      const el = frameRef.current;
+      if (!el) return;
+      if (reduced) {
+        stopAvatarFrame(el);
+      } else {
+        playAvatarFrame(el, { mode: activeMode, intensity: strength, glow });
+      }
+    });
   }, [activeMode, strength, glow]);
 
   return (

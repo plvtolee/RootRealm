@@ -44,6 +44,63 @@ function reducedMotion(): boolean {
   return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
 
+/**
+ * Whether reduced motion is requested *right now* (TASKS 17.4).
+ *
+ * `reducedMotion()` above asks the same question once, and that is fine for an
+ * animation that ends on its own. It is not fine for anything that runs as long
+ * as the page is open: the avatar frame loops forever (`repeat: -1`), so a
+ * developer who turns reduced motion on at the OS level while the tab is open
+ * keeps getting a moving ring, because the check that gated it happened once at
+ * the start of an animation that never ends.
+ *
+ * This is the live answer, and {@link onReducedMotionChange} is how a component
+ * learns that it changed. The query object is cached — one listener for the whole
+ * app rather than one per animated surface.
+ */
+let motionQuery: MediaQueryList | null = null;
+const motionListeners = new Set<(reduced: boolean) => void>();
+
+function reducedMotionQuery(): MediaQueryList {
+  motionQuery ??= window.matchMedia("(prefers-reduced-motion: reduce)");
+  return motionQuery;
+}
+
+/** The current preference, read live rather than cached at import time. */
+export function prefersReducedMotion(): boolean {
+  return reducedMotionQuery().matches;
+}
+
+/**
+ * Subscribes to reduced-motion changes; returns an unsubscribe function.
+ *
+ * Fires immediately with the current value, so a subscriber does not read the
+ * preference and then subscribe as two separate steps — the race between them is
+ * how a stale animation starts.
+ */
+export function onReducedMotionChange(listener: (reduced: boolean) => void): () => void {
+  const query = reducedMotionQuery();
+
+  if (motionListeners.size === 0) {
+    query.addEventListener("change", handleMotionPreferenceChange);
+  }
+  motionListeners.add(listener);
+  listener(query.matches);
+
+  return () => {
+    motionListeners.delete(listener);
+    if (motionListeners.size === 0) {
+      query.removeEventListener("change", handleMotionPreferenceChange);
+    }
+  };
+}
+
+function handleMotionPreferenceChange(event: MediaQueryListEvent): void {
+  for (const listener of motionListeners) {
+    listener(event.matches);
+  }
+}
+
 /** Snapshot of the motion tokens, in GSAP units (seconds / easing strings). */
 export function readMotionTokens() {
   const cs = rootStyles();
