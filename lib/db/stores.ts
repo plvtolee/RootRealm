@@ -88,3 +88,22 @@ export function walletStore(): WalletStore {
 export function storageBackend(): "postgres" | "memory" {
   return hasDatabase() ? "postgres" : "memory";
 }
+
+/**
+ * Clears the cached stores.
+ *
+ * Required after `closePool()` (`lib/db/postgres.ts`). Each store captured the
+ * executor built over the pool at construction time, so once that pool is ended
+ * the cached store holds a dead one and every query fails with "Cannot use a pool
+ * after calling end on the pool".
+ *
+ * This is a shutdown and test concern rather than a request-path one — nothing on
+ * a live request closes the pool — but it is the invariant that makes "close the
+ * pool and start again" mean anything, which is what proving persistence across a
+ * restart requires.
+ */
+export function resetStores(): void {
+  const scope = globalThis as GlobalScope;
+  delete scope[ACCOUNTS_KEY];
+  delete scope[WALLETS_KEY];
+}

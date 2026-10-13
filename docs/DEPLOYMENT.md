@@ -63,11 +63,28 @@ foreign keys depend on. It is idempotent, so a deploy can run it on every releas
 | `lib/db/seed.ts` | writes the cosmetic and scoring catalogues |
 | `scripts/migrate.ts` | the deploy-time bootstrap |
 
-**Connection string.** Take the *connection pooler* string from the Supabase
+**Connection string.** Take the *Session pooler* string from the Supabase
 dashboard (Project Settings → Database → Connection string → **Session pooler**,
-port 5432) and append `?sslmode=verify-full`. `pg` parses `sslmode` from the
-string, so this is what turns on certificate verification; nothing in the code
-sets `ssl`, which would silently override it.
+port 5432) and append `?sslmode=no-verify`:
+
+```
+postgresql://postgres.PROJECT:PASSWORD@aws-0-REGION.pooler.supabase.com:5432/postgres?sslmode=no-verify
+```
+
+**Why `no-verify` and not `verify-full`.** The pooler's certificate is issued by
+*Supabase Intermediate 2021 CA*, a private CA that is not in Node's bundled trust
+store. `verify-full` therefore fails against the **real** Supabase server with
+"self-signed certificate in certificate chain" — this was checked by reading the
+certificate the server actually presents, and it is genuinely
+`*.pooler.supabase.com` rather than a TLS-intercepting proxy.
+
+`no-verify` still encrypts the connection (`pg` maps it to
+`rejectUnauthorized: false`); it does not authenticate the server, which is the
+residual man-in-the-middle risk. Supabase's pooler imposes this choice, and the
+alternative — adding their CA to the Node trust store via `NODE_EXTRA_CA_CERTS` —
+is only worth it if the connection crosses a network you do not control. Note that
+nothing in the code sets `ssl`, because that would silently override whatever the
+string says.
 
 **What is still in memory, and why it is not a bug yet.** `DATABASE_URL` unset —
 a laptop, the test suite — uses the in-memory stores, so a restart loses
@@ -154,6 +171,19 @@ The four things TASK 21.2 asks to verify, and how each is checked:
 | --- | --- | --- |
 | **install** | `npm ci` | completes with no unmet peer dependencies; `@playwright/test` is a devDependency and is not installed in a production-only install |
 | **migrate** | `npm run db:migrate` | `Applied N migration(s), skipped M` then `Seeded N catalogue row(s)` |
+
+To check what a database actually contains, rather than trusting that the
+statements ran:
+
+```bash
+npx tsx scripts/inspect-db.ts          # tables, row counts, the catalogue
+npx tsx scripts/verify-persistence.ts  # writes, then proves it outlived the connection
+```
+
+`db:reset` drops the public schema and rebuilds it from the model. It is the only
+way to apply a **changed** migration, because migrations are forward-only and a
+database that already recorded `0003_cosmetics` will not re-run it. It refuses to
+run under `NODE_ENV=production` and prints the host it is about to drop.
 | **build** | `npm run build` | `✓ Compiled successfully` and no `Failed to compile` |
 | **startup** | `npm run start` | `✓ Ready`, then `GET /` returns 200 |
 | **environment validation** | `npm run check:env` | exits 0; the boot report in the server log says `environment_ready` |

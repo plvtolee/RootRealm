@@ -419,7 +419,20 @@ export const COSMETIC_TABLES: readonly Table[] = [
       { name: "name", type: "text", notNull: true },
       { name: "description", type: "text", notNull: true },
       { name: "rarity", type: "text", notNull: true },
-      { name: "price_code_coins", type: "integer", notNull: true, check: "price_code_coins >= 0" },
+      {
+        // Nullable on purpose: `CosmeticDefinition.priceCodeCoins` is
+        // `number | null`, and null is the catalogue's statement that the item is
+        // *acquired rather than bought* (a quest or season reward). NOT NULL
+        // would force a sentinel price, and every sentinel is wrong — `0` would
+        // make a quest reward purchasable for nothing, which is exactly what
+        // `purchaseCosmetic` exists to prevent.
+        //
+        // A CHECK passes on NULL in PostgreSQL (it evaluates to NULL, which is
+        // not false), so `>= 0` still constrains every real price.
+        name: "price_code_coins",
+        type: "integer",
+        check: "price_code_coins >= 0",
+      },
     ],
   },
   {

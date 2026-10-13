@@ -7,7 +7,7 @@ CREATE TABLE cosmetic_items (
   name text NOT NULL,
   description text NOT NULL,
   rarity text NOT NULL,
-  price_code_coins integer CONSTRAINT price_code_coins_check CHECK (price_code_coins >= 0) NOT NULL
+  price_code_coins integer CONSTRAINT price_code_coins_check CHECK (price_code_coins >= 0)
 );
 
 CREATE TABLE inventory_items (
