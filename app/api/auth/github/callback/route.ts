@@ -94,7 +94,7 @@ export async function GET(request: Request): Promise<Response> {
   const headers = new Headers({ location: "/" });
   headers.append(
     "set-cookie",
-    `${SESSION_COOKIE}=${session.value}; ${sessionCookieAttributes(config.isProduction)}`,
+    `${SESSION_COOKIE}=${session.value}; ${sessionCookieAttributes(request)}`,
   );
   // Clear the one-time state cookie now that it has been used.
   headers.append(

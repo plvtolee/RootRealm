@@ -84,6 +84,16 @@ export default defineConfig({
         GITHUB_OAUTH_REDIRECT_URI: `http://localhost:${APP_PORT}/api/auth/github/callback`,
         // Signs the session cookie; the dev harness needs one to seed a wallet.
         SESSION_SECRET: "e2e-session-secret-not-a-real-secret",
+        // Force the in-memory store, even when the developer's `.env.local` names a
+        // real database.
+        //
+        // These journeys assert exact balances ("5,000 CC"), which is only
+        // meaningful against a store that starts empty. With a persistent database
+        // the previous run's purchase is still there and the assertion fails for a
+        // reason that has nothing to do with the code under test — and worse, the
+        // suite would write its fixtures into the developer's real Supabase
+        // project. Tests must not mutate the data a development server depends on.
+        DATABASE_URL: "",
       },
     },
   ],

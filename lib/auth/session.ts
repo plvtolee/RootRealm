@@ -133,20 +133,54 @@ export function verifySession(value: string | null | undefined, options: Session
 }
 
 /**
+ * Whether a session cookie should carry the `Secure` attribute for this request.
+ *
+ * This asks the **connection**, not the environment, and the distinction matters.
+ * `NODE_ENV=production` is set by `next start`, so a developer running the
+ * production build locally has a production environment over plain HTTP — and a
+ * browser silently discards a `Secure` cookie sent over `http://`. That produces
+ * the worst possible failure for testing sign-in: GitHub returns, the account is
+ * claimed, the redirect happens, and then every request is unauthenticated because
+ * the cookie was never stored. The symptom looks like a broken OAuth app rather
+ * than a cookie flag.
+ *
+ * So: HTTPS is always secure. Plain HTTP to a loopback address is a developer
+ * machine, and is the one case where `Secure` must be omitted. Plain HTTP to
+ * anything else is a misconfigured deployment, and it **fails closed** — the
+ * cookie is marked secure and therefore dropped, rather than being sent in
+ * cleartext. `x-forwarded-proto` is consulted first because a request that
+ * arrived through a TLS-terminating proxy is HTTPS even if the proxy spoke
+ * plaintext to this process.
+ */
+export function isSecureRequest(request: Request): boolean {
+  const forwarded = request.headers.get("x-forwarded-proto")?.split(",")[0]?.trim();
+  const protocol = forwarded ?? new URL(request.url).protocol.replace(":", "");
+
+  if (protocol === "https") return true;
+
+  const hostname = new URL(request.url).hostname;
+  const loopback =
+    hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1" || hostname === "[::1]";
+
+  // Plain HTTP off-loopback: treat as production and let the cookie be dropped.
+  return !loopback;
+}
+
+/**
  * The cookie attributes for a session.
  *
  * `httpOnly` keeps the value away from scripts, `sameSite: "lax"` still allows
  * the top-level redirect back from GitHub while blocking cross-site POSTs, and
- * `secure` is set in production. These are not decorations: each one closes a
- * class of session theft.
+ * `secure` follows {@link isSecureRequest}. These are not decorations: each one
+ * closes a class of session theft.
  */
-export function sessionCookieAttributes(isProduction: boolean): string {
+export function sessionCookieAttributes(request: Request): string {
   return [
     "Path=/",
     "HttpOnly",
     "SameSite=Lax",
     `Max-Age=${SESSION_TTL_SECONDS}`,
-    isProduction ? "Secure" : "",
+    isSecureRequest(request) ? "Secure" : "",
   ]
     .filter((part) => part.length > 0)
     .join("; ");

@@ -74,7 +74,7 @@ export async function POST(request: Request): Promise<Response> {
     {
       status: 200,
       headers: {
-        "set-cookie": `${SESSION_COOKIE}=${session.value}; ${sessionCookieAttributes(false)}`,
+        "set-cookie": `${SESSION_COOKIE}=${session.value}; ${sessionCookieAttributes(request)}`,
       },
     },
   );

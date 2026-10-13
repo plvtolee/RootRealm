@@ -45,13 +45,50 @@ describe("session (9.1)", () => {
     expect(() => verifySession("no-dot", options)).toThrow(SessionError);
   });
 
-  it("sets HttpOnly and SameSite, and Secure only in production", () => {
-    const dev = sessionCookieAttributes(false);
-    const prod = sessionCookieAttributes(true);
+  it("sets HttpOnly and SameSite on every request", () => {
+    const attributes = sessionCookieAttributes(
+      new Request("https://rootrealm.example/api/auth/github/callback"),
+    );
 
-    expect(dev).toContain("HttpOnly");
-    expect(dev).toContain("SameSite=Lax");
-    expect(dev).not.toContain("Secure");
-    expect(prod).toContain("Secure");
+    expect(attributes).toContain("HttpOnly");
+    expect(attributes).toContain("SameSite=Lax");
+    expect(attributes).toContain("Path=/");
+  });
+
+  it("omits Secure for plain-HTTP localhost, so the production build works locally", () => {
+    // The failure this prevents is subtle: `npm run start` sets NODE_ENV=production
+    // over http://localhost, and a browser silently discards a Secure cookie sent
+    // over http. Sign-in looks like it worked and then nothing is authenticated.
+    const local = sessionCookieAttributes(
+      new Request("http://localhost:3000/api/auth/github/callback"),
+    );
+
+    expect(local).not.toContain("Secure");
+    expect(local).toContain("HttpOnly");
+  });
+
+  it("sets Secure for HTTPS, including a loopback host reached over TLS", () => {
+    expect(
+      sessionCookieAttributes(new Request("https://rootrealm.example/cb")),
+    ).toContain("Secure");
+    expect(
+      sessionCookieAttributes(new Request("https://localhost:3000/cb")),
+    ).toContain("Secure");
+  });
+
+  it("trusts x-forwarded-proto, because a TLS proxy speaks plaintext to us", () => {
+    const behindProxy = new Request("http://internal:3000/cb", {
+      headers: { "x-forwarded-proto": "https" },
+    });
+
+    expect(sessionCookieAttributes(behindProxy)).toContain("Secure");
+  });
+
+  it("fails closed on plain HTTP off loopback rather than sending a cookie in cleartext", () => {
+    // Marked Secure means the browser drops it. That is the intended outcome: a
+    // misconfigured deployment loses its session rather than leaking one.
+    const misconfigured = sessionCookieAttributes(new Request("http://rootrealm.example/cb"));
+
+    expect(misconfigured).toContain("Secure");
   });
 });

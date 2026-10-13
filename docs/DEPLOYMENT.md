@@ -135,6 +135,21 @@ equal `GITHUB_OAUTH_REDIRECT_URI` exactly. RootRealm requests exactly one scope,
 repository contents or private events, which is the strongest form of "we cannot
 leak private data". See `lib/auth/oauth.ts`.
 
+For local work the callback URL is exactly:
+
+```
+http://localhost:3000/api/auth/github/callback
+```
+
+GitHub accepts `http://localhost` callbacks. It must match
+`GITHUB_OAUTH_REDIRECT_URI` **exactly** — a trailing slash or a different port is
+the most common reason a callback fails.
+
+Local sign-in works against `npm run start` (the production build) as well as
+`npm run dev`: the session cookie's `Secure` attribute follows the *connection*
+rather than `NODE_ENV`, so plain-HTTP localhost is treated as the developer machine
+it is while every non-loopback request still gets `Secure`.
+
 **Read-only ingestion (TASK 4.1).** A classic personal access token with **no
 scopes** covers public read-only data, which is all this app uses. Do **not**
 grant `repo`, `workflow` or any write scope. The token is read only in
@@ -178,7 +193,13 @@ statements ran:
 ```bash
 npx tsx scripts/inspect-db.ts          # tables, row counts, the catalogue
 npx tsx scripts/verify-persistence.ts  # writes, then proves it outlived the connection
+npx tsx scripts/clean-dev-data.ts     # removes harness accounts (needs --yes)
 ```
+
+The E2E suite deliberately runs with `DATABASE_URL` cleared (`playwright.config.ts`),
+so a test run cannot write fixtures into the developer's real database — and the
+exact balances its journeys assert mean nothing against a store that survives the
+run anyway.
 
 `db:reset` drops the public schema and rebuilds it from the model. It is the only
 way to apply a **changed** migration, because migrations are forward-only and a
