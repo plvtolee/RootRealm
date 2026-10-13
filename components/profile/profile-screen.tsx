@@ -7,6 +7,7 @@ import { FeaturedProjectCard } from "./featured-project-card";
 import { ProfileAvatar } from "./profile-avatar";
 import { ProfileIdentity } from "./profile-identity";
 import { ProfileMenu } from "./profile-menu";
+import { DeleteAccount } from "./delete-account";
 import { RecentAchievements } from "./recent-achievements";
 import type { MockProfile } from "./profile-data";
 
@@ -24,6 +25,14 @@ export type ProfileScreenProps = {
   frameId?: string | null;
   /** The equipped effect item's id, which decides the frame's motion. */
   effectId?: string | null;
+  /**
+   * Whether to offer account deletion (TASKS 22.5).
+   *
+   * True only for a signed-in developer. A guest previewing someone else's public
+   * profile has no account to delete, and showing the control there would offer a
+   * destructive action against an account the visitor does not own.
+   */
+  showDelete?: boolean;
   className?: string;
 };
 
@@ -49,7 +58,7 @@ export type ProfileScreenProps = {
  *
  * The screen renders data only: no fetching, no scoring, no state.
  */
-export function ProfileScreen({ profile, frameId, effectId, className }: ProfileScreenProps) {
+export function ProfileScreen({ profile, frameId, effectId, showDelete = false, className }: ProfileScreenProps) {
   return (
     <div className={cn("flex flex-col gap-8", className)}>
       {/* Hero: identity, progression, menu and attributes. */}
@@ -83,10 +92,15 @@ export function ProfileScreen({ profile, frameId, effectId, className }: Profile
         moreCount={profile.additionalAchievements}
       />
 
-      {/* The honest label the task asks for: this screen is static mock UI. */}
+
+      {/* TASKS 22.5: account deletion lives on the profile because that is the only
+          screen unambiguously about one account. False for a guest, who has nothing
+          to delete. */}
+      {showDelete && <DeleteAccount login={profile.username} />}
+
       <Text variant="caption" className="text-text-muted">
-        Static demonstration profile — mock data only. No GitHub account,
-        backend or scoring is connected.
+        Character built from your public GitHub activity. XP is recomputed from that
+        activity on each visit, and has not been stored yet.
       </Text>
     </div>
   );

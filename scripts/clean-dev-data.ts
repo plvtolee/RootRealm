@@ -30,12 +30,20 @@ loadEnvConfig(process.cwd());
 
 const logger = serviceLogger("database");
 
-/** Accounts this is allowed to delete. Every clause is a harness marker. */
+/**
+ * Accounts this is allowed to delete. Every clause is a harness marker.
+ *
+ * `login = 'e2e-dev'` is the mock GitHub's only login (`e2e/mock-github.mjs`),
+ * so no real claim can ever carry it — and it is the one marker that was
+ * missing: the mock account reached a real database when a Playwright run reused
+ * an already-running development server, which `reuseExistingServer` permits.
+ */
 const HARNESS_ACCOUNTS = `
   id LIKE 'verify-persistence-probe'
   OR id LIKE 'e2e-%'
   OR id = 'dev-user'
   OR login LIKE 'dev:%'
+  OR login = 'e2e-dev'
 `;
 
 async function main(): Promise<number> {

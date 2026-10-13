@@ -47,7 +47,7 @@ export interface SqlExecutor {
   query(
     sql: string,
     params?: readonly unknown[],
-  ): Promise<{ readonly rows: SqlRow[] }>;
+  ): Promise<{ readonly rows: SqlRow[]; readonly rowCount?: number | null }>;
 }
 
 /** One raw row. */

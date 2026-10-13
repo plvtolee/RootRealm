@@ -144,7 +144,7 @@ export async function withTransaction<T>(fn: (tx: SqlExecutor) => Promise<T>): P
 
   const tx: SqlExecutor = {
     query: (sql, params = []) =>
-      client.query(sql, params as unknown[]) as Promise<{ rows: SqlRow[] }>,
+      client.query(sql, params as unknown[]) as Promise<{ rows: SqlRow[]; rowCount: number | null }>,
   };
 
   try {
@@ -168,7 +168,7 @@ export function executor(): SqlExecutor | null {
 
   return {
     query: (sql, params = []) =>
-      connection.query(sql, params as unknown[]) as Promise<{ rows: SqlRow[] }>,
+      connection.query(sql, params as unknown[]) as Promise<{ rows: SqlRow[]; rowCount: number | null }>,
   };
 }
 

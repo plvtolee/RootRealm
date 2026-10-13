@@ -189,6 +189,10 @@ function ProfileFor({ login }: { login: string }) {
       })}
       frameId={frameId}
       effectId={effectId}
+      // Only the signed-in developer is offered deletion. This screen is behind a
+      // session by construction — the gate renders `SignedOut` otherwise — so the
+      // control can never appear on someone else's profile.
+      showDelete
     />
   );
 }
