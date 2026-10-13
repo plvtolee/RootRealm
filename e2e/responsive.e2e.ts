@@ -64,7 +64,7 @@ const OVERFLOW_TOLERANCE_PX = 1;
  * Applied *inside* the page: `page.evaluate` runs in the browser, so a Node-side
  * predicate cannot be referenced from there.
  *
- * Two exemptions, both narrow and both about *intent* rather than convenience:
+ * Three exemptions, all narrow and all about *intent* rather than convenience:
  *
  * 1. `aria-hidden` decoration — the skill tree's ornament bleed. It paints no
  *    content a visitor could be blocked from reaching.
@@ -76,6 +76,16 @@ const OVERFLOW_TOLERANCE_PX = 1;
  *    false positive, and it is why the exemption is by *scrollable ancestor*
  *    rather than by naming the three elements — a fourth scroller will be
  *    exempt automatically, and a non-scrolling overflow still fails.
+ * 3. **Anything inside an SVG that clips.** `getBoundingClientRect` on SVG
+ *    geometry reports where the shape *is*, not where it is *visible*, so a path
+ *    running past the viewBox measures as overflowing while the `<svg>` element
+ *    crops it. The skill-tree map hit this the moment its opening viewport became
+ *    smaller than the drawing (TASKS 22.3) — the tree genuinely extends past the
+ *    viewBox, and the visitor sees a cropped, pannable map, which is the intent.
+ *
+ *    It is scoped to `<svg>` ancestors rather than to `overflow: hidden` in
+ *    general, because `overflow-hidden` is also how `Card` rounds its corners, and
+ *    exempting every rounded card would hide real overflow everywhere.
  *
  * The document-level assertion below is what actually catches a page that scrolls
  * sideways, and it has no exemptions at all.
@@ -89,13 +99,23 @@ async function overflowReport(page: Page, width: number): Promise<string[]> {
       const limit = viewportWidth + tolerance;
       const problems: string[] = [];
 
-      // True when the element sits inside a deliberate horizontal scroller, which
-      // is allowed to be wider than the viewport. Walks ancestors because the
-      // pattern is a container the visitor swipes, not the children themselves.
-      const insideScroller = (el: Element): boolean => {
+      // True when the element is deliberately allowed to be wider than the
+      // viewport: a horizontal scroller the visitor can swipe, or geometry an
+      // `<svg>` crops. Walks ancestors because both patterns are properties of
+      // the container, not of the child being measured.
+      const deliberatelyWide = (el: Element): boolean => {
         for (let node = el.parentElement; node !== null; node = node.parentElement) {
           const overflowX = window.getComputedStyle(node).overflowX;
           if (overflowX === "auto" || overflowX === "scroll") return true;
+
+          // An `<svg>` clips its content unless told otherwise, so a shape past
+          // the viewBox is cropped rather than overflowing the page.
+          if (
+            node.tagName.toLowerCase() === "svg" &&
+            window.getComputedStyle(node).overflow !== "visible"
+          ) {
+            return true;
+          }
         }
         return false;
       };
@@ -115,7 +135,7 @@ async function overflowReport(page: Page, width: number): Promise<string[]> {
         if (rect.width === 0 && rect.height === 0) continue;
 
         if (el.matches(exempt)) continue;
-        if (insideScroller(el)) continue;
+        if (deliberatelyWide(el)) continue;
 
         if (rect.right > limit) {
           problems.push(

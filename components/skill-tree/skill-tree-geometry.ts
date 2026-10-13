@@ -29,6 +29,37 @@ export const SKILL_TREE_VIEWBOX = {
   height: 1240,
 } as const;
 
+/**
+ * The viewport the map opens at (TASKS 22.3).
+ *
+ * Until now this was `SKILL_TREE_VIEWBOX` itself — the whole tree, fitted. That
+ * is legible only if you already know what you are looking at, and comparing
+ * against `references/approved-ui/skill-tree.png` shows why it fails: the
+ * approved screen shows four or five columns of clearly drawn hexagons with the
+ * tree running off the edge, because you are meant to *pan*. Fitting everything
+ * into a 590px canvas scales 2450 units down to 590, so a 58-unit hexagon
+ * renders at about 14px and the icons inside it are gone.
+ *
+ * So the map opens on the trunk instead: 1100 units wide, which puts a hexagon
+ * near 30px — readable — and covers the Roots row through the Intermediate tier.
+ * Everything above and to the sides is one pan away, and `Fit` is still there for
+ * anyone who wants the overview.
+ *
+ * The height is chosen so the aspect ratio (1100:1018 ≈ 1.08) matches a canvas
+ * that is roughly as tall as it is wide, which is what the desktop three-column
+ * layout produces. A mismatch would letterbox the drawing instead of filling it.
+ *
+ * `y` is 340 rather than something rounder because the Origin sits at y ≈ 1290
+ * with a 58-unit radius: starting any higher crops the node every path grows
+ * from, and the first thing the screen should show is the trunk.
+ */
+export const INITIAL_VIEWPORT = {
+  x: -550,
+  y: 340,
+  width: 1100,
+  height: 1018,
+} as const;
+
 /** Tier axis labels for the right-hand side of the map. */
 export const TIER_AXIS: ReadonlyArray<{ tier: SkillTier; label: string; y: number }> = [
   { tier: "mastery", label: "Mastery", y: 240 },

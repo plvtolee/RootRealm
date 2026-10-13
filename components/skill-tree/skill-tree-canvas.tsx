@@ -18,7 +18,7 @@ import type { SkillNodeView } from "@/lib/skills/view";
 import { STATUS_LABEL } from "@/lib/skills/view";
 import { ATTRIBUTE_LABEL, type AttributeKey } from "@/lib/attributes";
 import { NODE_RADIUS } from "./skill-tree-geometry";
-import { SKILL_TREE_VIEWBOX } from "./skill-tree-geometry";
+import { INITIAL_VIEWPORT, SKILL_TREE_VIEWBOX } from "./skill-tree-geometry";
 import { TIER_AXIS } from "./skill-tree-geometry";
 import { edgePath } from "./skill-tree-geometry";
 import { hexPath } from "./skill-tree-geometry";
@@ -440,7 +440,7 @@ export function SkillTreeCanvas({
    * React state is used only where it earns its keep: the branch filter and the
    * unlock animation.
    */
-  const viewportRef = useRef<Viewport>(SKILL_TREE_VIEWBOX);
+  const viewportRef = useRef<Viewport>(INITIAL_VIEWPORT);
   const dragRef = useRef<{ pointerId: number; startX: number; startY: number; viewport: Viewport } | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const preview = previewIds ?? new Set<string>();
@@ -600,16 +600,21 @@ className="h-(--control-height-md) rounded-md border border-border bg-surface px
         </button>
       </div>
       {/*
-        The initial viewBox is the constant, not the ref. Reading a ref during
+        The initial viewBox is INITIAL_VIEWPORT, not the ref. Reading a ref during
         render is exactly what React forbids, and the constant is what the ref is
         initialised to: nothing can move the viewport before the first paint,
         because every writer is an event handler or an effect that runs after it.
+
+        It is INITIAL_VIEWPORT rather than SKILL_TREE_VIEWBOX because fitting the
+        whole 2450-unit tree into the canvas shrinks a hexagon to about 14px -
+        see the comment on the constant for the full comparison against the
+        approved reference.
       */}
       <svg
         ref={svgRef}
-        viewBox={`${SKILL_TREE_VIEWBOX.x} ${SKILL_TREE_VIEWBOX.y} ${SKILL_TREE_VIEWBOX.width} ${SKILL_TREE_VIEWBOX.height}`}
+        viewBox={`${INITIAL_VIEWPORT.x} ${INITIAL_VIEWPORT.y} ${INITIAL_VIEWPORT.width} ${INITIAL_VIEWPORT.height}`}
         className="block h-(--skill-canvas-height) w-full"
-        style={{ aspectRatio: `${SKILL_TREE_VIEWBOX.width} / ${SKILL_TREE_VIEWBOX.height}` }}
+        style={{ aspectRatio: `${INITIAL_VIEWPORT.width} / ${INITIAL_VIEWPORT.height}` }}
         role="img"
         aria-label={`Skill tree map: six branches growing from the Origin, ${nodes.length} nodes. Each node is a focusable button; for the same nodes as a readable list, choose the List view.`}
       >
