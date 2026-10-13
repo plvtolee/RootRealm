@@ -48,6 +48,17 @@ export interface ProfilePreview {
   readonly repositories: readonly RepositoryRecord[];
   /** Scoring explanations, newest first (TASKS 8.3). */
   readonly explanations: readonly ProfileExplanation[];
+  /**
+   * The normalized, deduplicated evidence every screen derives from.
+   *
+   * ARCHITECTURE §1 requires that "the same normalized evidence must be reusable
+   * across the profile, skill tree, achievements and scoring systems" — and the
+   * UI must never be the source of truth for progression. That makes this the one
+   * thing the skill tree and the achievement screen need, and returning it here
+   * is what lets all of them share a single ingestion run instead of each one
+   * asking GitHub separately and possibly getting a different answer.
+   */
+  readonly events: readonly DeveloperEvent[];
 }
 
 /** A lookup that could not produce a profile. */
@@ -142,6 +153,7 @@ export async function buildProfilePreview(
       rateLimit: activity.rateLimit,
       repositories: repositories.observation.repositories,
       explanations: explain(deduplicated.events),
+      events: deduplicated.events,
     },
   };
 }

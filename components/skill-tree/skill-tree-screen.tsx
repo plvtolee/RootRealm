@@ -18,7 +18,7 @@ import { useMemo, useState } from "react";
 
 import type { DeveloperEvent } from "@/lib/developer-event";
 import { SKILL_DEFINITIONS } from "@/lib/skills/catalog";
-import { evaluateAllProgress } from "@/lib/skills/progress";
+import { evaluateAllProgress, type AttributeTotals } from "@/lib/skills/progress";
 import { refund, unlock } from "@/lib/skills/unlock";
 import { computeSkillTreeView, SKILL_POINT_BUDGET } from "@/lib/skills/view";
 import type { SkillTreeState } from "@/lib/skills/view";
@@ -40,21 +40,34 @@ type UnlockEvent = { nodeId: string; fromId: string; revision: number };
 export function SkillTreeScreen({
   events = [],
   developerLogin = "octocat",
+  learnedIds: learnedIdsProp,
+  attributeTotals,
 }: {
   /** The developer's normalized events, for evidence. Empty until ingestion is wired. */
   events?: readonly DeveloperEvent[];
   /** Who this tree belongs to. Required by the unlock records. */
   developerLogin?: string;
+  /**
+   * Skills recorded as learned. `undefined` means "not told", which is the
+   * browsing state a signed-out visitor sees: the catalog with its always-granted
+   * root open. The Origin is genuinely granted on a connected account
+   * (`requirement: null` in the catalog), so seeding it here is derived state, not
+   * a mock — but it is *passed in* rather than hardcoded so a developer's real
+   * unlock records replace it.
+   */
+  learnedIds?: readonly string[];
+  /** The developer's attribute units, so requirements that need them can evaluate. */
+  attributeTotals?: AttributeTotals;
 }) {
-  const [learnedIds, setLearnedIds] = useState<readonly string[]>(["origin"]);
+  const [learnedIds, setLearnedIds] = useState<readonly string[]>(learnedIdsProp ?? ["origin"]);
   const [selectedId, setSelectedId] = useState<string | null>("origin");
   const [activeBranch, setActiveBranch] = useState<AttributeKey | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>("map");
   const [unlockEvent, setUnlockEvent] = useState<UnlockEvent | null>(null);
 
   const state = useMemo<SkillTreeState>(
-    () => computeSkillTreeView(learnedIds, events),
-    [learnedIds, events],
+    () => computeSkillTreeView(learnedIds, events, { attributeTotals }),
+    [learnedIds, events, attributeTotals],
   );
 
   const presentation = SKILL_NODE_PRESENTATION_BY_ID;
