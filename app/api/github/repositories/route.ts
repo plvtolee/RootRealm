@@ -16,6 +16,7 @@ import {
   type RepositoryObservation,
 } from "@/lib/github/repositories";
 import type { RateLimitState } from "@/lib/github/rate-limit";
+import { logIngestionFailure, logRateLimit, serviceLogger } from "@/lib/ops/monitoring";
 
 /** No caching: a lookup is a live read, and the budget is already rate-limited. */
 export const dynamic = "force-dynamic";
@@ -47,6 +48,9 @@ export async function GET(request: Request): Promise<Response> {
     signal: request.signal,
   });
 
+  // TASKS 21.3: the rate-limit budget is visible after every GitHub call.
+  logRateLimit(result.rateLimit, { operation: "repositories", login: username }, serviceLogger("github"));
+
   if (result.ok) {
     const body: RepositoryResponseBody = {
       observation: result.observation,
@@ -58,6 +62,8 @@ export async function GET(request: Request): Promise<Response> {
   }
 
   const { reason, retryAfterMs } = result.failure;
+
+  logIngestionFailure(reason, { operation: "repositories", login: username }, serviceLogger("github"));
 
   const body: RepositoryResponseBody = {
     observation: null,

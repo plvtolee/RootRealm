@@ -17,6 +17,7 @@ import { exchangeCode, fetchIdentity, statesMatch, tokenFingerprint, OAUTH_STATE
 import { claimAccount, createInMemoryAccountStore } from "@/lib/auth/account";
 import { issueSession, sessionCookieAttributes, SESSION_COOKIE } from "@/lib/auth/session";
 import { readAuthConfig } from "@/lib/auth/config";
+import { logAccountClaim, serviceLogger } from "@/lib/ops/monitoring";
 
 export const dynamic = "force-dynamic";
 
@@ -75,10 +76,18 @@ export async function GET(request: Request): Promise<Response> {
   const session = issueSession(claimed.account.id, { secret: config.sessionSecret });
 
   // The token itself is never persisted or returned: with no database (Phase 10)
-  // there is nowhere safe to keep it, and nothing needs it yet. The fingerprint
-  // is logged for correlation, not the token.
-  console.info(
-    `auth: claimed ${identity.login} (github id ${identity.githubId}, token ${tokenFingerprint(token.accessToken)}), existing=${claimed.existing}`,
+  // there is nowhere safe to keep it, and nothing needs it yet. TASKS 21.3
+  // replaces the ad-hoc `console.info` with the structured emitter, which logs a
+  // correlation fingerprint and would redact the token by value if it ever
+  // reached a field.
+  logAccountClaim(
+    {
+      login: identity.login,
+      githubId: identity.githubId,
+      existing: claimed.existing,
+      tokenFingerprint: tokenFingerprint(token.accessToken),
+    },
+    serviceLogger("auth"),
   );
 
   const headers = new Headers({ location: "/" });

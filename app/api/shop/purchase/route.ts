@@ -10,6 +10,7 @@
  * afford this" is information the shop renders, not an error to be logged.
  */
 import { BAD_REQUEST, itemIdFrom, shopStateFor, UNAUTHENTICATED, userIdFromRequest, wallets } from "@/lib/shop/service";
+import { logTransaction, serviceLogger } from "@/lib/ops/monitoring";
 
 export const dynamic = "force-dynamic";
 
@@ -22,6 +23,11 @@ export async function POST(request: Request): Promise<Response> {
   if (itemId === null) return BAD_REQUEST;
 
   const outcome = await wallets.purchase({ userId, itemId, at: new Date().toISOString() });
+
+  // TASKS 21.3: transaction failures are a monitored surface. A refusal is a
+  // normal answer to a user (logged at info), except the unreachable
+  // charged-without-granted state, which the emitter logs at error.
+  logTransaction(outcome, { userId, itemId }, serviceLogger("shop"));
 
   if (!outcome.ok) {
     return Response.json(

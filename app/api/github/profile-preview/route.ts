@@ -24,15 +24,18 @@ import { statusForReason } from "@/lib/github/failure";
 import { errorStateFor } from "@/lib/github/error-states";
 import { buildProfilePreview } from "@/lib/profile/service";
 import { parseGitHubLogin, safeJson } from "@/lib/security/server";
+import { logIngestionFailure, logRateLimit, serviceLogger } from "@/lib/ops/monitoring";
 
 export const dynamic = "force-dynamic";
 
 /** `GET /api/github/profile-preview?username=<login>`. */
 export async function GET(request: Request): Promise<Response> {
+  const logger = serviceLogger("github");
   const raw = new URL(request.url).searchParams.get("username");
   const parsed = parseGitHubLogin(raw);
 
   if (!parsed.ok) {
+    logIngestionFailure("invalid_username", { operation: "profile-preview", login: null }, logger);
     return safeJson(
       {
         preview: null,
@@ -51,6 +54,12 @@ export async function GET(request: Request): Promise<Response> {
 
   if (!result.ok) {
     const { reason, retryAfterMs } = result.failure;
+    // TASKS 21.3: an ingestion failure and the rate-limit snapshot it came with
+    // are both monitored surfaces. The snapshot is emitted here whether the
+    // lookup succeeded or not, so an approaching limit is visible before it
+    // becomes a failure.
+    logIngestionFailure(reason, { operation: "profile-preview", login: parsed.login }, logger);
+    logRateLimit(result.failure.rateLimit, { operation: "profile-preview", login: parsed.login }, logger);
     return safeJson(
       {
         preview: null,
@@ -71,6 +80,8 @@ export async function GET(request: Request): Promise<Response> {
       },
     );
   }
+
+  logRateLimit(result.preview.rateLimit, { operation: "profile-preview", login: parsed.login }, logger);
 
   return safeJson(
     {
