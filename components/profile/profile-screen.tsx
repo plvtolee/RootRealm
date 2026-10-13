@@ -13,6 +13,17 @@ import type { MockProfile } from "./profile-data";
 export type ProfileScreenProps = {
   /** The single typed mock object from `profile-data.ts`. */
   profile: MockProfile;
+  /**
+   * The equipped frame item's id.
+   *
+   * Passed rather than looked up so the screen stays presentational and the
+   * *worn* cosmetics come from the same wallet the shop spends from — which is
+   * what stopped the frame here from disagreeing with the one in
+   * `/customization`.
+   */
+  frameId?: string | null;
+  /** The equipped effect item's id, which decides the frame's motion. */
+  effectId?: string | null;
   className?: string;
 };
 
@@ -38,13 +49,15 @@ export type ProfileScreenProps = {
  *
  * The screen renders data only: no fetching, no scoring, no state.
  */
-export function ProfileScreen({ profile, className }: ProfileScreenProps) {
+export function ProfileScreen({ profile, frameId, effectId, className }: ProfileScreenProps) {
   return (
     <div className={cn("flex flex-col gap-8", className)}>
       {/* Hero: identity, progression, menu and attributes. */}
       <div className="flex flex-col gap-6 lg:grid lg:grid-cols-[1fr_3fr] lg:gap-x-8">
         <ProfileAvatar
           username={profile.username}
+          frameId={frameId}
+          effectId={effectId}
           className="lg:col-start-1 lg:row-start-1"
         />
         <ProfileIdentity

@@ -27,6 +27,8 @@
  */
 "use client";
 
+import { useEffect, useState } from "react";
+
 import { Button } from "@/components/ui/button";
 import { Text } from "@/components/ui/text";
 import { ProfileScreen } from "@/components/profile/profile-screen";
@@ -99,6 +101,52 @@ function Failed({ store }: { store: ProfileStoreValue }) {
   );
 }
 
+/**
+ * What the developer is wearing, from the one wallet the shop spends from.
+ *
+ * Kept separate from {@link useProfile} because it is a different resource with a
+ * different lifecycle: a character's evidence changes on a sync, whereas what
+ * someone is wearing changes the moment they press Equip. Refetching the whole
+ * profile because a frame changed would be a second GitHub read for a local
+ * change.
+ *
+ * A failure here is deliberately silent — the profile falls back to its default
+ * look rather than showing an error over a working character. A cosmetic that
+ * fails to load is not a reason to hide the developer.
+ */
+function useEquippedCosmetics(login: string | null): {
+  frameId: string | null;
+  effectId: string | null;
+} {
+  const [equipped, setEquipped] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    // No synchronous `setState` here. The gate only ever mounts this hook with a
+    // real login — the signed-out case returns before reaching it — so the
+    // "wearing nothing" default is already the correct state for a null login and
+    // does not need to be written. Setting it would cascade a render before the
+    // paint the effect was meant to follow.
+    if (login === null) return;
+
+    let cancelled = false;
+
+    void fetch("/api/profile/cosmetics", { headers: { accept: "application/json" } })
+      .then((response) => response.json().catch(() => null))
+      .then((body: { equipped?: Record<string, string> } | null) => {
+        if (!cancelled) setEquipped(body?.equipped ?? {});
+      })
+      .catch(() => {
+        if (!cancelled) setEquipped({});
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [login]);
+
+  return { frameId: equipped.frame ?? null, effectId: equipped.effect ?? null };
+}
+
 /** The profile page: resolve the session, then provide the store for that login. */
 export default function ProfileGate() {
   const session = useSessionLogin();
@@ -108,7 +156,7 @@ export default function ProfileGate() {
 
   return (
     <ProfileProvider login={session.login}>
-      <ProfileFor />
+      <ProfileFor login={session.login} />
     </ProfileProvider>
   );
 }
@@ -119,9 +167,14 @@ export default function ProfileGate() {
  * Split from {@link ProfileGate} so the `useProfile` call is always inside a
  * provider. A hook that read the context without one would return the idle store
  * forever, and the page would sit on "loading" with no way to fail.
+ *
+ * `login` is passed down rather than resolved again here: `useSessionLogin` issues
+ * a request, and calling it twice would ask the server twice for an answer that
+ * cannot have changed.
  */
-function ProfileFor() {
+function ProfileFor({ login }: { login: string }) {
   const store = useProfile();
+  const { frameId, effectId } = useEquippedCosmetics(login);
 
   if (store.status === "loading" || store.status === "idle") return <Loading />;
   if (store.status === "error") return <Failed store={store} />;
@@ -134,6 +187,8 @@ function ProfileFor() {
         // what `verified` means: ownership was established by OAuth (PRD §8).
         verified: true,
       })}
+      frameId={frameId}
+      effectId={effectId}
     />
   );
 }

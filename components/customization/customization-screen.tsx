@@ -8,7 +8,16 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Text } from "@/components/ui/text";
-import { AvatarFrame, type AvatarFrameMode } from "@/components/profile/avatar-frame";
+import { AvatarFrame } from "@/components/profile/avatar-frame";
+import {
+  BANNER_WASH,
+  FRAME_RING,
+  RING_GAP,
+  RING_WIDTH,
+  THEME_ACCENT,
+  appearanceOf,
+  frameMotionFor,
+} from "@/components/cosmetics/appearance";
 import { cn } from "@/lib/cn";
 import { DEFAULT_OWNED_IDS } from "@/lib/cosmetics/catalog";
 import type { CosmeticRarity, CosmeticSlot } from "@/lib/cosmetics/definition";
@@ -40,47 +49,13 @@ const RARITY_TONE: Record<CosmeticRarity, "neutral" | "accent" | "warning"> = {
 };
 
 /**
- * An appearance key resolved to semantic tokens.
+ * How an appearance becomes paint lives in `components/cosmetics/appearance.ts`.
  *
- * The catalog stores a key, never a colour (AGENTS.md rule 1), so this map is
- * the only place an appearance becomes paint. An unknown key falls back to the
- * neutral treatment rather than to nothing, because a cosmetic that renders as
- * an empty box is worse than one that renders as the default.
+ * It used to be defined here, privately, and `/profile` carried its own copy — the
+ * two drifted apart and equipping a frame visibly did nothing on the profile. The
+ * catalog stores a key, never a colour (AGENTS.md rule 1), so that module is the
+ * single place an appearance becomes paint.
  */
-const APPEARANCE: Record<string, string> = {
-  neutral: "border-border bg-surface-secondary text-text-secondary",
-  amber: "border-warning bg-warning/10 text-warning",
-  cyan: "border-info bg-info/10 text-info",
-  violet: "border-accent bg-accent/10 text-accent",
-};
-
-const BANNER_WASH: Record<string, string> = {
-  neutral: "bg-surface-secondary",
-  amber: "bg-warning/10",
-  cyan: "bg-info/10",
-  violet: "bg-accent/10",
-};
-
-const THEME_ACCENT: Record<string, string> = {
-  neutral: "text-text-primary",
-  amber: "text-warning",
-  cyan: "text-info",
-  violet: "text-accent",
-};
-
-/**
- * An effect appearance resolved to a frame motion.
- *
- * The catalog publishes effects, the motion layer publishes frame modes, and a
- * cosmetic may only choose among modes that already exist — inventing one here
- * would produce an item whose effect nothing animates.
- */
-const EFFECT_MODE: Record<string, AvatarFrameMode> = {
-  none: "none",
-  pulse: "pulse",
-  haze: "haze",
-  trail: "trail",
-};
 
 export type CustomizationScreenProps = {
   /**
@@ -426,7 +401,7 @@ function OptionCard({
         aria-hidden="true"
         className={cn(
           "mb-3 size-(--customization-option-swatch-size) rounded-md border",
-          APPEARANCE[definition.appearance] ?? APPEARANCE.neutral,
+          FRAME_RING[appearanceOf(definition.appearance)],
         )}
       />
 
@@ -505,7 +480,7 @@ function PreviewCard({
       <div
         className={cn(
           "flex h-(--customization-banner-height) items-end justify-between border-b border-border px-4 pb-3",
-          BANNER_WASH[banner?.appearance ?? "neutral"] ?? BANNER_WASH.neutral,
+          BANNER_WASH[appearanceOf(banner?.appearance)],
         )}
       >
         <div className="space-y-1">
@@ -523,12 +498,15 @@ function PreviewCard({
 
       <div className="flex items-center gap-4 px-4 py-6">
         <AvatarFrame
-          mode={EFFECT_MODE[effect?.appearance ?? "none"] ?? "none"}
+          mode={frameMotionFor(effect?.appearance)}
           intensity={frameIntensity}
           glow={frameGlow}
           className={cn(
-            "border-2 p-1",
-            APPEARANCE[frame?.appearance ?? "neutral"] ?? APPEARANCE.neutral,
+            // The shared ring geometry: the same width and gap `/profile` draws,
+            // so the two frames cannot end up different sizes.
+            RING_WIDTH,
+            RING_GAP,
+            FRAME_RING[appearanceOf(frame?.appearance)],
           )}
         >
           {avatarUrl ? (
@@ -539,7 +517,7 @@ function PreviewCard({
         </AvatarFrame>
 
         <div className="space-y-1">
-          <Text variant="heading" as="h3" className={THEME_ACCENT[theme?.appearance ?? "neutral"] ?? "text-text-primary"}>
+          <Text variant="heading" as="h3" className={THEME_ACCENT[appearanceOf(theme?.appearance)]}>
             {login}
           </Text>
           <Text variant="body" className="text-text-secondary">
