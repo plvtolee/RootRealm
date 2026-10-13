@@ -7,7 +7,7 @@ import { optInToSeason, type SeasonConsent } from "./optin";
 import { rankStandingAt, type RankStanding } from "./rank";
 import { seasonStore } from "./store";
 import { createInMemorySeasonStore } from "./store";
-import { computeLeaderboardView, seasonPointsLabel, seasonWindowLabel } from "./view";
+import { computeLeaderboardView, seasonWindowLabel } from "./view";
 
 const AT = new Date("2026-05-15T12:00:00.000Z");
 /** The season containing `AT`, so the tests follow the catalog's active window. */
@@ -150,8 +150,23 @@ describe("leaderboard view (16.6)", () => {
     expect(seasonWindowLabel(SEASON, new Date("2027-01-01T00:00:00.000Z"))).toBe("Season closed");
   });
 
-  it("labels the points in one line", () => {
-    expect(seasonPointsLabel(SEASON)).toContain("10 per merge");
+  it("publishes each point kind as its own row, so no screen has to join them", () => {
+    // The one-line formatter this replaced (TASKS 22.1) is why the rows exist:
+    // a Badge cannot wrap, so a joined string ran 414px wide on a 375px screen
+    // while duplicating the list below it. The view publishes rows; formatting
+    // is a screen's decision.
+    const rows = computeLeaderboardView({
+      season: SEASON,
+      standings: [],
+      consents: [],
+      at: new Date("2026-11-01T00:00:00.000Z"),
+    }).rules.points;
+
+    expect(rows.length).toBeGreaterThan(0);
+    for (const row of rows) {
+      expect(typeof row.points).toBe("number");
+      expect(row.kind.length).toBeGreaterThan(0);
+    }
   });
 
   it("agrees with the standing module about a viewer's points", () => {

@@ -59,7 +59,15 @@ export function DevFundButton({
 
   return (
     <div className={className}>
-      <Button variant="secondary" size="sm" loading={pending} onClick={() => void fund()}>
+      {/* TASKS 22.1: `sm` is a dense *desktop* size (DESIGN_SYSTEM §30), so it
+          was 36px under a finger on a phone. `md` below `lg`, `sm` above. */}
+      <Button
+        variant="secondary"
+        size="sm"
+        className="min-h-(--control-height-md) lg:min-h-(--control-height-sm)"
+        loading={pending}
+        onClick={() => void fund()}
+      >
         {label}
       </Button>
       <div aria-live="polite" className="mt-2">

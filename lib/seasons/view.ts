@@ -148,16 +148,21 @@ export function seasonWindowLabel(season: Season, at: Date): string {
   return `Ends in ${days} days`;
 }
 
-/** The points a season awards, as one line. */
-export function seasonPointsLabel(season: Season): string {
-  return Object.entries(season.points)
-    .map(([kind, points]) => `${points} ${KIND_LABEL[kind] ?? kind}`)
-    .join(" · ");
-}
+/**
+ * A season's point breakdown is *not* formatted here.
+ *
+ * It used to be: `seasonPointsLabel` joined every kind into one sentence, the
+ * leaderboard header put that sentence in a Badge, and a Badge does not wrap — so
+ * five clauses became a 414px chip that ran off a 375px screen (TASKS 22.1). It
+ * was also redundant, because the "How this season is scored" card directly below
+ * already lists each kind as its own row from `view.rules.points`.
+ *
+ * So there is no formatter to keep. A screen that wants rows reads
+ * `view.rules.points`; a screen that wants one line writes the sentence it
+ * actually means, and lets it wrap.
+ */
 
-const KIND_LABEL: Readonly<Record<string, string>> = {
-  merged_pull_requests: "per merge",
-  published_releases: "per release",
-  completed_reviews: "per review",
-  qualifying_documentation: "per doc",
-};
+// `KIND_LABEL` used to live here, for `seasonPointsLabel`. It is gone with it:
+// the only place a kind is labelled is the leaderboard screen that renders the
+// rows, and that screen owns its own copy. A vocabulary with one consumer does
+// not belong in the view.

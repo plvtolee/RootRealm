@@ -21,7 +21,7 @@ export function TopNavigation({ className }: TopNavigationProps) {
       <Container className="flex h-(--control-height-md) items-center justify-between gap-4 lg:h-(--layout-header-height) lg:justify-start lg:gap-6">
         <Link
           href="/"
-          className="flex items-center whitespace-nowrap text-heading text-text-primary transition-colors duration-(--motion-base) ease-standard hover:text-accent motion-reduce:transition-none"
+          className="flex min-h-(--control-height-md) items-center whitespace-nowrap text-heading text-text-primary transition-colors duration-(--motion-base) ease-standard hover:text-accent motion-reduce:transition-none"
         >
           RootRealm
         </Link>

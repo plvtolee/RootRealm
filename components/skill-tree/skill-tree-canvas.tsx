@@ -571,7 +571,10 @@ export function SkillTreeCanvas({
         <button
           type="button"
           onClick={() => zoomAtCenter(ZOOM_STEP)}
-          className="h-(--control-height-sm) w-(--control-height-sm) rounded-md border border-border bg-surface text-heading text-text-primary"
+          // TASKS 22.1: 44px below `lg`, 36px above. The zoom cluster is the most
+// finger-operated control in the product — it is the only way to inspect a node
+// on a phone — so `sm` (a dense desktop size) was exactly the wrong default.
+className="h-(--control-height-md) w-(--control-height-md) rounded-md border border-border bg-surface text-heading text-text-primary lg:h-(--control-height-sm) lg:w-(--control-height-sm)"
           aria-label="Zoom in"
         >
           +
@@ -579,7 +582,10 @@ export function SkillTreeCanvas({
         <button
           type="button"
           onClick={() => zoomAtCenter(1 / ZOOM_STEP)}
-          className="h-(--control-height-sm) w-(--control-height-sm) rounded-md border border-border bg-surface text-heading text-text-primary"
+          // TASKS 22.1: 44px below `lg`, 36px above. The zoom cluster is the most
+// finger-operated control in the product — it is the only way to inspect a node
+// on a phone — so `sm` (a dense desktop size) was exactly the wrong default.
+className="h-(--control-height-md) w-(--control-height-md) rounded-md border border-border bg-surface text-heading text-text-primary lg:h-(--control-height-sm) lg:w-(--control-height-sm)"
           aria-label="Zoom out"
         >
           −
@@ -587,7 +593,8 @@ export function SkillTreeCanvas({
         <button
           type="button"
           onClick={resetViewport}
-          className="h-(--control-height-sm) rounded-md border border-border bg-surface px-3 text-label text-text-primary"
+          // TASKS 22.1: as above - 44px below `lg` for the same reason.
+className="h-(--control-height-md) rounded-md border border-border bg-surface px-3 text-label text-text-primary lg:h-(--control-height-sm)"
         >
           Fit
         </button>

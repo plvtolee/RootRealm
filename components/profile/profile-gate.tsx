@@ -50,7 +50,10 @@ import {
  */
 function NavLink({ href, children }: { href: string; children: string }) {
   return (
-    <a href={href} className="text-accent underline underline-offset-4 hover:opacity-80">
+    <a
+      href={href}
+      className="inline-flex min-h-(--control-height-md) items-center text-accent underline underline-offset-4 hover:opacity-80"
+    >
       {children}
     </a>
   );

@@ -10,7 +10,7 @@ import { Divider } from "@/components/ui/divider";
 import { Text } from "@/components/ui/text";
 import { cn } from "@/lib/cn";
 import {
-  seasonPointsLabel,
+  
   type LeaderboardViewState,
 } from "@/lib/seasons/view";
 
@@ -85,8 +85,16 @@ export function LeaderboardScreen({ view, canOptIn = false, className }: Leaderb
             {season.name}
           </Text>
         </div>
+        {/* TASKS 22.1: the season's point breakdown used to be a Badge here as
+            well. Two problems, one fix. A Badge is a status chip and it does not
+            wrap, so a five-clause "10 per merge · 5 per release · …" string ran
+            414px wide and pushed off a 375px screen; and the "How this season is
+            scored" card directly below already lists every kind as its own line,
+            so the header was saying it twice, once badly.
+
+            Only the window label stays: "Ends in 46 days" is short, is genuinely a
+            status, and is not repeated elsewhere. */}
         <div className="flex flex-wrap items-center gap-2">
-          <Badge variant="neutral">{seasonPointsLabel(season)}</Badge>
           <Badge variant="accent">{view.windowLabel}</Badge>
         </div>
       </header>

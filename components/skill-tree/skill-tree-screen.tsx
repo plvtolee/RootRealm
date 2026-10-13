@@ -154,7 +154,11 @@ export function SkillTreeScreen({
               aria-pressed={viewMode === mode}
               className={cn(
                 "rounded-md border px-4 text-label transition-colors duration-(--motion-fast) ease-standard motion-reduce:transition-none",
-                "h-(--control-height-sm)",
+                // TASKS 22.1: `md` (44px) below `lg`, `sm` (36px) above it.
+                // The size token says `sm` is a dense *desktop* choice, so using
+                // it unconditionally put a 36px target under a finger — the
+                // audit at 375/390/768 caught both toggles at 36px.
+                "h-(--control-height-md) lg:h-(--control-height-sm)",
                 viewMode === mode
                   ? "border-border-strong bg-surface-secondary text-text-primary"
                   : "border-border bg-surface text-text-secondary hover:border-border-strong hover:text-text-primary",

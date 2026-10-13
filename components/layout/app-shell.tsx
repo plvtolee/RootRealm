@@ -55,7 +55,7 @@ export function AppShell({ children, contained = true, className }: AppShellProp
       */}
       <a
         href="#main-content"
-        className="absolute top-0 left-4 z-50 -translate-y-full rounded-md border border-border bg-surface px-3 py-2 text-label text-text-primary shadow-md transition-transform duration-(--motion-fast) ease-standard focus:translate-y-0 motion-reduce:transition-none"
+        className="absolute top-0 left-4 z-50 inline-flex min-h-(--control-height-md) -translate-y-full items-center rounded-md border border-border bg-surface px-3 py-2 text-label text-text-primary shadow-md transition-transform duration-(--motion-fast) ease-standard focus:translate-y-0 motion-reduce:transition-none"
       >
         Skip to content
       </a>
