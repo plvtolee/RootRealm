@@ -439,6 +439,20 @@ export const COSMETIC_TABLES: readonly Table[] = [
         notNull: true,
         references: { table: "cosmetic_items", column: "id", onDelete: "restrict" },
       },
+      {
+        // How the item was acquired, mirroring `CosmeticSourceKind` in
+        // `lib/cosmetics/inventory.ts`. Stored rather than inferred, because the
+        // inventory's stated job is to answer "how did I get this" (SCORING.md
+        // A17 applies to rewards as much as to points) and inference from the
+        // ledger cannot tell a quest grant from a default.
+        name: "source_kind",
+        type: "text",
+        notNull: true,
+        default: "'default'",
+        check: "source_kind IN ('default', 'quest', 'purchase')",
+      },
+      /** The quest that granted it, or the item id for a purchase. */
+      { name: "source_id", type: "text" },
       { name: "equipped", type: "boolean", notNull: true, default: "false" },
       { name: "acquired_at", type: "timestamptz", notNull: true, default: "now()" },
     ],

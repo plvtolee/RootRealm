@@ -110,7 +110,7 @@ export const ENVIRONMENT_VARIABLES: readonly EnvironmentVariable[] = [
   {
     name: "DATABASE_URL",
     group: "database",
-    purpose: "Optional until Phase 10 wires the driver; the in-memory store is the placeholder.",
+    purpose: "Supabase connection string. Without it the in-memory store is used and data is lost on restart.",
     secret: true,
   },
   {
@@ -256,7 +256,7 @@ export function validateEnvironment(
       variable: "DATABASE_URL",
       message: production
         ? "DATABASE_URL is not set: accounts and wallets live in memory and are lost on restart."
-        : "DATABASE_URL is not set; the in-memory store is in use (expected until Phase 10).",
+        : "DATABASE_URL is not set; the in-memory store is in use. Run `npm run db:migrate` after setting it.",
     });
   }
 

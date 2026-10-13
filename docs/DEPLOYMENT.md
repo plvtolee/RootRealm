@@ -39,35 +39,46 @@ that trade belongs to the chosen platform rather than to this repository. See
 Whatever the platform, the health check should be `GET /` — a 200 means the route
 tree, the design tokens and the server all loaded.
 
-### 1.2 Database
+### 1.2 Database — Supabase
 
-**Status: designed, driver not yet installed.** This is deliberate and load-bearing
-(see `lib/db/migrate.ts` for the full reasoning):
+The deployment target is **Supabase**, reached over `pg`. The decision that was
+deferred while the target was unchosen has been made, and the schema model, the
+migration runner, both stores and the bootstrap script are all in place.
 
-- the schema is a typed model in `lib/db/schema.ts`, with generated SQL in
-  `db/migrations/*.sql`;
-- the migration runner (`lib/db/migrate.ts`) applies migrations through an
-  injected `Queryable` — the one method `pg`, `postgres.js` and Supabase all
-  already have — and records what it applied in `schema_migrations`;
-- accounts (`lib/auth/account.ts`) and wallets (`lib/currency/store.ts`) currently
-  live in an **in-memory** store, so a restart loses coins and purchases.
+```bash
+npm run db:migrate
+```
 
-Adding a database is therefore two steps, neither of which is in this repository:
+That applies every migration in `lib/db/schema.ts` and seeds the catalogues the
+foreign keys depend on. It is idempotent, so a deploy can run it on every release.
 
-1. install the driver for the chosen host and run the migrations:
-   ```ts
-   import { Pool } from "pg";
-   import { runMigrations } from "@/lib/db/migrate";
+**What is wired:**
 
-   const pool = new Pool({ connectionString: process.env.DATABASE_URL });
-   await runMigrations({ migrator: pool });
-   ```
-2. replace the in-memory `AccountStore` and `WalletStore` with implementations of
-   the same two interfaces. The interfaces are the seam; no route changes.
+| file | role |
+| --- | --- |
+| `lib/db/postgres.ts` | the pooled `pg` client, shared on `globalThis` so Next's per-route bundles do not each open one |
+| `lib/db/account-store.ts` | `AccountStore` on the `users` table |
+| `lib/db/wallet-store.ts` | `WalletStore` on `currency_transactions` and `inventory_items` |
+| `lib/db/stores.ts` | chooses PostgreSQL when `DATABASE_URL` is set, in-memory otherwise |
+| `lib/db/seed.ts` | writes the cosmetic and scoring catalogues |
+| `scripts/migrate.ts` | the deploy-time bootstrap |
 
-`DATABASE_URL` is read by that runner. Until step 2 lands, the environment check
-reports its absence as a production **warning**, not an error, because the app
-genuinely runs without it.
+**Connection string.** Take the *connection pooler* string from the Supabase
+dashboard (Project Settings → Database → Connection string → **Session pooler**,
+port 5432) and append `?sslmode=verify-full`. `pg` parses `sslmode` from the
+string, so this is what turns on certificate verification; nothing in the code
+sets `ssl`, which would silently override it.
+
+**What is still in memory, and why it is not a bug yet.** `DATABASE_URL` unset —
+a laptop, the test suite — uses the in-memory stores, so a restart loses
+accounts and wallets. With it set, both stores are PostgreSQL and both persist.
+The choice is deliberately not configurable: a "force in-memory" switch in
+production would silently lose every purchase on a restart.
+
+**Atomic purchases.** `lib/db/wallet-store.ts` runs the read-decide-write of a
+purchase inside one transaction (`withTransaction`), so two concurrent purchases
+cannot both pass the balance check. The spend and the grant share it, which is
+what makes "paid but not owned" unreachable.
 
 ### 1.3 Environment variables
 
@@ -142,6 +153,7 @@ The four things TASK 21.2 asks to verify, and how each is checked:
 | step | command | expected |
 | --- | --- | --- |
 | **install** | `npm ci` | completes with no unmet peer dependencies; `@playwright/test` is a devDependency and is not installed in a production-only install |
+| **migrate** | `npm run db:migrate` | `Applied N migration(s), skipped M` then `Seeded N catalogue row(s)` |
 | **build** | `npm run build` | `✓ Compiled successfully` and no `Failed to compile` |
 | **startup** | `npm run start` | `✓ Ready`, then `GET /` returns 200 |
 | **environment validation** | `npm run check:env` | exits 0; the boot report in the server log says `environment_ready` |
@@ -231,18 +243,21 @@ npm run start | grep '"event":"github.rate_limit"'   # the budget over time
 
 ### 4.1 Backup
 
-**What is durable today:** nothing. Accounts, wallets and inventory are in-memory
-(§1.2), so a restart is a clean slate. This section therefore describes the
-procedure that applies **once the database is wired**, and states plainly that
-until then the only backup is the data nothing depends on.
+**Durable today, with `DATABASE_URL` set:** accounts, wallets, inventories and the
+CodeCoin ledger, in Supabase. Without it they are in-memory (§1.2) and a restart
+loses them — which is why the environment check warns rather than errors, but also
+why a production deployment must set it.
 
 - **Schema and code** are in git; a deployment is reproducible from a commit.
-- **Data**, once a database exists, is backed up by the managed provider's
-  mechanism (Supabase point-in-time recovery, an RDS snapshot, `pg_dump` on a
-  schedule). The property that makes this safe is the same one that makes the
-  schema testable: the database is the *only* system of record — XP, coins and
-  achievements are rows, and the ledger is append-only, so a restored snapshot
-  cannot contain a balance that its own entries do not explain.
+- **Data** is backed up by Supabase's own mechanisms — point-in-time recovery on
+  the Pro plan, or `pg_dump` against the connection string on the free plan. The
+  property that makes a restore safe is the same one that makes the schema
+  checkable: the database is the *only* system of record, and the coin ledger is
+  append-only, so a restored snapshot cannot contain a balance that its own
+  entries do not explain.
+- **Migrations are re-derived, never restored.** `db/migrations/*.sql` is
+  generated from `lib/db/schema.ts` and lives in git. A restore replays them
+  forward; it does not roll them back (§4.2).
 - **What is never backed up:** `GITHUB_TOKEN`, the OAuth secrets and
   `SESSION_SECRET`. They are configuration, not data, and a backup containing them
   is a credential in a second place.

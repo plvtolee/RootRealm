@@ -19,12 +19,9 @@
  */
 import { readSessionSecret } from "../auth/config";
 import { SESSION_COOKIE, SessionError, verifySession } from "../auth/session";
-import {
-  walletBalance,
-  walletStore,
-  type WalletStore,
-} from "../currency/store";
+import { walletBalance, type WalletStore } from "../currency/store";
 import { assertServerOnly } from "../github/server-only";
+import { walletStore as walletStoreFor } from "../db/stores";
 
 import { parseItemId, safeJson } from "../security/server";
 
@@ -33,13 +30,14 @@ import { computeShopView, type ShopViewState } from "./view";
 /**
  * The process-wide wallet store.
  *
- * A `globalThis` singleton (see `walletStore`), not a module-level one: the shop
- * page and the shop routes are separate bundles, and two copies of the store
- * would mean a purchase made through the API was invisible to the page.
- * Explicitly a placeholder — Phase 10 replaces it with a database, at which point
- * this line and its comment disappear and the interface does not.
+ * PostgreSQL when `DATABASE_URL` is set, in-memory otherwise — see
+ * `lib/db/stores.ts`. A `globalThis` singleton (rather than a module-level one)
+ * because Next compiles every route entry into a separate bundle, and two
+ * bundles would mean two wallets: the shop page would show a balance of zero for
+ * a developer who had just bought something through the API, which is exactly the
+ * bug this arrangement exists to prevent.
  */
-export const wallets: WalletStore = walletStore();
+export const wallets: WalletStore = walletStoreFor();
 
 /** Reads one cookie value from a `Cookie` header. */
 function readCookie(header: string | null, name: string): string | null {

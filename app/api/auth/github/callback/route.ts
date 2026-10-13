@@ -14,21 +14,22 @@
  * provides a database, so a restart loses accounts — see `lib/auth/account.ts`.
  */
 import { exchangeCode, fetchIdentity, statesMatch, tokenFingerprint, OAUTH_STATE_COOKIE } from "@/lib/auth/oauth";
-import { claimAccount, createInMemoryAccountStore } from "@/lib/auth/account";
+import { claimAccount } from "@/lib/auth/account";
 import { issueSession, sessionCookieAttributes, SESSION_COOKIE } from "@/lib/auth/session";
 import { readAuthConfig } from "@/lib/auth/config";
+import { accountStore } from "@/lib/db/stores";
 import { logAccountClaim, serviceLogger } from "@/lib/ops/monitoring";
 
 export const dynamic = "force-dynamic";
 
 /**
- * The process-wide account store.
+ * The account store.
  *
- * A module-level singleton because Next may load a route module once per
- * process. It is explicitly a placeholder: Phase 10 replaces it with a database,
- * at which point this line and its comment disappear.
+ * PostgreSQL when `DATABASE_URL` is set, in-memory otherwise (`lib/db/stores.ts`),
+ * so the claim survives a restart once a database is configured — and the suite
+ * still runs with none.
  */
-const accounts = createInMemoryAccountStore();
+const accounts = accountStore();
 
 export async function GET(request: Request): Promise<Response> {
   const config = readAuthConfig();

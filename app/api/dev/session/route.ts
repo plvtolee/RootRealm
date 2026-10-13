@@ -18,7 +18,7 @@ import { issueSession, sessionCookieAttributes, SESSION_COOKIE } from "@/lib/aut
 import { readSessionSecret } from "@/lib/auth/config";
 import { currencyKey, type CurrencyTransaction } from "@/lib/currency/ledger";
 import { newWallet, type Wallet } from "@/lib/currency/store";
-import { wallets } from "@/lib/shop/service";
+import { accountStore, storageBackend, walletStore } from "@/lib/db/stores";
 
 export const dynamic = "force-dynamic";
 
@@ -49,7 +49,23 @@ export async function POST(request: Request): Promise<Response> {
     recordedAt: at,
   };
 
-  await wallets.save(newWallet(userId, at, [funding]) as Wallet);
+  // With a database configured, a wallet's rows reference `users(id)`, so the
+  // harness has to create the user it is about to fund. The negative GitHub id
+  // cannot collide with a real one (GitHub ids are positive), and the login is
+  // marked so a seeded development account is never mistaken for a claimed one.
+  if (storageBackend() === "postgres") {
+    await accountStore().save({
+      id: userId,
+      login: `dev:${userId}`,
+      githubId: -Math.abs(hashUserId(userId)),
+      displayName: "Development user",
+      avatarUrl: null,
+      createdAt: at,
+      verified: false,
+    });
+  }
+
+  await walletStore().save(newWallet(userId, at, [funding]) as Wallet);
 
   const session = issueSession(userId, { secret });
 
@@ -62,4 +78,15 @@ export async function POST(request: Request): Promise<Response> {
       },
     },
   );
+}
+
+/** A stable non-negative integer from a user id, for the placeholder GitHub id. */
+function hashUserId(userId: string): number {
+  let hash = 0;
+  for (let index = 0; index < userId.length; index += 1) {
+    hash = (hash * 31 + userId.charCodeAt(index)) | 0;
+  }
+  // `0` is legal but is the one value `users.github_id` treats as "unset" in
+  // several places, so it is nudged to 1.
+  return Math.abs(hash) || 1;
 }

@@ -14,6 +14,8 @@ CREATE TABLE inventory_items (
   id text PRIMARY KEY,
   user_id text NOT NULL REFERENCES users (id) ON DELETE CASCADE,
   item_id text NOT NULL REFERENCES cosmetic_items (id) ON DELETE RESTRICT,
+  source_kind text CONSTRAINT source_kind_check CHECK (source_kind IN ('default', 'quest', 'purchase')) NOT NULL DEFAULT 'default',
+  source_id text,
   equipped boolean NOT NULL DEFAULT false,
   acquired_at timestamptz NOT NULL DEFAULT now(),
   CONSTRAINT inventory_items_user_id_item_id_key UNIQUE (user_id, item_id)
