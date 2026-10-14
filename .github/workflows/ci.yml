@@ -1,0 +1,123 @@
+# RootRealm — continuous integration
+#
+# The gates below have all been run by hand, on demand, for twenty-two phases.
+# That is the gap this file closes: until now every one of them was one forgotten
+# push away from silently rotting. Nothing here is clever — it is the same four
+# commands and the same Playwright suite, run automatically.
+#
+# ## Why two jobs
+#
+# `verify` is fast and needs no browser: lint, typecheck, unit tests, build.
+# `end-to-end` downloads Chromium and takes minutes. Keeping them apart means a
+# typecheck failure is reported in about a minute rather than after a browser
+# download, and a browser failure does not hide a red typecheck behind a wall of
+# logs.
+#
+# ## Why the end-to-end job needs no secrets
+#
+# `playwright.config.ts` supplies its own environment to both web servers: a mock
+# GitHub, a throwaway session secret, and `DATABASE_URL: ""` to force the
+# in-memory store. That last one is load-bearing. Without it the journeys would
+# write their fixtures into a real database, and their exact-balance assertions
+# ("5,000 CC") would fail against whatever the previous run left behind — so the
+# suite would need production credentials to test code, which is precisely the
+# situation that eventually puts test data in production. (That has already
+# happened once, via a PowerShell quirk; see `docs/V1_AUDIT.md`.)
+#
+# Nothing in this workflow talks to GitHub's real API or to Supabase.
+
+name: CI
+
+on:
+  push:
+    branches: [develop, main]
+  pull_request:
+  # A superseded push makes the previous run irrelevant; do not spend minutes
+  # finishing it.
+  concurrency:
+    group: ci-${{ github.ref }}
+    cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Lint, types, unit tests, build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          # Next 16 requires Node 20.9 or newer. 22 is the most widely deployed
+          # version that satisfies it.
+          node-version: 22
+          # `npm ci` — not `npm install`. The lockfile is the contract; letting
+          # npm resolve it would make CI test versions nobody else has.
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # The build validates its environment at startup and refuses to run without
+      # a session secret. `check:env` is that contract, run as a real assertion
+      # rather than a comment — CI should fail loudly if a required variable stops
+      # being required.
+      - name: Environment contract
+        run: npm run check:env
+        env:
+          SESSION_SECRET: ci-session-secret-not-a-real-secret-at-least-32-chars
+
+      - name: Lint
+        # Errors fail the job. Warnings do not: this repository carries three
+        # pre-existing ones in a stray worktree directory, and failing on those
+        # would teach everyone to ignore the lint step. They are worth deleting,
+        # but not by hiding the gate.
+        run: npm run lint
+
+      - name: Typecheck
+        # Separate from lint because vitest does not typecheck. A type error in a
+        # file no test imports is invisible to the test run and fatal at build.
+        run: npm run typecheck
+
+      - name: Unit and integration tests
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+  end-to-end:
+    name: End-to-end journeys
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: verify
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # `--with-deps` installs Chromium *and* the shared libraries it needs. On a
+      # bare runner the browser downloads fine and then fails to launch, which is
+      # a confusing way to learn that.
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Run the journeys
+        run: npx playwright test
+
+      # A failure nobody can see is a failure nobody fixes. The HTML report is
+      # written even when the run is red, and uploaded either way.
+      - name: Upload the Playwright report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 14

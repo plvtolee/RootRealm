@@ -62,14 +62,34 @@ export default defineConfig({
     {
       command: "node e2e/mock-github.mjs",
       url: `http://localhost:${MOCK_PORT}/users/e2e-dev`,
-      reuseExistingServer: true,
+      // Reuse a dev server that is already running — which is what makes a local
+  // iteration fast — but never in CI, where "already running" can only mean
+  // something is wrong.
+  //
+  // This was hardcoded `true` and it bit twice. A run reused a server that had
+  // been started with a real `DATABASE_URL`, so the journeys wrote their
+  // fixtures into production Supabase; and a run against a server holding the
+  // production `.next` directory hung for twenty minutes before the timeout,
+  // because Playwright's `next dev` and a running `next start` were fighting over
+  // the same build output.
+  reuseExistingServer: !process.env.CI,
       timeout: 30_000,
       env: { MOCK_GITHUB_PORT: String(MOCK_PORT) },
     },
     {
       command: `npx next dev --port ${APP_PORT}`,
       url: `http://localhost:${APP_PORT}/`,
-      reuseExistingServer: true,
+      // Reuse a dev server that is already running — which is what makes a local
+  // iteration fast — but never in CI, where "already running" can only mean
+  // something is wrong.
+  //
+  // This was hardcoded `true` and it bit twice. A run reused a server that had
+  // been started with a real `DATABASE_URL`, so the journeys wrote their
+  // fixtures into production Supabase; and a run against a server holding the
+  // production `.next` directory hung for twenty minutes before the timeout,
+  // because Playwright's `next dev` and a running `next start` were fighting over
+  // the same build output.
+  reuseExistingServer: !process.env.CI,
       timeout: 180_000,
       env: {
         // Development mode is what lets the two dev gates below take effect.

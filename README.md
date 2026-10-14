@@ -187,6 +187,23 @@ The E2E suite runs against a mock GitHub (`e2e/mock-github.mjs`) through a
 development-only endpoint seam, and deliberately clears `DATABASE_URL` so a test
 run can never write into a real database.
 
+### Continuous integration
+
+`.github/workflows/ci.yml` runs on every push and pull request: the environment
+contract, lint, typecheck, unit tests, build, and the 100 Playwright journeys.
+
+Two jobs, split so a typecheck failure is reported in about a minute rather than
+after a browser download. The end-to-end job needs **no secrets** — Playwright
+supplies the mock GitHub, a throwaway session secret and an empty `DATABASE_URL`,
+so nothing in CI reaches GitHub's real API or a real database.
+
+To run exactly what CI runs:
+
+```bash
+npm run check:env && npm run lint && npm run typecheck && npm test && npm run build
+npx playwright test
+```
+
 The responsive audit (`e2e/responsive.e2e.ts`) walks every screen at 375×812,
 390×844, 768×1024, 1024×768, 1280×800 and 1440×900 and asserts no overflow,
 nothing escaping the viewport, and 44px tap targets wherever a finger is used. It
@@ -252,5 +269,8 @@ progress bar's basis is not shown next to it.
 and focus handling, and reduced motion is honoured throughout, but no screen has
 been through a manual screen-reader pass or a formal audit.
 
-**No CI.** The gates are real and run on demand, but nothing runs them
-automatically on a push.
+**Continuous integration exists, but nothing runs the accessibility audits.**
+CI covers lint, types, unit tests, build and the Playwright journeys. The
+sixteen Lighthouse audits that found two real defects were run by hand, and the
+`tests/contrast.test.ts` guard covers only the palette — a component that dims
+text with `opacity-*` will pass CI and fail the audit.

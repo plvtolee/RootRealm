@@ -340,7 +340,7 @@ automatically on a push. The gates are real; they are just not enforced.
 | deployment | ❌ documented, not deployed |
 | account deletion | ✅ verified live |
 | documentation | ✅ |
-| QA | ✅ but manual, no CI |
+| QA | ✅ automated in CI |
 
 ## Ranked by what a user would actually notice
 
@@ -359,5 +359,50 @@ automatically on a push. The gates are real; they are just not enforced.
    now cover every route in both states, and all pass. That checks markup, not
    comprehension: whether a 36-node canvas announced one at a time is a
    different question, and the skill tree is where it will be worst.
-5. **No CI.** Every gate above is one forgotten push away from silently rotting.
+5. ~~**No CI.**~~ **Done.** `.github/workflows/ci.yml` runs the environment
+   contract, lint, typecheck, unit tests, build and the 100 Playwright journeys
+   on every push. See §6.
 6. **Not deployed.** Documentation exists; nothing is running in public.
+
+---
+
+## 6. Continuous integration
+
+For twenty-two phases every gate in this document was run by hand, on demand.
+That is the gap `.github/workflows/ci.yml` closes.
+
+Two jobs, split so a typecheck failure is reported in a minute rather than after
+a browser download:
+
+| job | steps |
+| --- | --- |
+| `verify` | `check:env`, `lint`, `typecheck`, `test`, `build` |
+| `end-to-end` | Chromium install, 100 Playwright journeys, report upload |
+
+Things worth knowing about it:
+
+**The end-to-end job needs no secrets.** `playwright.config.ts` supplies its own
+environment: the mock GitHub, a throwaway session secret, and `DATABASE_URL: ""`.
+That last one is load-bearing — without it the journeys would write fixtures into
+a real database and their exact-balance assertions would fail against whatever
+the previous run left behind. Nothing in CI talks to GitHub's real API or to
+Supabase.
+
+**`npm ci`, not `npm install`.** The lockfile is the contract.
+
+**Lint fails on errors, not warnings.** The repository carries three pre-existing
+warnings in a stray worktree directory. Failing on those would teach everyone to
+ignore the step, which is worse than the warnings.
+
+**It was verified by simulation, not by pushing.** Every claim above was checked
+locally against the conditions CI creates: the build was run with `.env.local`
+removed, `npm test` was run without it, and the full Playwright suite was run with
+`CI=1`.
+
+### One real bug this surfaced
+
+`reuseExistingServer` was hardcoded `true`. That is what let a Playwright run
+adopt a development server started with a real `DATABASE_URL` and write fixtures
+into production Supabase, and what made a run against a production `.next`
+directory hang for twenty minutes. It is now `!process.env.CI` — fast local
+iteration, never in CI.
