@@ -70,7 +70,20 @@ function AchievementCard({
       padding="md"
       className={cn(
         "group relative flex min-h-(--achievement-card-min-height) flex-col overflow-hidden transition-colors duration-(--motion-base) ease-standard hover:border-border-strong motion-reduce:transition-none",
-        !earned && "opacity-80",
+        // TASKS 22 accessibility audit: this used to be `opacity-80` on the
+        // whole card, which dimmed the card's *text* along with its decoration
+        // and pushed `--color-text-muted` down to 3.53:1 and
+        // `--color-text-disabled` to 1.79:1 — both under the 4.5:1 WCAG AA
+        // minimum, on the one screen that lists 30 achievements a reader is
+        // meant to scan.
+        //
+        // An unearned achievement still needs to read as unearned, and that is
+        // what the status badge, the 0-of-N progress bar and the muted glyph are
+        // for. Receding is a property of the decoration, not of the words, so
+        // the treatment moved to the icon below and the card's own surface is
+        // left alone. (`bg-surface-secondary` was tried and rejected: it is
+        // *lighter* than the default surface, which made unearned cards more
+        // prominent than earned ones and still only reached 4.42:1.)
       )}
       onAnimationEnd={revealing ? onRevealEnd : undefined}
     >
@@ -80,6 +93,10 @@ function AchievementCard({
             "flex size-(--achievement-icon-size) shrink-0 items-center justify-center rounded-lg border border-border bg-surface-secondary text-heading text-text-primary transition-colors duration-(--motion-base) ease-standard group-hover:border-border-strong motion-reduce:transition-none",
             definition.rarity === "legendary" && "text-warning",
             definition.rarity === "epic" && "text-accent",
+          // Carries the "not earned yet" recede now that the card itself no
+          // longer dims. The glyph is decoration, so this is the right place for
+          // it — dimming the card dimmed the words as well.
+          !earned && "text-text-secondary",
           )}
           aria-hidden="true"
         >
@@ -105,7 +122,7 @@ function AchievementCard({
              position twice over. The card's heading already says which achievement
              this is.
            */}
-          <span aria-hidden="true" className="text-label text-text-disabled">
+          <span aria-hidden="true" className="text-label text-text-muted">
             {String(index + 1).padStart(2, "0")}
           </span>
         </div>

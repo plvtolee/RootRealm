@@ -11,7 +11,7 @@ project's own tests were built in a way that made them blind to.
 
 **Summary: 6 of 9 hold. 1 is partial. 2 are not done.**
 
-*Updated after the security-header and skill-tree accessibility fixes.*
+*Updated after the security-header fix and a full nine-route accessibility sweep.*
 
 ---
 
@@ -95,9 +95,71 @@ free space between every pair at the opening zoom, the Foundation row's spacing,
 zero overlaps in a real browser, and that each target lands within 2px of the
 hexagon drawn beneath it.
 
-**Still open:** the other eight routes have never been audited. One route was
-audited and found a defect, which is a reason to check the rest, not a reason to
-assume they pass.
+### The full sweep
+
+All nine routes were then audited. **Seven were already clean; two were not.**
+
+| route | before | after |
+| --- | --- | --- |
+| `/` | — | 100 |
+| `/preview` | — | 100 |
+| `/profile` | — | 100 |
+| `/skill-tree` | 96 | **100** |
+| `/achievements` | **96** | **100** |
+| `/quests` | — | 100 |
+| `/shop` | — | 100 |
+| `/customization` | — | 100 |
+| `/leaderboard` | — | 100 |
+
+#### `/achievements` — `color-contrast`
+
+Unearned cards carried `opacity-80` **on the whole card**, which dimmed the
+card's text along with its decoration. Measured against the card surface:
+
+| token | with `opacity-80` | without |
+| --- | --- | --- |
+| `--color-text-muted` (the "0 of 1" caption) | 3.53:1 | **4.98:1** |
+| `--color-text-disabled` (the card index) | 1.79:1 | — |
+
+"0 of 1" is information, not decoration. Receding is a property of the
+decoration, so the treatment moved to the icon glyph and the card's own surface
+was left alone.
+
+`bg-surface-secondary` was tried for the unearned card and **rejected**: it is
+lighter than the default surface, which made unearned cards *more* prominent than
+earned ones, and still only reached 4.42:1.
+
+#### A second defect the token test found that Lighthouse did not
+
+`tests/contrast.test.ts` asserts the palette against WCAG rather than auditing
+screens, and it immediately failed on something no route-level audit reported:
+**`--rr-text-disabled` was at 2.0–2.3:1** on all three surfaces — below even the
+3:1 *non-text* minimum. That is not de-emphasised text, it is text nobody can
+read.
+
+Raised from `#4a4d55` to `#6a6d75` (~3.2:1). WCAG 1.4.3 exempts inactive
+components from the 4.5:1 text requirement, so 3:1 is the correct bar for a
+disabled label; it remains well below `--rr-text-muted` at 4.98:1, so the
+hierarchy is intact. `docs/DESIGN_SYSTEM.md` asks disabled text for "reduced
+contrast" and no number, so this changed nothing it had committed to.
+
+The test also guards the margin the muted token actually has — `opacity-80` is
+exactly the kind of wrapper that silently eats it.
+
+### What this sweep does *not* cover
+
+**These are the signed-out states.** `/profile`, `/skill-tree`, `/achievements`,
+`/shop` and `/customization` show a guest a browsing shell when there is no
+session, and that shell is what was audited. The signed-in versions of those five
+— a real character with a frame, an inventory, an unlocked skill tree — are **not**
+covered, and they are where most of the product actually lives.
+
+Reaching them needs a session, which needs the development harness, which is
+404 in a production build. It is doable and it is the next honest step.
+
+Also not covered: a screen-reader pass. Lighthouse checks markup, not whether
+the thing makes sense read aloud, and the skill tree is the screen most likely to
+fail that.
 
 ## 3. Performance — ✅ holds
 
@@ -227,7 +289,7 @@ automatically on a push. The gates are real; they are just not enforced.
 | claim | verdict |
 | --- | --- |
 | all core systems | ⚠️ sync engine has no caller |
-| accessibility | ✅ `/skill-tree` 100/100; **8 of 9 routes still unaudited** |
+| accessibility | ✅ all 9 routes 100/100 (signed-out states); no screen-reader pass |
 | performance | ✅ measured; ~40% slower since the CSP nonce, still fast |
 | security | ✅ headers added and enforced; app-level work was already solid |
 | monitoring | ⚠️ 4 of 7 emitters wired; no alerting |
@@ -249,9 +311,10 @@ automatically on a push. The gates are real; they are just not enforced.
    overlapping targets.
 3. **Sync never runs.** MVP 3's sync is a fiction, and two monitoring emitters are
    dead because of it. This is now the largest unfinished piece of product.
-4. **Eight routes have never been audited.** One route was audited and found a
-   real defect; that is a reason to check the rest, not a reason to assume they
-   pass. Cheap to do — the security-header work shows how quickly an audit turns
-   up something.
+4. **Only the signed-out states were audited.** All nine routes score 100/100, but
+   `/profile`, `/skill-tree`, `/achievements`, `/shop` and `/customization` were
+   audited as a guest — the five screens where the real product lives have not
+   been checked at all. And nothing has been read aloud by a screen reader, which
+   is a different question from whether the markup is valid.
 5. **No CI.** Every gate above is one forgotten push away from silently rotting.
 6. **Not deployed.** Documentation exists; nothing is running in public.

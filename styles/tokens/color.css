@@ -65,7 +65,13 @@
      appears on — the binding case, since it is used on --color-bg,
      --color-surface and --color-surface-secondary alike. */
   --rr-text-muted: #81848c; /* low-emphasis metadata */
-  --rr-text-disabled: #4a4d55; /* disabled labels */
+  /* Disabled labels. Raised from #4a4d55, which sat at 2.0-2.3:1 against all
+     three surfaces — below even the 3:1 WCAG 1.4.11 minimum for a perceivable
+     element, which made disabled text genuinely hard to read rather than
+     merely de-emphasised. 1.4.3 exempts inactive components from the 4.5:1 text
+     requirement, so 3:1 is the right bar and this clears it. Still well below
+     --rr-text-muted (4.98:1), so the hierarchy is intact. */
+  --rr-text-disabled: #6a6d75; /* disabled labels */
 }
 
 @theme static {
