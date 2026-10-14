@@ -64,7 +64,7 @@ const OVERFLOW_TOLERANCE_PX = 1;
  * Applied *inside* the page: `page.evaluate` runs in the browser, so a Node-side
  * predicate cannot be referenced from there.
  *
- * Three exemptions, all narrow and all about *intent* rather than convenience:
+ * Four exemptions, all narrow and all about *intent* rather than convenience:
  *
  * 1. `aria-hidden` decoration — the skill tree's ornament bleed. It paints no
  *    content a visitor could be blocked from reaching.
@@ -76,7 +76,12 @@ const OVERFLOW_TOLERANCE_PX = 1;
  *    false positive, and it is why the exemption is by *scrollable ancestor*
  *    rather than by naming the three elements — a fourth scroller will be
  *    exempt automatically, and a non-scrolling overflow still fails.
- * 3. **Anything inside an SVG that clips.** `getBoundingClientRect` on SVG
+ * 3. **Anything inside a declared pan/zoom surface** (`[data-pan-surface]`).
+ *    The skill tree's canvas clips with `overflow: hidden` while its 36 node
+ *    targets track hexagons that are scrolled off-screen, so being partly
+ *    outside is how they follow the drawing. Declared rather than inferred,
+ *    because `overflow: hidden` is also how `Card` clips.
+ * 4. **Anything inside an SVG that clips.** `getBoundingClientRect` on SVG
  *    geometry reports where the shape *is*, not where it is *visible*, so a path
  *    running past the viewBox measures as overflowing while the `<svg>` element
  *    crops it. The skill-tree map hit this the moment its opening viewport became
@@ -92,10 +97,26 @@ const OVERFLOW_TOLERANCE_PX = 1;
  */
 const EXEMPT_SELECTOR = '[aria-hidden="true"]';
 
+/**
+ * The pan/zoom surfaces whose contents may legitimately sit outside them.
+ *
+ * The skill tree's canvas clips with `overflow: hidden` while its 36 node targets
+ * track hexagons that are scrolled off-screen — being partly outside is what
+ * makes them follow the drawing. That is a deliberate viewport, not a card with
+ * rounded corners, so it is named rather than inferred.
+ *
+ * It is a data attribute rather than a check for `overflow: hidden` on an
+ * ancestor because that property is exactly how `Card` clips, and exempting it
+ * wholesale would hide real overflow on every card in the product. A fourth
+ * pan/zoom surface needs one attribute; nothing inherits the exemption by
+ * accident.
+ */
+const PAN_SURFACE_SELECTOR = "[data-pan-surface]";
+
 /** The widest offenders, as readable messages. */
 async function overflowReport(page: Page, width: number): Promise<string[]> {
   return page.evaluate(
-    ({ viewportWidth, tolerance, exempt }) => {
+    ({ viewportWidth, tolerance, exempt, panSurface }) => {
       const limit = viewportWidth + tolerance;
       const problems: string[] = [];
 
@@ -104,6 +125,8 @@ async function overflowReport(page: Page, width: number): Promise<string[]> {
       // `<svg>` crops. Walks ancestors because both patterns are properties of
       // the container, not of the child being measured.
       const deliberatelyWide = (el: Element): boolean => {
+        if (el.closest(panSurface) !== null) return true;
+
         for (let node = el.parentElement; node !== null; node = node.parentElement) {
           const overflowX = window.getComputedStyle(node).overflowX;
           if (overflowX === "auto" || overflowX === "scroll") return true;
@@ -154,6 +177,7 @@ async function overflowReport(page: Page, width: number): Promise<string[]> {
       viewportWidth: width,
       tolerance: OVERFLOW_TOLERANCE_PX,
       exempt: EXEMPT_SELECTOR,
+      panSurface: PAN_SURFACE_SELECTOR,
     },
   );
 }

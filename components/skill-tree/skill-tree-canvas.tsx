@@ -269,6 +269,11 @@ function NodeShellImpl({
       aria-hidden="true"
       opacity={dimmed ? 0.35 : 1}
       className={animating ? "skill-node-unlock" : undefined}
+      // Lets `e2e/skill-tree.e2e.ts` compare each hit target against the hexagon
+      // actually drawn beneath it. That comparison is what proves the overlay
+      // and the `<svg>` agree; without a hook the two could drift apart again
+      // and only be caught by eye.
+      data-node-shell={node.id}
       onAnimationEnd={animating ? onUnlockAnimationEnd : undefined}
       style={{
         ...(learned ? { filter: glow, "--skill-node-glow": glow } : {}),
@@ -375,8 +380,6 @@ function NodeButtonImpl({
   branch,
   selected,
   dimmed,
-  left,
-  top,
   onPointerDown,
   onClick,
 }: {
@@ -386,20 +389,22 @@ function NodeButtonImpl({
   selected: boolean;
   /** Filtered out by the branch rail: stays in place, stays focusable, recedes. */
   dimmed: boolean;
-  left: number;
-  top: number;
   onPointerDown: (event: PointerEvent<HTMLButtonElement>) => void;
   onClick: () => void;
 }) {
   return (
     <button
       type="button"
+      data-skill-node={node.id}
       onPointerDown={onPointerDown}
       onClick={onClick}
       aria-pressed={selected}
-      style={{ left: `${left}%`, top: `${top}%` }}
       className={cn(
-        "absolute -translate-x-1/2 -translate-y-1/2 rounded-full",
+        // Positioned by `positionOverlays`, not by React: these are HTML siblings
+        // of the `<svg>`, so nothing moves them when the viewBox changes. The
+        // percentages are set imperatively from the same transform the SVG uses
+        // — see the note on `overlayTransform`.
+        "absolute left-0 top-0 -translate-x-1/2 -translate-y-1/2 rounded-full",
         "h-(--control-height-md) w-(--control-height-md) cursor-pointer",
         "focus-visible:outline-2 focus-visible:outline-accent",
         dimmed && "opacity-40",
@@ -441,17 +446,115 @@ export function SkillTreeCanvas({
    * unlock animation.
    */
   const viewportRef = useRef<Viewport>(INITIAL_VIEWPORT);
+  /**
+   * Drawing coordinates by node id, read imperatively when positioning targets.
+   *
+   * A ref rather than a prop: the targets are moved on pan and zoom without a
+   * re-render, so their positions have to be readable outside render.
+   */
+  const overlayPositionsRef = useRef<Map<string, { x: number; y: number }>>(new Map());
   const dragRef = useRef<{ pointerId: number; startX: number; startY: number; viewport: Viewport } | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const preview = previewIds ?? new Set<string>();
 
-  /** Writes the viewport to the `<svg>`. The one place it changes on screen. */
-  const applyViewport = useCallback((next: Viewport) => {
-    viewportRef.current = next;
-    const svg = svgRef.current;
-    if (svg === null) return;
-    svg.setAttribute("viewBox", `${next.x} ${next.y} ${next.width} ${next.height}`);
+  /**
+   * Maps a drawing coordinate to a percentage of the canvas, the same way the
+   * `<svg>` maps it.
+   *
+   * ## Why this exists
+   *
+   * The node buttons are HTML siblings of the `<svg>`, not children of it, so
+   * nothing moves them when the viewBox changes. They used to be positioned as a
+   * plain percentage of `SKILL_TREE_VIEWBOX` — the *whole* map frame — which was
+   * only ever approximately right, and became plainly wrong in TASKS 22.3 when
+   * the map started opening on a zoomed viewport instead of the full frame. The
+   * hexagons moved; the hit targets did not.
+   *
+   * That is not cosmetic. 15 of 36 targets overlapped their neighbours and 13
+   * sat under 24px apart, so some nodes could not be tapped at all — found by
+   * Lighthouse's `target-size` rule and confirmed by measuring the live DOM.
+   *
+   * ## The transform being mirrored
+   *
+   * An `<svg>` with a `viewBox` scales its contents to *fit* the element and
+   * centres what is left over — `preserveAspectRatio="xMidYMid meet"`, the
+   * default. So the scale is whichever of the two ratios is smaller, and there
+   * is a letterbox offset on the axis that has slack. Both matter: the canvas is
+   * taller relative to its width than the viewport is, so the vertical offset is
+   * roughly 95px, and ignoring it shifted every target upward by that much.
+   */
+  function overlayTransform(viewport: Viewport): {
+    scale: number;
+    offsetX: number;
+    offsetY: number;
+  } | null {
+    const container = containerRef.current;
+    if (container === null) return null;
+
+    const bounds = container.getBoundingClientRect();
+    if (bounds.width === 0 || bounds.height === 0) return null;
+
+    const scale = Math.min(
+      bounds.width / viewport.width,
+      bounds.height / viewport.height,
+    );
+
+    return {
+      scale,
+      offsetX: (bounds.width - viewport.width * scale) / 2,
+      offsetY: (bounds.height - viewport.height * scale) / 2,
+    };
+  }
+
+  /**
+   * Moves every node button onto its hexagon.
+   *
+   * Called from {@link applyViewport} and on resize, which is every situation in
+   * which the mapping can change — the viewport lives in a ref rather than state
+   * precisely so panning does not re-render 36 components, so this has to be
+   * imperative too.
+   */
+  const positionOverlays = useCallback((viewport: Viewport) => {
+    const transform = overlayTransform(viewport);
+    const container = containerRef.current;
+    if (transform === null || container === null) return;
+
+    const { scale, offsetX, offsetY } = transform;
+    const bounds = container.getBoundingClientRect();
+    const overlays = container.querySelectorAll<HTMLElement>("[data-skill-node]");
+
+    for (const overlay of overlays) {
+      const point = overlayPositionsRef.current.get(overlay.dataset.skillNode ?? "");
+      // A node filtered out of the tree is not rendered at all; a node missing
+      // from the overlay map would have no position, and guessing one would put
+      // a target where nothing is drawn.
+      if (point === undefined) continue;
+
+      const left = offsetX + (point.x - viewport.x) * scale;
+      const top = offsetY + (point.y - viewport.y) * scale;
+
+      overlay.style.left = `${(left / bounds.width) * 100}%`;
+      overlay.style.top = `${(top / bounds.height) * 100}%`;
+      // Outside the visible viewport, so a target cannot sit over the canvas
+      // chrome or over the detail panel and still be clickable.
+      overlay.style.visibility =
+        left < -44 || top < -44 || left > bounds.width + 44 || top > bounds.height + 44
+          ? "hidden"
+          : "visible";
+    }
   }, []);
+
+  /** Writes the viewport to the `<svg>` and moves the targets with it. */
+  const applyViewport = useCallback(
+    (next: Viewport) => {
+      viewportRef.current = next;
+      const svg = svgRef.current;
+      if (svg === null) return;
+      svg.setAttribute("viewBox", `${next.x} ${next.y} ${next.width} ${next.height}`);
+      positionOverlays(next);
+    },
+    [positionOverlays],
+  );
 
   /**
    * The status of every node, memoised on the nodes themselves.
@@ -475,6 +578,41 @@ export function SkillTreeCanvas({
     () => [...state.nodes.values()].map((view) => view.node),
     [state.nodes],
   );
+
+  /**
+   * Drawing coordinates by node id, for `positionOverlays` to read.
+   *
+   * Computed with `useMemo` rather than written during render: assigning to a ref
+   * inside the render body is not safe under concurrent rendering, and this
+   * component deliberately holds 36 node buttons that must not re-render on a
+   * pan. The effect that publishes it runs before any interaction can happen.
+   */
+  const overlayPositions = useMemo(() => {
+    const map = new Map<string, { x: number; y: number }>();
+    for (const node of nodes) {
+      const shown = presentationOf(node.id);
+      map.set(node.id, { x: shown?.visualX ?? 0, y: shown?.visualY ?? 0 });
+    }
+    return map;
+    // `presentationOf` reads a module-level overlay, which is constant; `nodes` is
+    // the identity of what is being placed.
+  }, [nodes]);
+
+  useEffect(() => {
+    overlayPositionsRef.current = overlayPositions;
+    // Position once on mount and on every resize, so the targets are correct
+    // before the first interaction and stay correct when the canvas changes
+    // shape — a window resize changes the letterbox offset.
+    positionOverlays(viewportRef.current);
+
+    const container = containerRef.current;
+    if (container === null) return;
+
+    const observer = new ResizeObserver(() => positionOverlays(viewportRef.current));
+    observer.observe(container);
+
+    return () => observer.disconnect();
+  }, [overlayPositions, positionOverlays]);
 
   /* Phase 3 (Task 3.3): when the screen reports an unlock, hand the three
      animated elements to GSAP. The `revision` in the event makes this fire
@@ -555,7 +693,15 @@ export function SkillTreeCanvas({
   return (
     <div
       ref={containerRef}
-      className="relative touch-none overflow-hidden rounded-lg border border-border bg-bg"
+      // `data-pan-surface` marks this as a deliberate clipping viewport rather than a
+    // card that happens to clip its corners. The node targets are positioned
+    // partly outside it — they track hexagons that are off-screen — and
+    // `overflow-hidden` crops them, which is the point.
+    // `e2e/responsive.e2e.ts` exempts descendants of this attribute specifically,
+    // because exempting all of `overflow: hidden` would also exempt every `Card`
+    // in the product and stop that test being able to fail.
+    data-pan-surface=""
+    className="relative touch-none overflow-hidden rounded-lg border border-border bg-bg"
       onWheel={handleWheel}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
@@ -649,9 +795,6 @@ className="h-(--control-height-md) rounded-md border border-border bg-surface px
       {nodes.map((node) => {
         const view = state.nodes.get(node.id);
         if (!view) return null;
-        const shown = presentationOf(node.id);
-        const left = ((shown?.visualX ?? 0) - SKILL_TREE_VIEWBOX.x) / SKILL_TREE_VIEWBOX.width * 100;
-        const top = ((shown?.visualY ?? 0) - SKILL_TREE_VIEWBOX.y) / SKILL_TREE_VIEWBOX.height * 100;
         const dimmed =
           activeBranch != null && node.branch !== activeBranch && node.branch !== null;
 
@@ -663,8 +806,6 @@ className="h-(--control-height-md) rounded-md border border-border bg-surface px
             branch={node.branch}
             selected={selectedId === node.id}
             dimmed={dimmed}
-            left={left}
-            top={top}
             onPointerDown={(event) => event.stopPropagation()}
             onClick={() => onSelect(node.id)}
           />

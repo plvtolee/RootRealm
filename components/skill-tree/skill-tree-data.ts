@@ -22,6 +22,20 @@
  * in equal rows (Roots → Mastery), branch columns spread symmetrically outward
  * with tier. Hand-tuned literals rather than a formula, so the layout is
  * reviewable line by line.
+ *
+ * ## The Foundation row is spaced wider than the others, and must stay that way
+ *
+ * It is the only row holding eleven nodes — six branch foundations interleaved
+ * with five bridges — where every other tier holds six. At its original 115-unit
+ * spacing the row packed eleven 44px touch targets into the opening viewport,
+ * which Lighthouse's `target-size` rule measured as 21.9px of free space against
+ * a 24px minimum: adjacent nodes left too little room for a fingertip, and
+ * before the overlay alignment fix they overlapped outright.
+ *
+ * 140 units is the spacing that clears it with margin at `INITIAL_VIEWPORT`'s
+ * scale. Widening it is safe because the row is centred on x 0 and the map frame
+ * has room to either side. **Narrowing it back is the regression to watch** —
+ * `e2e/skill-tree.e2e.ts` asserts the spacing so it cannot happen quietly.
  */
 
 import type { AttributeKey } from "@/lib/attributes";
@@ -226,7 +240,7 @@ export const SKILL_NODES: readonly SkillNode[] = [
     title: "Feature Craft",
     description: "Turn a well-scoped idea into working, reviewed software.",
     flavor: "Scope is the feature.",
-    visualX: -575,
+    visualX: -700,
     visualY: 1000,
     prerequisiteIds: ["builder-roots"],
     effects: ["Highlights your most-shipped project", "Feeds the Builder attribute"],
@@ -301,7 +315,7 @@ export const SKILL_NODES: readonly SkillNode[] = [
     title: "Root Cause",
     description: "Find why it broke, not only where the exception happened to land.",
     flavor: "Symptoms lie; causes don't.",
-    visualX: -345,
+    visualX: -420,
     visualY: 1000,
     prerequisiteIds: ["debugger-roots"],
     effects: ["Links root-cause write-ups to your profile", "Feeds the Debugger attribute"],
@@ -372,7 +386,7 @@ export const SKILL_NODES: readonly SkillNode[] = [
     title: "Docs Diver",
     description: "Follow the documentation down to the source until you understand the why.",
     flavor: "The manual is a map, not the territory.",
-    visualX: -115,
+    visualX: -140,
     visualY: 1000,
     prerequisiteIds: ["scholar-roots"],
     effects: ["Highlights notes linked from your commits", "Feeds the Scholar attribute"],
@@ -444,7 +458,7 @@ export const SKILL_NODES: readonly SkillNode[] = [
     title: "Pair Flow",
     description: "Think out loud with someone else until the stuck thing unsticks.",
     flavor: "Two keyboards, one thought.",
-    visualX: 115,
+    visualX: 140,
     visualY: 1000,
     prerequisiteIds: ["collaborator-roots"],
     effects: ["Marks pairing sessions in your history", "Feeds the Collaborator attribute"],
@@ -515,7 +529,7 @@ export const SKILL_NODES: readonly SkillNode[] = [
     title: "Release Ritual",
     description: "Ship versions on a dependable cadence the community can plan around.",
     flavor: "Predictability is a feature.",
-    visualX: 345,
+    visualX: 420,
     visualY: 1000,
     prerequisiteIds: ["maintainer-roots"],
     effects: ["Shows your release train on the profile", "Feeds the Maintainer attribute"],
@@ -586,7 +600,7 @@ export const SKILL_NODES: readonly SkillNode[] = [
     title: "Interface First",
     description: "Design the contract before the implementation gets a vote.",
     flavor: "Promises before plumbing.",
-    visualX: 575,
+    visualX: 700,
     visualY: 1000,
     prerequisiteIds: ["architect-roots"],
     effects: ["Lists the interfaces you maintain", "Feeds the Architect attribute"],
@@ -650,7 +664,7 @@ export const SKILL_NODES: readonly SkillNode[] = [
     title: "Instrumented Build",
     description: "Ship with the observability already wired in, so failures explain themselves.",
     flavor: "Hope is not a strategy.",
-    visualX: -460,
+    visualX: -560,
     visualY: 1000,
     prerequisiteIds: ["builder-foundation", "debugger-foundation"],
     effects: ["Opens the Builder ↔ Debugger crossing", "Feeds Builder and Debugger"],
@@ -664,7 +678,7 @@ export const SKILL_NODES: readonly SkillNode[] = [
     title: "Root Cause Notes",
     description: "Fix the bug, then write down why it was possible — so it stays fixed.",
     flavor: "A bug fixed twice was documented zero times.",
-    visualX: -230,
+    visualX: -280,
     visualY: 1000,
     prerequisiteIds: ["debugger-foundation", "scholar-foundation"],
     effects: ["Opens the Debugger ↔ Scholar crossing", "Feeds Debugger and Scholar"],
@@ -692,7 +706,7 @@ export const SKILL_NODES: readonly SkillNode[] = [
     title: "Review to Release",
     description: "Carry changes from first review all the way to a tagged release.",
     flavor: "Merged is not shipped.",
-    visualX: 230,
+    visualX: 280,
     visualY: 1000,
     prerequisiteIds: ["collaborator-foundation", "maintainer-foundation"],
     effects: ["Opens the Collaborator ↔ Maintainer crossing", "Feeds Collaborator and Maintainer"],
@@ -706,7 +720,7 @@ export const SKILL_NODES: readonly SkillNode[] = [
     title: "Migration Path",
     description: "Evolve a shipped system without stranding the people who depend on it.",
     flavor: "Change without wreckage.",
-    visualX: 460,
+    visualX: 560,
     visualY: 1000,
     prerequisiteIds: ["maintainer-foundation", "architect-foundation"],
     effects: ["Opens the Maintainer ↔ Architect crossing", "Feeds Maintainer and Architect"],

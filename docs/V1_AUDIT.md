@@ -9,10 +9,9 @@ This records, for each one, whether it is **actually** true — measured or
 inspected, not assumed. Several are not, and one of the failures is a defect the
 project's own tests were built in a way that made them blind to.
 
-**Summary: 5 of 9 hold. 2 are partially true. 2 are not done.**
+**Summary: 6 of 9 hold. 1 is partial. 2 are not done.**
 
-*Updated after the security-headers fix, which was the cheapest finding here and
-turned out to be the one that most needed doing properly.*
+*Updated after the security-header and skill-tree accessibility fixes.*
 
 ---
 
@@ -31,44 +30,74 @@ MVP 3's "sync" checkbox is therefore aspirational. `logSyncJob` and
 `logRecoveryDecision` are dead for the same reason: there is no orchestrator to
 emit them.
 
-## 2. Accessibility — ❌ not verified, and one real defect found
+## 2. Accessibility — ✅ now holds on `/skill-tree` (was: unverified, 1 real defect)
 
-**Never audited.** No axe, no Lighthouse, no screen-reader pass had ever been run.
-Running Lighthouse against the production build on `/skill-tree`:
+**It had never been audited.** No axe, no Lighthouse, no screen-reader pass had
+ever been run. The first audit found a genuine interaction bug, and diagnosing it
+took two findings, not one.
 
-| | |
-| --- | --- |
-| Accessibility | **96 / 100** |
-| Best practices | 100 |
-| SEO | 100 |
+### The symptom
 
-The single failure is `target-size`, and it is a genuine interaction bug, not a
-theoretical one:
+Lighthouse scored `/skill-tree` **96/100**, failing one rule: `target-size`.
 
-- The map's node targets are fixed **44×44 px** overlays positioned by percentage.
-- Measured on screen: **15 of 36 node pairs overlap**, and 13 pairs sit closer
-  than 24px to each other.
-- Nodes in adjacent tiers share a y-row across branches and land 33–43px apart, so
-  the later-drawn node covers the earlier one. **A touch user cannot reliably
-  reach the lower node.** Keyboard users can still Tab between them.
+### The first cause — the hit targets did not sit on the hexagons
+
+The node buttons are HTML siblings of the `<svg>`, so nothing moves them when the
+viewBox changes. They were positioned as a plain percentage of
+`SKILL_TREE_VIEWBOX` — the *whole* map frame — while the SVG was drawing
+`INITIAL_VIEWPORT`, a zoomed window onto it. They also ignored the letterbox
+offset that `preserveAspectRatio="xMidYMid meet"` introduces, worth about 95px
+here.
+
+Measured on screen: **15 of 36 target pairs overlapped**, 13 sat closer than 24px,
+and some nodes could not be tapped at all. Keyboard users could still Tab between
+them.
+
+This was introduced by the TASKS 22.3 fix that made the map legible. Opening
+zoomed in was right; leaving the overlay positioned against the unzoomed frame
+was not.
+
+**Fixed.** `overlayTransform` mirrors the SVG's own fit-and-centre transform, and
+`positionOverlays` applies it imperatively from `applyViewport` and a
+`ResizeObserver` — the viewport is a ref specifically so panning does not
+re-render 36 components, so the targets have to move without a render too.
+`NodeButton` lost its `left`/`top` props entirely rather than keeping a second,
+wrong source of truth.
+
+### The second cause — the Foundation row was packed too densely
+
+With the alignment fixed the overlaps went to zero, but 24px was still missed:
+21.9px of free space against a 24px minimum. The Foundation tier holds **eleven**
+nodes (six branch foundations interleaved with five bridges) where every other
+tier holds six, spaced 115 units apart.
+
+**Fixed** by widening that row to 140 units. The row is centred on x 0 and the
+frame has room, so nothing else moved.
+
+### Result
+
+| | before | after |
+| --- | --- | --- |
+| Accessibility | 96/100 | **100/100** |
+| `target-size` | fail | **pass** |
+| overlapping targets | 15 | **0** |
+| narrowest free space | 21.9px | **44px** (needs 24) |
 
 ### Why the project's own audit missed it
 
 `e2e/responsive.e2e.ts` asserts every control is **at least 44px tall**. Every one
 of these nodes is 44px tall. The rule it encodes — "no target below the minimum" —
 cannot detect two targets that are each individually large enough but sit on top
-of each other. The audit was checking size and calling it accessibility.
+of each other. It was checking size and calling it accessibility.
 
-A second gap: only `/skill-tree` has been audited. The other eight routes are
-untested against any automated standard.
+`e2e/skill-tree.e2e.ts` (4 journeys) now asserts the things that were missing:
+free space between every pair at the opening zoom, the Foundation row's spacing,
+zero overlaps in a real browser, and that each target lands within 2px of the
+hexagon drawn beneath it.
 
-### Fixing it is a design change, not a patch
-
-The constraint is not the button size, it is the geometry. `SKILL_TREE_VIEWBOX`
-packs roughly a dozen nodes into a tier row. Making the targets bigger makes the
-overlap worse; zooming out to separate them shrinks the hexagons back toward the
-illegibility fixed in TASKS 22.3. Satisfying both needs the node spacing in
-`skill-tree-geometry.ts` widened — a change to the map's design, not to a class.
+**Still open:** the other eight routes have never been audited. One route was
+audited and found a defect, which is a reason to check the rest, not a reason to
+assume they pass.
 
 ## 3. Performance — ✅ holds
 
@@ -198,7 +227,7 @@ automatically on a push. The gates are real; they are just not enforced.
 | claim | verdict |
 | --- | --- |
 | all core systems | ⚠️ sync engine has no caller |
-| accessibility | ❌ never audited; 1 real defect found |
+| accessibility | ✅ `/skill-tree` 100/100; **8 of 9 routes still unaudited** |
 | performance | ✅ measured; ~40% slower since the CSP nonce, still fast |
 | security | ✅ headers added and enforced; app-level work was already solid |
 | monitoring | ⚠️ 4 of 7 emitters wired; no alerting |
@@ -213,15 +242,16 @@ automatically on a push. The gates are real; they are just not enforced.
    six tests that fail if any of it is removed. The one caveat worth knowing:
    the nonce forced every route to render per request, which cost about 40% of
    load time. That was the right trade, but it was a real trade.
-2. **Overlapping map nodes.** Some nodes genuinely cannot be tapped. Needs a
-   geometry change, and it is a real accessibility failure.
+2. ~~**Overlapping map nodes.**~~ **Done.** The hit targets were positioned
+   against the unzoomed frame while the drawing was zoomed — a bug this project
+   introduced in TASKS 22.3 — and the Foundation row was packed with eleven nodes
+   where every other tier holds six. `/skill-tree` now scores 100/100 with zero
+   overlapping targets.
 3. **Sync never runs.** MVP 3's sync is a fiction, and two monitoring emitters are
-   dead because of it.
-4. **Accessibility of 8 of 9 routes is unknown.** One route was audited and found
-   a defect; that is a reason to audit the rest, not a reason to assume they pass.
+   dead because of it. This is now the largest unfinished piece of product.
+4. **Eight routes have never been audited.** One route was audited and found a
+   real defect; that is a reason to check the rest, not a reason to assume they
+   pass. Cheap to do — the security-header work shows how quickly an audit turns
+   up something.
 5. **No CI.** Every gate above is one forgotten push away from silently rotting.
 6. **Not deployed.** Documentation exists; nothing is running in public.
-
-Item 1 is done. Item 2 is next — it is a real defect a user hits, and it is the
-one remaining finding that is both a genuine bug and a contained piece of work.
-Item 3 is the largest piece of unfinished product.
