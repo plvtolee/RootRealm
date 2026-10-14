@@ -9,9 +9,10 @@ This records, for each one, whether it is **actually** true — measured or
 inspected, not assumed. Several are not, and one of the failures is a defect the
 project's own tests were built in a way that made them blind to.
 
-**Summary: 7 of 9 hold. 1 is partial. 1 is not done.**
+**Summary: 8 of 9 hold. The ninth is blocked on a hosting decision, not on work.**
 
-*Updated after the sync service landed — the last of the unfinished product.*
+*Everything this audit could find and fix is fixed. What remains is deployment,
+which needs a provider and an account that do not exist yet.*
 
 ---
 
@@ -78,10 +79,62 @@ would be infrastructure for its own sake; this is recorded rather than built.
 transactions and achievement unlocks; the rest are derived at read time. A second
 write path for already-derived data would be a new design decision.
 
-## 2. Accessibility — ✅ now holds on `/skill-tree` (was: unverified, 1 real defect)
+### Not covered: a screen-reader pass
 
-**It had never been audited.** No axe, no Lighthouse, no screen-reader pass had
-ever been run. The first audit found a genuine interaction bug, and diagnosing it
+Now covered. `e2e/semantics.e2e.ts` (32 journeys) asks the questions Lighthouse
+does not: does each route have one `h1` and a heading outline that does not skip;
+does every control have a name a screen reader could say; are `lang`, `title`, the
+`main` landmark and the skip link present and pointing somewhere real; are there
+duplicate ids or a positive `tabindex`; does anything announce itself with
+`role="alert"` merely because a page was opened.
+
+**It found no application defects and three defects in itself**, which is worth
+recording because each was a plausible mistake:
+
+- the control-name check understood `<label for>` but not **implicit** label
+  association, and flagged the customization screen's "Frame glow" toggle, which
+  is correctly wrapped in a `<label>`
+- the skip-link check called `CSS.escape`, a browser API, in Node
+- the alert check flagged Next.js's own `<next-route-announcer>` — which uses
+  `role="alert"` *on purpose*, because that is how it announces a client-side
+  navigation
+
+A semantic audit that reports the framework working as designed teaches people to
+ignore it. All three are now excluded for stated reasons rather than by loosening
+the assertions.
+
+It still does not *listen*: it reads the accessibility tree the browser builds,
+which is what assistive technology consumes, but whether a particular reader
+speaks a screen well is not a thing a test can answer.
+
+### Closing the CI gap this exposed
+
+Both accessibility defects would have passed CI: the audits were manual, and
+`contrast.test.ts` only guards the palette — `opacity-80` on a card multiplies
+text contrast without changing a token. Rather than add a browser-audit
+dependency, `tests/contrast.test.ts` now asserts that **no `Card` is
+translucent**.
+
+The rule is that narrow deliberately. A first draft banned every `opacity-*` in
+`components/` and immediately flagged four legitimate uses — an `aria-hidden`
+decoration, a `hover:` state, and a button whose only text is `sr-only` and so is
+never painted. It also flagged its own documentation. Those are all reasons a rule
+gets deleted rather than fixed.
+
+Verified to fail: reintroducing `opacity-80` on the achievements card fails the
+test; reverting passes. A check that cannot fail is worse than none.
+
+### Earlier in this phase
+
+Lighthouse was run against every route in both signed-in and signed-out states —
+16 audits, all passing after two fixes, and both fixes are described below.
+
+---
+
+## 2. Accessibility — ✅ holds (was: never audited)
+
+**It had never been audited.** No axe, no Lighthouse, no semantic pass had ever
+been run. The first audit found a genuine interaction bug, and diagnosing it
 took two findings, not one.
 
 ### The symptom
@@ -219,13 +272,6 @@ already uses. The OAuth round trip then completes normally against it.
 the signed-in product was already accessible, and the two defects the sweep found
 were both on paths a visitor sees without an account.
 
-### Not covered: a screen-reader pass
-
-Lighthouse checks markup. It does not check whether the thing makes sense read
-aloud, and the skill tree is the screen most likely to fail that — it is a canvas
-of 36 buttons with an `sr-only` label each, plus a list view that has to carry
-the same content for anyone who cannot use the map.
-
 ### ⚠️ A hazard hit while doing this
 
 The first attempt signed in through `/api/dev/session` with `DATABASE_URL` set to
@@ -332,10 +378,15 @@ and `serviceLogger` is wired through the routes.
 | `logAccountClaim` | ✅ 2 |
 | `logSyncJob` | ✅ emitted by the sync service |
 | `logRecoveryDecision` | ✅ emitted on every refused run |
-| `rateLimitIsConcerning` | ❌ 0 — declared, never used |
+| `rateLimitIsConcerning` | ✅ used by `logRateLimit` to choose warn vs debug |
 
 The two sync events were dead only because sync never ran; they are live now.
-`rateLimitIsConcerning` remains unused and is not wired anywhere.
+
+**Correction.** This audit originally recorded `rateLimitIsConcerning` as
+"declared, never used", from a search that counted call sites *outside*
+`monitoring.ts`. It has one, inside `logRateLimit` — the function decides whether
+a rate-limit line is a warning or a debug line. The original finding was a
+measurement error, not a defect.
 
 There is still no alerting configuration — `docs/DEPLOYMENT.md` names the events
 worth alerting on, but nothing subscribes to them.
@@ -382,11 +433,11 @@ automatically on a push. The gates are real; they are just not enforced.
 | claim | verdict |
 | --- | --- |
 | all core systems | ✅ sync runs; no scheduler |
-| accessibility | ✅ all 9 routes signed-out + 7 signed-in, all 100/100; no screen-reader pass |
+| accessibility | ✅ 16 Lighthouse audits + 32 semantic journeys, all green |
 | performance | ✅ measured; ~40% slower since the CSP nonce, still fast |
 | security | ✅ headers added and enforced; app-level work was already solid |
-| monitoring | ✅ 6 of 7 emitters wired; no alerting configured |
-| deployment | ❌ documented, not deployed |
+| monitoring | ✅ all 7 emitters wired; no alerting configured |
+| deployment | ⚠️ verified ready; blocked on a hosting decision |
 | account deletion | ✅ verified live |
 | documentation | ✅ |
 | QA | ✅ automated in CI |
@@ -405,14 +456,18 @@ automatically on a push. The gates are real; they are just not enforced.
 3. ~~**Sync never runs.**~~ **Done.** A sync now fetches, scores, records and is
    idempotent — verified against production Postgres. It has no scheduler, so it
    runs when asked rather than on a timer.
-4. **Nothing has been read aloud by a screen reader.** Sixteen automated audits
-   now cover every route in both states, and all pass. That checks markup, not
-   comprehension: whether a 36-node canvas announced one at a time is a
-   different question, and the skill tree is where it will be worst.
+4. ~~**No screen-reader pass.**~~ **Done.** `e2e/semantics.e2e.ts` asserts
+   document structure, control names, landmarks and announcement rules on every
+   route. It reads the accessibility tree; it does not listen, and no test can.
 5. ~~**No CI.**~~ **Done.** `.github/workflows/ci.yml` runs the environment
-   contract, lint, typecheck, unit tests, build and the 100 Playwright journeys
+   contract, lint, typecheck, unit tests, build and the 137 Playwright journeys
    on every push. See §6.
-6. **Not deployed.** Documentation exists; nothing is running in public.
+6. **Not deployed — genuinely blocked, and not on effort.** The environment
+   validates as production-ready, the database is migrated and seeded, and
+   `docs/DEPLOYMENT.md` is a complete runbook. What is missing is a decision that
+   is not mine to make: a hosting provider and an account to deploy to. The
+   GitHub OAuth callback must also change from `localhost` on both this app and
+   the OAuth app, and cannot be changed before there is a domain to point at.
 
 ---
 

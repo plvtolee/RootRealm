@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
@@ -129,5 +129,98 @@ describe("colour tokens", () => {
     // that, and it is what broke `/achievements`.
     expect(ratio).toBeGreaterThanOrEqual(AA_TEXT);
     expect(ratio).toBeLessThan(6);
+  });
+});
+
+/**
+ * The other way contrast breaks: not the token, but a wrapper around it.
+ *
+ * The `/achievements` failure was `opacity-80` on a whole card. The tokens were
+ * fine; the card multiplied them against its own background and pushed muted text
+ * from 4.98:1 to 3.53:1. **No token test can catch that** — the palette is
+ * untouched.
+ *
+ * This rule closes the gap without adding a browser-audit dependency to CI: no
+ * container in `components/` may be made translucent.
+ *
+ * ## Why "containers" and not "elements"
+ *
+ * Dimming a *decoration* — an icon, a border, a wash — is legitimate and used
+ * throughout. Dimming something that *contains text* is the failure, because the
+ * text inherits the multiplier without any token changing.
+ *
+ * This is a source-level rule rather than a computed-style one on purpose: it is
+ * cheap enough to run in a unit test, it fails in milliseconds instead of after a
+ * browser audit, and it names the cause rather than the symptom. A computed check
+ * would pass here and catch only the one card, leaving the pattern free.
+ */
+describe("transparency", () => {
+  /**
+   * Walks every component source once, with comments stripped.
+   *
+   * Stripping matters: an earlier draft of this rule flagged its own
+   * documentation, which described the `opacity-80` it had just removed. A check
+   * that reads its own comments as code is a check nobody keeps.
+   */
+  function componentSources(): { readonly file: string; readonly body: string }[] {
+    const files: { file: string; body: string }[] = [];
+
+    const walk = (dir: string): void => {
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        const path = join(dir, entry.name);
+        if (entry.isDirectory()) walk(path);
+        else if (entry.name.endsWith(".tsx")) {
+          files.push({ file: path, body: stripComments(readFileSync(path, "utf8")) });
+        }
+      }
+    };
+
+    for (const root of ["components", "app"]) walk(join(process.cwd(), root));
+    return files;
+  }
+
+  /** Block and line comments, removed so prose about `opacity-80` is not code. */
+  function stripComments(source: string): string {
+    return source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "");
+  }
+
+  /**
+   * `Card` must never be made translucent.
+   *
+   * The rule is this narrow on purpose. An earlier draft banned every `opacity-*`
+   * in the components directory and immediately flagged four legitimate uses: an
+   * `aria-hidden` decoration in the shop, a `hover:` state on a profile link, and
+   * a skill-tree button whose only text is `sr-only` and therefore never painted.
+   * A rule that cries wolf gets deleted.
+   *
+   * `Card` is the one surface guaranteed to contain visible text — that is what a
+   * card *is* in this design system — and it is exactly where `/achievements` put
+   * `opacity-80` and pushed muted text from 4.98:1 to 3.53:1. Banning it there is
+   * narrow enough to be unambiguous and broad enough to prevent the whole family
+   * of bug.
+   *
+   * To express "this particular element is unearned, so dim it", dim a leaf that
+   * holds no words — an icon, a border, a wash — not the card.
+   */
+  it("is never applied to a Card", () => {
+    const offenders: string[] = [];
+
+    for (const { file, body } of componentSources()) {
+      // Each `<Card ...>` opening tag, and whether it carries an opacity class.
+      for (const match of body.matchAll(/<Card\b[\s\S]{0,600}?>/g)) {
+        const tag = match[0];
+        if (!/\b(?:[a-z-]+:)?opacity-(?!100\b)\d/.test(tag)) continue;
+
+        const raw = readFileSync(file, "utf8");
+        const line = raw.slice(0, raw.indexOf(match[0].trim().slice(0, 40))).split("\n").length;
+        offenders.push(`${file}:${line}`);
+      }
+    }
+
+    expect(
+      offenders,
+      `A translucent Card dims every word inside it:\n${offenders.join("\n")}\n\n` +
+        `Express "unearned" with a border, a muted icon, or a status badge — not a multiplier.`,
+    ).toEqual([]);
   });
 });
