@@ -11,7 +11,8 @@ project's own tests were built in a way that made them blind to.
 
 **Summary: 6 of 9 hold. 1 is partial. 2 are not done.**
 
-*Updated after the security-header fix and a full nine-route accessibility sweep.*
+*Updated after the security-header fix and an accessibility sweep covering every
+route in both signed-in and signed-out states — 16 audits, all passing.*
 
 ---
 
@@ -146,20 +147,63 @@ contrast" and no number, so this changed nothing it had committed to.
 The test also guards the margin the muted token actually has — `opacity-80` is
 exactly the kind of wrapper that silently eats it.
 
-### What this sweep does *not* cover
+### The signed-in sweep
 
-**These are the signed-out states.** `/profile`, `/skill-tree`, `/achievements`,
-`/shop` and `/customization` show a guest a browsing shell when there is no
-session, and that shell is what was audited. The signed-in versions of those five
-— a real character with a frame, an inventory, an unlocked skill tree — are **not**
-covered, and they are where most of the product actually lives.
+The signed-out audit above covers what a visitor sees. The signed-in product —
+a real character with a frame, an inventory, an unlocked skill tree — was audited
+second, because reaching it needs a session and the development harness 404s in a
+production build.
 
-Reaching them needs a session, which needs the development harness, which is
-404 in a production build. It is doable and it is the next honest step.
+The route to a signed-in session is the mock GitHub (`e2e/mock-github.mjs`) plus
+`GITHUB_API_BASE` / `GITHUB_OAUTH_BASE`, which is the seam `playwright.config.ts`
+already uses. The OAuth round trip then completes normally against it.
 
-Also not covered: a screen-reader pass. Lighthouse checks markup, not whether
-the thing makes sense read aloud, and the skill tree is the screen most likely to
-fail that.
+| route (signed in) | result |
+| --- | --- |
+| `/profile` | 100 — character, level, XP, attribute tabs |
+| `/skill-tree` | 100 |
+| `/achievements` | 100 |
+| `/shop` | 100 — exchange with a live balance |
+| `/customization` | 100 — "5 of 11 owned" |
+| `/quests` | 100 |
+| `/leaderboard` | 100 — season and ladder |
+
+**No defects.** Seven routes, seven clean audits. That is worth saying plainly:
+the signed-in product was already accessible, and the two defects the sweep found
+were both on paths a visitor sees without an account.
+
+### Not covered: a screen-reader pass
+
+Lighthouse checks markup. It does not check whether the thing makes sense read
+aloud, and the skill tree is the screen most likely to fail that — it is a canvas
+of 36 buttons with an `sr-only` label each, plus a list view that has to carry
+the same content for anyone who cannot use the map.
+
+### ⚠️ A hazard hit while doing this
+
+The first attempt signed in through `/api/dev/session` with `DATABASE_URL` set to
+an empty string, expecting the in-memory store. **It wrote to production
+Supabase instead**, and three harness accounts landed in the real database:
+`dev:a11y-audit`, `dev:octocat` and `e2e-dev`.
+
+The cause is a shell subtlety, not a code defect. In PowerShell, `$env:X = ""`
+**removes** the variable rather than setting it to empty — so Next found no
+`DATABASE_URL` in the environment and loaded the real one from `.env.local`.
+Playwright's `webServer.env` does not have this problem, which is why the E2E
+suite has never polluted the database: it sets the variable in the child's
+environment, where Next's dotenv does not override an existing key.
+
+The correct way to force the in-memory store from PowerShell is:
+
+```powershell
+cmd /c "set DATABASE_URL= & npx next dev --port 3200"
+```
+
+`set VAR=` in `cmd` assigns an empty string; the same line in PowerShell deletes
+it. Worth knowing before anyone points a development server at the real database
+again. The three accounts were removed with `npm run clean:dev-data` (or
+`scripts/clean-dev-data.ts`), which correctly identified all three by their
+`dev:` / mock markers and left the real account untouched.
 
 ## 3. Performance — ✅ holds
 
@@ -289,7 +333,7 @@ automatically on a push. The gates are real; they are just not enforced.
 | claim | verdict |
 | --- | --- |
 | all core systems | ⚠️ sync engine has no caller |
-| accessibility | ✅ all 9 routes 100/100 (signed-out states); no screen-reader pass |
+| accessibility | ✅ all 9 routes signed-out + 7 signed-in, all 100/100; no screen-reader pass |
 | performance | ✅ measured; ~40% slower since the CSP nonce, still fast |
 | security | ✅ headers added and enforced; app-level work was already solid |
 | monitoring | ⚠️ 4 of 7 emitters wired; no alerting |
@@ -311,10 +355,9 @@ automatically on a push. The gates are real; they are just not enforced.
    overlapping targets.
 3. **Sync never runs.** MVP 3's sync is a fiction, and two monitoring emitters are
    dead because of it. This is now the largest unfinished piece of product.
-4. **Only the signed-out states were audited.** All nine routes score 100/100, but
-   `/profile`, `/skill-tree`, `/achievements`, `/shop` and `/customization` were
-   audited as a guest — the five screens where the real product lives have not
-   been checked at all. And nothing has been read aloud by a screen reader, which
-   is a different question from whether the markup is valid.
+4. **Nothing has been read aloud by a screen reader.** Sixteen automated audits
+   now cover every route in both states, and all pass. That checks markup, not
+   comprehension: whether a 36-node canvas announced one at a time is a
+   different question, and the skill tree is where it will be worst.
 5. **No CI.** Every gate above is one forgotten push away from silently rotting.
 6. **Not deployed.** Documentation exists; nothing is running in public.
