@@ -70,10 +70,22 @@ async function main(): Promise<number> {
     );
     const transactions = (tx.rows[0] as { n: number } | undefined)?.n ?? 0;
 
-    process.stdout.write(`Harness accounts:     ${users}\n`);
-    process.stdout.write(`Their coin ledger:    ${transactions}\n\n`);
+    // Events and repositories are keyed by GitHub login rather than by account,
+    // so they survive a cascade that removed the account they came from. They
+    // are counted here for the same reason: a run that removed every harness
+    // account still left its activity behind, and "Nothing to clean" was the
+    // reason that went unnoticed.
+    const events = await db.query(
+      `SELECT count(*)::int AS n FROM developer_events
+       WHERE developer_login LIKE 'dev:%' OR developer_login = 'e2e-dev';`,
+    );
+    const eventCount = (events.rows[0] as { n: number } | undefined)?.n ?? 0;
 
-    if (users === 0) {
+    process.stdout.write(`Harness accounts:     ${users}\n`);
+    process.stdout.write(`Their coin ledger:    ${transactions}\n`);
+    process.stdout.write(`Their events:         ${eventCount}\n\n`);
+
+    if (users === 0 && eventCount === 0) {
       process.stdout.write("Nothing to clean.\n");
       return 0;
     }
@@ -93,6 +105,18 @@ async function main(): Promise<number> {
     await db.query(
       `DELETE FROM inventory_items WHERE user_id IN (SELECT id FROM users WHERE ${HARNESS_ACCOUNTS});`,
     );
+
+    // Events and repositories are keyed by *GitHub*, not by user, so no cascade
+    // reaches them: a harness login's normalised activity outlived the account
+    // it belonged to. They are removed by login rather than by account id, which
+    // is why this is a separate statement rather than one more child table.
+    await db.query(
+      `DELETE FROM developer_events WHERE developer_login LIKE 'dev:%' OR developer_login = 'e2e-dev';`,
+    );
+    await db.query(
+      `DELETE FROM repositories WHERE slug LIKE 'e2e-%' OR owner_login LIKE 'dev:%' OR owner_login = 'e2e-dev';`,
+    );
+
     await db.query(`DELETE FROM users WHERE ${HARNESS_ACCOUNTS};`);
 
     const after = await db.query(
@@ -100,8 +124,16 @@ async function main(): Promise<number> {
     );
     const remaining = (after.rows[0] as { n: number } | undefined)?.n ?? 0;
 
-    process.stdout.write(`Cleaned. ${remaining} harness account(s) remain.\n`);
-    logger.warn("database.dev_data_cleaned", { users, transactions });
+    const afterEvents = await db.query(
+      `SELECT count(*)::int AS n FROM developer_events
+       WHERE developer_login LIKE 'dev:%' OR developer_login = 'e2e-dev';`,
+    );
+    const eventsRemaining = (afterEvents.rows[0] as { n: number } | undefined)?.n ?? 0;
+
+    process.stdout.write(
+      `Cleaned. ${remaining} harness account(s) and ${eventsRemaining} harness event(s) remain.\n`,
+    );
+    logger.warn("database.dev_data_cleaned", { users, transactions, events: eventCount });
 
     return 0;
   } catch (error) {

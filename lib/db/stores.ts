@@ -39,14 +39,43 @@ import { createPostgresWalletStore } from "./wallet-store";
 import { executor, hasDatabase } from "./postgres";
 
 import type { DeletableAccountStore } from "../auth/delete-account";
+import {
+  createInMemoryProgressionStore,
+  createPostgresProgressionStore,
+  type ProgressionStore,
+} from "./progression-store";
 
 const ACCOUNTS_KEY = "__rootrealm_account_store__";
 const WALLETS_KEY = "__rootrealm_pg_wallet_store__";
+const PROGRESSION_KEY = "__rootrealm_progression_store__";
 
 type GlobalScope = typeof globalThis & {
   [ACCOUNTS_KEY]?: DeletableAccountStore;
   [WALLETS_KEY]?: WalletStore;
+  [PROGRESSION_KEY]?: ProgressionStore;
 };
+
+/**
+ * The progression store: events, XP transactions and achievement unlocks.
+ *
+ * Separate from the account store because it answers a different question. The
+ * account store knows *who* someone is; this knows what has been recorded *about*
+ * them, and the two are deleted by different routes — claiming an account should
+ * not wipe a ledger, and deleting an account cascades through both.
+ */
+export function progressionStore(): ProgressionStore {
+  const scope = globalThis as GlobalScope;
+
+  if (scope[PROGRESSION_KEY] === undefined) {
+    const db = executor();
+    scope[PROGRESSION_KEY] =
+      db === null
+        ? createInMemoryProgressionStore()
+        : createPostgresProgressionStore(db);
+  }
+
+  return scope[PROGRESSION_KEY] as ProgressionStore;
+}
 
 /**
  * An in-memory account store that can also delete.

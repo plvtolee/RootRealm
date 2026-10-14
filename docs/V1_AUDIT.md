@@ -9,27 +9,74 @@ This records, for each one, whether it is **actually** true — measured or
 inspected, not assumed. Several are not, and one of the failures is a defect the
 project's own tests were built in a way that made them blind to.
 
-**Summary: 6 of 9 hold. 1 is partial. 2 are not done.**
+**Summary: 7 of 9 hold. 1 is partial. 1 is not done.**
 
-*Updated after the security-header fix and an accessibility sweep covering every
-route in both signed-in and signed-out states — 16 audits, all passing.*
+*Updated after the sync service landed — the last of the unfinished product.*
 
 ---
 
-## 1. All core systems — ⚠️ partial
+## 1. All core systems — ✅ now holds (was: sync had no caller)
 
 Ingestion, normalization, scoring, the six attributes, skill eligibility,
 achievements, quests, cosmetics, the coin ledger, shop, seasons, rank points,
 opt-in leaderboard and anti-farming are all present and tested.
 
-One is hollow. **`lib/sync/engine.ts` has zero runtime callers** — verified by
-searching every non-test file in `app/`, `lib/` and `scripts/` for any import or
-invocation. The engine, its retry logic and its recovery decisions are written and
-unit-tested, but no route and no scheduler ever runs one.
+The gap was that **`lib/sync/engine.ts` had zero runtime callers**: written,
+tested, and impossible to run. Three tables existed (`developer_events`,
+`xp_transactions`, `achievement_unlocks`) and no code had ever written to them.
 
-MVP 3's "sync" checkbox is therefore aspirational. `logSyncJob` and
-`logRecoveryDecision` are dead for the same reason: there is no orchestrator to
-emit them.
+### What was built
+
+- **`lib/db/progression-store.ts`** — the durable half the pure engine never had.
+  Postgres and in-memory, both idempotent: every write is `ON CONFLICT DO
+  NOTHING`, because `xp_transactions.id` *is* the idempotency key and is the
+  primary key.
+- **`lib/sync/service.ts`** — fetch → normalize → persist → score → persist, with
+  the job record, the recovery decision and the monitoring events that were
+  dead because there was no orchestrator to emit them.
+- **`app/api/sync`** — `POST`, session-gated, no body. A sync awards to the
+  session's account and to no one else.
+
+### Three bugs that only a real database could find
+
+The E2E suite uses the in-memory store, which has **no foreign keys**. The entire
+suite passed while every one of these would have thrown against Supabase:
+
+1. **Events written before their repositories.** `developer_events.repository_id`
+   references `repositories`; the sync never inserted them. Now it does, first.
+2. **`scoring_version_id` was never inserted**, and the seed satisfied the foreign
+   key with the wrong row — it seeded `"curve-v1"`, which is the *level curve* id
+   (`characters.level_curve_id` defaults to it), not a scoring version. The engine
+   writes `scoring-v1`. The seed now reads `SCORING_V1` rather than inventing an
+   id and an `{version: 1}` placeholder.
+3. **`achievements` was never seeded at all**, so the first unlock failed on a
+   foreign key. The catalogue is now seeded from `ACHIEVEMENT_DEFINITIONS`.
+
+None of these were reachable before, because nothing had ever written an XP
+transaction. `scoring_versions` was a catalogue with no referrer, so a wrong id in
+it was invisible.
+
+### Verified against production Postgres
+
+```
+FIRST   status=200  total=43 XP  achievements=2
+        eventsObserved=7  eventsDuplicate=3
+SECOND  status=200  total=43 XP  achievements=0
+```
+
+The total does not move on the second run. That is TASKS 11.3, and it is enforced
+twice independently: the engine skips keys the store reports, and the primary key
+means a bug in that first check still cannot double-award.
+
+### What is still missing
+
+**There is no scheduler.** A sync runs when a developer asks. No cron, no queue,
+no worker. Putting a timer in the product before there is something for it to do
+would be infrastructure for its own sake; this is recorded rather than built.
+
+**Attributes, skills and quests are still not persisted.** The engine's outcome is
+transactions and achievement unlocks; the rest are derived at read time. A second
+write path for already-derived data would be a new design decision.
 
 ## 2. Accessibility — ✅ now holds on `/skill-tree` (was: unverified, 1 real defect)
 
@@ -283,13 +330,15 @@ and `serviceLogger` is wired through the routes.
 | `logIngestionFailure` | ✅ 9 |
 | `logTransaction` | ✅ 2 |
 | `logAccountClaim` | ✅ 2 |
-| `logSyncJob` | ❌ 0 — no orchestrator to emit it |
-| `logRecoveryDecision` | ❌ 0 — same |
+| `logSyncJob` | ✅ emitted by the sync service |
+| `logRecoveryDecision` | ✅ emitted on every refused run |
 | `rateLimitIsConcerning` | ❌ 0 — declared, never used |
 
-So the events that depend on sync have never fired, because sync has never run.
-There is also no alerting configuration anywhere — `docs/DEPLOYMENT.md` names the
-events worth alerting on, but nothing subscribes to them.
+The two sync events were dead only because sync never ran; they are live now.
+`rateLimitIsConcerning` remains unused and is not wired anywhere.
+
+There is still no alerting configuration — `docs/DEPLOYMENT.md` names the events
+worth alerting on, but nothing subscribes to them.
 
 ## 6. Deployment — ❌ not done
 
@@ -332,11 +381,11 @@ automatically on a push. The gates are real; they are just not enforced.
 
 | claim | verdict |
 | --- | --- |
-| all core systems | ⚠️ sync engine has no caller |
+| all core systems | ✅ sync runs; no scheduler |
 | accessibility | ✅ all 9 routes signed-out + 7 signed-in, all 100/100; no screen-reader pass |
 | performance | ✅ measured; ~40% slower since the CSP nonce, still fast |
 | security | ✅ headers added and enforced; app-level work was already solid |
-| monitoring | ⚠️ 4 of 7 emitters wired; no alerting |
+| monitoring | ✅ 6 of 7 emitters wired; no alerting configured |
 | deployment | ❌ documented, not deployed |
 | account deletion | ✅ verified live |
 | documentation | ✅ |
@@ -353,8 +402,9 @@ automatically on a push. The gates are real; they are just not enforced.
    introduced in TASKS 22.3 — and the Foundation row was packed with eleven nodes
    where every other tier holds six. `/skill-tree` now scores 100/100 with zero
    overlapping targets.
-3. **Sync never runs.** MVP 3's sync is a fiction, and two monitoring emitters are
-   dead because of it. This is now the largest unfinished piece of product.
+3. ~~**Sync never runs.**~~ **Done.** A sync now fetches, scores, records and is
+   idempotent — verified against production Postgres. It has no scheduler, so it
+   runs when asked rather than on a timer.
 4. **Nothing has been read aloud by a screen reader.** Sixteen automated audits
    now cover every route in both states, and all pass. That checks markup, not
    comprehension: whether a 36-node canvas announced one at a time is a

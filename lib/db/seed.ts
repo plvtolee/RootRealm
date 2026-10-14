@@ -26,6 +26,8 @@
  * remains the source; this makes the database agree with it.
  */
 import { COSMETIC_DEFINITIONS } from "../cosmetics/catalog";
+import { ACHIEVEMENT_DEFINITIONS } from "../achievements/definition";
+import { SCORING_V1 } from "../scoring/types";
 import type { SqlExecutor } from "./sql";
 
 /** What was written, for the log line a deploy prints. */
@@ -35,8 +37,20 @@ export interface SeedReport {
   readonly total: number;
 }
 
-/** One scoring version, so an XP transaction's foreign key resolves. */
-const SCORING_VERSION_ID = "curve-v1";
+/**
+ * One scoring version, so an XP transaction's foreign key resolves.
+ *
+ * This is `SCORING_V1.id` and it was previously the literal `"curve-v1"` — which
+ * is the *level curve* id (`characters.level_curve_id` defaults to it), a
+ * different concept entirely. The seed therefore satisfied the foreign key with
+ * the wrong row, and the first real sync failed on
+ * `xp_transactions_scoring_version_id_fkey`.
+ *
+ * Nothing caught it until now because nothing had ever written an XP
+ * transaction: `scoring_versions` was a catalogue with no referrer, so a wrong id
+ * in it was invisible.
+ */
+const SCORING_VERSION_ID = SCORING_V1.id;
 
 /**
  * Writes the cosmetic catalogue.
@@ -63,13 +77,43 @@ async function seedCosmetics(db: SqlExecutor): Promise<number> {
   return inserted;
 }
 
+/**
+ * Writes the achievement catalogue.
+ *
+ * Added when the sync first ran for real. `achievement_unlocks.achievement_id`
+ * references this table, so an empty catalogue made every unlock fail on a
+ * foreign key — exactly the failure the note at the top of this file warns about,
+ * which is why seeding it here rather than leaving it to a later phase.
+ */
+async function seedAchievements(db: SqlExecutor): Promise<number> {
+  for (const achievement of ACHIEVEMENT_DEFINITIONS) {
+    await db.query(
+      `INSERT INTO achievements (id, title, description, rarity, criterion)
+       VALUES ($1, $2, $3, $4, $5)
+       ON CONFLICT (id) DO NOTHING;`,
+      [
+        achievement.id,
+        achievement.title,
+        achievement.description,
+        achievement.rarity,
+        JSON.stringify(achievement.criterion),
+      ],
+    );
+  }
+
+  return ACHIEVEMENT_DEFINITIONS.length;
+}
+
 /** Writes the scoring version an XP transaction references. */
 async function seedScoringVersions(db: SqlExecutor): Promise<number> {
+  // The XP table comes from the scoring engine's own version, not a placeholder.
+  // A row whose `xp` says `{version: 1}` would resolve the foreign key and then
+  // misdescribe every award it was referenced by.
   await db.query(
     `INSERT INTO scoring_versions (id, introduced_at, notes, xp)
-     VALUES ($1, now(), $2, $3)
+     VALUES ($1, $2, $3, $4)
      ON CONFLICT (id) DO NOTHING;`,
-    [SCORING_VERSION_ID, "Initial curve", JSON.stringify({ version: 1 })],
+    [SCORING_VERSION_ID, SCORING_V1.introducedAt, SCORING_V1.notes, JSON.stringify(SCORING_V1.xp)],
   );
 
   return 1;
@@ -89,7 +133,13 @@ export async function seedCatalogues(db: SqlExecutor): Promise<SeedReport> {
   const cosmetics = await seedCosmetics(db);
   const scoringVersions = await seedScoringVersions(db);
 
-  const inserted = { cosmetic_items: cosmetics, scoring_versions: scoringVersions };
+  const achievements = await seedAchievements(db);
+
+  const inserted = {
+    cosmetic_items: cosmetics,
+    scoring_versions: scoringVersions,
+    achievements,
+  };
 
   return {
     inserted,
