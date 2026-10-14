@@ -9,7 +9,10 @@ This records, for each one, whether it is **actually** true — measured or
 inspected, not assumed. Several are not, and one of the failures is a defect the
 project's own tests were built in a way that made them blind to.
 
-**Summary: 4 of 9 hold. 3 are partially true. 2 are not done.**
+**Summary: 5 of 9 hold. 2 are partially true. 2 are not done.**
+
+*Updated after the security-headers fix, which was the cheapest finding here and
+turned out to be the one that most needed doing properly.*
 
 ---
 
@@ -84,30 +87,55 @@ Fast because the screens are server-rendered and the client only hydrates the
 interactive parts. 952 KB of JS exists across all chunks, but a single page
 transfers 13 KB of it.
 
-## 4. Security — ⚠️ incomplete
+## 4. Security — ✅ now holds (was: incomplete)
 
-The application-level security work is real and tested: parameterised SQL
+The application-level security work was always real and tested: parameterised SQL
 throughout, an input/response boundary in `lib/security`, CSRF protection via
 state, rate limiting, and a session cookie that is `HttpOnly`, `SameSite=Lax` and
 `Secure` on HTTPS (and correctly *omits* `Secure` on plain-HTTP localhost, which
 was a real bug found and fixed earlier).
 
-**But the server sends no security headers whatsoever:**
+**What was missing was the HTTP layer.** `next.config.ts` was an untouched scaffold
+and the server sent none of these headers:
 
-| header | |
-| --- | --- |
-| `Content-Security-Policy` | **missing** |
-| `Strict-Transport-Security` | **missing** |
-| `X-Frame-Options` | **missing** |
-| `X-Content-Type-Options` | **missing** |
-| `Referrer-Policy` | **missing** |
-| `Permissions-Policy` | **missing** |
-| `Cross-Origin-Opener-Policy` | **missing** |
+| header | before | now |
+| --- | --- | --- |
+| `Content-Security-Policy` | missing | ✅ nonce-based, per request |
+| `Strict-Transport-Security` | missing | ✅ non-loopback only |
+| `X-Frame-Options` | missing | ✅ `DENY` |
+| `X-Content-Type-Options` | missing | ✅ `nosniff` |
+| `Referrer-Policy` | missing | ✅ `strict-origin-when-cross-origin` |
+| `Permissions-Policy` | missing | ✅ camera/mic/geo off |
+| `Cross-Origin-Opener-Policy` | missing | ✅ `same-origin` |
+| `X-Powered-By` | `Next.js` | ✅ removed |
 
-`next.config.ts` is an untouched scaffold containing only
-`/* config options here */`. This is the cheapest fix in the audit — one
-`headers()` block — and the largest gap between "we handled security" and
-"a browser enforces security".
+### What it cost, and what it nearly got wrong
+
+Three things were measured or discovered rather than assumed:
+
+**`'strict-dynamic'` broke the site.** It is in Next.js's own documentation, and
+following it blocked every lazily-imported chunk — Next injects those without a
+nonce — so hydration died. Found in the browser console, not reasoned about.
+Removed; `'self'` is what actually covers same-origin chunks.
+
+**Prerendered pages cannot carry a nonce.** Next attaches nonces while rendering,
+so a page generated at build time has none available and its inline RSC payload
+is blocked. The three pages that already forced dynamic rendering were the only
+ones that worked. All ten routes now force dynamic rendering. This is the cost:
+**load moved from ~108ms to ~150ms and TTFB from ~22ms to ~50ms** — roughly 40%,
+still fast, and it is the price of a policy a browser enforces.
+
+**HSTS would have broken every dev server.** `headers()` is static and cannot see
+the host, so it moved into `proxy.ts`, which can. A browser that sees HSTS for
+`localhost` refuses plain HTTP to it for the whole `max-age`.
+
+`style-src` still allows `'unsafe-inline'`: a nonce cannot apply to a `style`
+*attribute*, and the skill tree positions all 36 map nodes with inline `style` so
+their hit targets track the hexagons. Scripts — which can execute — are locked.
+
+`e2e/security.e2e.ts` (6 journeys) asserts all of it against real responses,
+including that each nonce is unique per request, so none of it can be deleted
+without a test failing.
 
 ## 5. Monitoring — ⚠️ partial
 
@@ -171,8 +199,8 @@ automatically on a push. The gates are real; they are just not enforced.
 | --- | --- |
 | all core systems | ⚠️ sync engine has no caller |
 | accessibility | ❌ never audited; 1 real defect found |
-| performance | ✅ measured, excellent |
-| security | ⚠️ app-level good, **no HTTP headers** |
+| performance | ✅ measured; ~40% slower since the CSP nonce, still fast |
+| security | ✅ headers added and enforced; app-level work was already solid |
 | monitoring | ⚠️ 4 of 7 emitters wired; no alerting |
 | deployment | ❌ documented, not deployed |
 | account deletion | ✅ verified live |
@@ -181,8 +209,10 @@ automatically on a push. The gates are real; they are just not enforced.
 
 ## Ranked by what a user would actually notice
 
-1. **No security headers.** One config block, affects every page, and it is the
-   difference between handling security and a browser enforcing it.
+1. ~~**No security headers.**~~ **Done.** Seven headers, a per-request nonce, and
+   six tests that fail if any of it is removed. The one caveat worth knowing:
+   the nonce forced every route to render per request, which cost about 40% of
+   load time. That was the right trade, but it was a real trade.
 2. **Overlapping map nodes.** Some nodes genuinely cannot be tapped. Needs a
    geometry change, and it is a real accessibility failure.
 3. **Sync never runs.** MVP 3's sync is a fiction, and two monitoring emitters are
@@ -192,6 +222,6 @@ automatically on a push. The gates are real; they are just not enforced.
 5. **No CI.** Every gate above is one forgotten push away from silently rotting.
 6. **Not deployed.** Documentation exists; nothing is running in public.
 
-Item 1 is an afternoon. Item 2 is a real design task. Item 3 is the largest piece
-of unfinished product. The order matters: 1 first because it is cheap and
-uncontroversial, 2 next because it is a defect users hit, then a decision on 3.
+Item 1 is done. Item 2 is next — it is a real defect a user hits, and it is the
+one remaining finding that is both a genuine bug and a contained piece of work.
+Item 3 is the largest piece of unfinished product.

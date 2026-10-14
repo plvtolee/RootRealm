@@ -13,6 +13,21 @@ import { Text } from "@/components/ui/text";
  * Phase 2 replaces this with the profile screen; no XP, no quests, no GitHub
  * data may be invented here.
  */
+/**
+ * Rendered per request, not prerendered.
+ *
+ * Not a performance choice — a correctness one. `proxy.ts` mints a fresh CSP
+ * nonce on every request, and Next.js can only attach a nonce to a script while
+ * rendering it. A page prerendered at build time has no nonce available, so its
+ * inline RSC payload scripts carry none and the Content-Security-Policy blocks
+ * them: verified in the browser console, where two inline scripts were rejected
+ * and every script tag on the page had no `nonce` attribute. The three pages
+ * that already forced dynamic rendering were the only ones that worked.
+ *
+ * The cost was measured rather than guessed — see `docs/V1_AUDIT.md`.
+ */
+export const dynamic = "force-dynamic";
+
 export default function Home() {
   return (
     <div className="flex flex-col gap-6">

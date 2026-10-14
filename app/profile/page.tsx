@@ -18,6 +18,15 @@ export const metadata: Metadata = {
  * It is a client component because the session cookie is HttpOnly: resolving
  * *whose* character to load is a request, not a server render.
  */
+/**
+ * Rendered per request so `proxy.ts` can attach the CSP nonce to every script.
+ * See the note in `app/page.tsx`.
+ *
+ * Also correct on its own terms: this screen is about the *signed-in*
+ * developer's character, which is per-session by definition.
+ */
+export const dynamic = "force-dynamic";
+
 export default function ProfilePage() {
   return <ProfileGate />;
 }

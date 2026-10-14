@@ -16,6 +16,12 @@ export const metadata: Metadata = {
  * primary navigation destination — it is reached from the Development card on
  * the Home screen; see components/github/github-preview.tsx.
  */
+/**
+ * Rendered per request so `proxy.ts` can attach the CSP nonce to every script.
+ * See the note in `app/page.tsx`.
+ */
+export const dynamic = "force-dynamic";
+
 export default function GitHubPreviewPage() {
   return <GitHubPreview />;
 }

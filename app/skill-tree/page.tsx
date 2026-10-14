@@ -13,6 +13,12 @@ export const metadata: Metadata = {
  * the screen its `events`, `learnedIds` and `attributeTotals` from the shared
  * store. Client-rendered because the session cookie is HttpOnly.
  */
+/**
+ * Rendered per request so `proxy.ts` can attach the CSP nonce to every script.
+ * See the note in `app/page.tsx`.
+ */
+export const dynamic = "force-dynamic";
+
 export default function SkillTreePage() {
   return <SkillTreeGate />;
 }
