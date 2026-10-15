@@ -1,9 +1,10 @@
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Alegreya_Sans, Cinzel, Geist, Geist_Mono } from "next/font/google";
 
 import { AppShell } from "@/components/layout/app-shell";
 
 import "./globals.css";
+import "./landing.css";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -13,6 +14,18 @@ const geistSans = Geist({
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
+});
+
+const rootDisplay = Cinzel({
+  variable: "--font-rootrealm-display",
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+});
+
+const rootBody = Alegreya_Sans({
+  variable: "--font-rootrealm-body",
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
 });
 
 export const metadata: Metadata = {
@@ -25,26 +38,26 @@ export const metadata: Metadata = {
 };
 
 /**
- * The dark document is not a preference — RootRealm is a near-black interface
- * (DESIGN_SYSTEM §27), so the color scheme and the browser chrome are fixed
- * here. `themeColor` has to be a literal because the meta tag is written before
- * any CSS is parsed; it mirrors `--color-bg` (styles/tokens/color.css).
+ * Keep the app chrome aligned to the existing neutral application surface.
+ * The landing page's warmer palette is scoped to its own root element.
  */
 export const viewport: Viewport = {
   colorScheme: "dark",
   themeColor: "#0b0c0e",
 };
 
-/**
- * The root layout owns the document and the shell (Task 1.4) and nothing else:
- * every screen renders inside `AppShell`, which supplies the global background,
- * the content container and the `<main>` landmark.
- */
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={[
+        geistSans.variable,
+        geistMono.variable,
+        rootDisplay.variable,
+        rootBody.variable,
+        "h-full",
+        "antialiased",
+      ].join(" ")}
     >
       <body className="min-h-full">
         <AppShell>{children}</AppShell>
@@ -52,4 +65,3 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     </html>
   );
 }
-
