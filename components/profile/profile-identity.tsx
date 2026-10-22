@@ -1,8 +1,8 @@
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { ProgressBar } from "@/components/ui/progress-bar";
 import { Text } from "@/components/ui/text";
 import { cn } from "@/lib/cn";
+import Link from "next/link";
 
 import { PinGlyph, TagGlyph, VerifiedGlyph } from "./profile-glyphs";
 import type { MockProfile } from "./profile-data";
@@ -33,9 +33,8 @@ export type ProfileIdentityProps = {
  *   the pattern `ProgressBar` documents for richer value text)
  * - XP numbers are display data from the mock object: they are formatted, never
  *   calculated (DATA_CONTRACT §13: presentation does not compute XP)
- * - "Edit Profile" is the approved reference's action. It is a real `<button>`
- *   but deliberately has no handler: editing does not exist until a later task,
- *   and inventing an edit flow here is out of scope
+ * - "Edit Profile" links to the account settings surface rather than being a
+ *   decorative button with no action.
  */
 export function ProfileIdentity({ profile, className }: ProfileIdentityProps) {
   const levelId = "profile-level";
@@ -84,7 +83,12 @@ export function ProfileIdentity({ profile, className }: ProfileIdentityProps) {
           </div>
         </div>
 
-        <Button variant="secondary">Edit Profile</Button>
+        <Link
+          href="/profile/edit"
+          className="inline-flex min-h-(--control-height-md) items-center justify-center rounded-md border border-border bg-surface px-4 text-label text-text-primary transition-colors duration-(--motion-fast) ease-standard hover:border-border-strong hover:bg-state-hover motion-reduce:transition-none"
+        >
+          Edit Profile
+        </Link>
       </div>
 
       {/* Level / XP: visible row plus the accessible progress indicator. */}

@@ -1,5 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 
+import { fundDevWallet } from "./helpers";
+
 /**
  * RootRealm — responsive audit (TASKS 22.1, 22.2).
  *
@@ -39,11 +41,12 @@ const VIEWPORTS = [
   { name: "desktop-1440", width: 1440, height: 900, touch: false },
 ] as const;
 
-/** Every route a visitor can reach. */
+/** Every signed-in route the application owns. */
 const ROUTES = [
   "/",
-  "/preview",
+  "/home",
   "/profile",
+  "/profile/edit",
   "/skill-tree",
   "/achievements",
   "/quests",
@@ -51,6 +54,19 @@ const ROUTES = [
   "/customization",
   "/leaderboard",
 ] as const;
+
+/**
+ * The audit is of the application, so each case starts signed in.
+ *
+ * Before the login wall existed these routes rendered for a guest. Now they
+ * redirect to `/login`, which would make every case below audit the login page
+ * under eight different names — coverage that looks present and tests nothing.
+ * The dev harness mints a real session for the mock GitHub login, so the actual
+ * screens render.
+ */
+test.beforeEach(async ({ request, context }) => {
+  await fundDevWallet(request, context);
+});
 
 /** The minimum touch target DESIGN_SYSTEM §30 requires. */
 const MIN_TAP_TARGET = 44;

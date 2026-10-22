@@ -1,5 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 
+import { fundDevWallet } from "./helpers";
+
 /**
  * RootRealm — semantics for assistive technology (the V1 audit's last unknown).
  *
@@ -36,18 +38,29 @@ import { expect, test, type Page } from "@playwright/test";
  * routes that use it wrong.
  */
 
-/** Every route a visitor can reach. */
+/** Every signed-in route the application owns. */
 const ROUTES = [
   "/",
-  "/preview",
+  "/home",
   "/profile",
+  "/profile/edit",
   "/skill-tree",
   "/achievements",
   "/quests",
   "/shop",
   "/customization",
   "/leaderboard",
+  "/updates/third-season-is-underway",
 ] as const;
+
+/**
+ * The audit is of the application, so each case starts signed in — otherwise
+ * every protected route redirects to `/login` and the same login page is audited
+ * under ten different names.
+ */
+test.beforeEach(async ({ request, context }) => {
+  await fundDevWallet(request, context);
+});
 
 /** Waits for a client-gated screen to settle. */
 async function settled(page: Page): Promise<void> {
@@ -238,6 +251,26 @@ test.describe("document structure", () => {
 });
 
 test.describe("keyboard and announcement", () => {
+  test("public root is the RootRealm entrance", async ({ page }) => {
+    await page.goto("/");
+    await settled(page);
+
+    await expect(page.getByRole("heading", { name: "Your code builds your realm.", level: 1 })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Enter your realm" }).first()).toHaveAttribute(
+      "href",
+      "/login",
+    );
+    await expect(page.getByRole("link", { name: "Read the skill tree" })).toHaveAttribute(
+      "href",
+      "#skill-tree",
+    );
+
+    // A link wrapping a button creates two nested interactive elements, which
+    // gives keyboard and assistive-technology users an ambiguous action. Update
+    // cards are links and must remain single interactive controls.
+    await expect(page.locator('a[href] button')).toHaveCount(0);
+  });
+
   test("every screen offers a skip link to the main landmark", async ({ page }) => {
     for (const route of ROUTES) {
       await page.goto(route);

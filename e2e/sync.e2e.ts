@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-import { MOCK_LOGIN } from "./helpers";
+import { MOCK_LOGIN, signInWithMockGitHub } from "./helpers";
 
 /**
  * RootRealm — the synchronization journey (TASKS 11.2–11.4).
@@ -20,13 +20,9 @@ import { MOCK_LOGIN } from "./helpers";
  * written by the same path a second sync will take.
  */
 test.describe("sync", () => {
-  /** Claims the mock account through the real OAuth chain. */
+  /** Signs in through the real OAuth chain against the mock GitHub. */
   async function claim(page: import("@playwright/test").Page) {
-    await page.goto("/preview");
-    await page.getByLabel("GitHub username").fill(MOCK_LOGIN);
-    await page.getByRole("button", { name: "Preview" }).click();
-    await page.getByRole("link", { name: "Connect GitHub" }).click();
-    await page.waitForURL((url) => !url.searchParams.has("auth_error"));
+    await signInWithMockGitHub(page);
   }
 
   test("refuses an unauthenticated request", async ({ page }) => {

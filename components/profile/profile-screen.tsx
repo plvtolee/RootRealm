@@ -1,4 +1,5 @@
 import { Text } from "@/components/ui/text";
+import { Reveal } from "@/components/motion/reveal";
 import { cn } from "@/lib/cn";
 
 import { AttributeSection } from "./attribute-section";
@@ -8,6 +9,7 @@ import { ProfileAvatar } from "./profile-avatar";
 import { ProfileIdentity } from "./profile-identity";
 import { ProfileMenu } from "./profile-menu";
 import { DeleteAccount } from "./delete-account";
+import { LogoutButton } from "./logout-button";
 import { RecentAchievements } from "./recent-achievements";
 import type { MockProfile } from "./profile-data";
 
@@ -28,9 +30,8 @@ export type ProfileScreenProps = {
   /**
    * Whether to offer account deletion (TASKS 22.5).
    *
-   * True only for a signed-in developer. A guest previewing someone else's public
-   * profile has no account to delete, and showing the control there would offer a
-   * destructive action against an account the visitor does not own.
+   * True only for a signed-in developer: this screen is always the viewer's own
+   * character, and the control deletes the account the session belongs to.
    */
   showDelete?: boolean;
   className?: string;
@@ -62,7 +63,7 @@ export function ProfileScreen({ profile, frameId, effectId, showDelete = false, 
   return (
     <div className={cn("flex flex-col gap-8", className)}>
       {/* Hero: identity, progression, menu and attributes. */}
-      <div className="flex flex-col gap-6 lg:grid lg:grid-cols-[1fr_3fr] lg:gap-x-8">
+      <Reveal className="flex flex-col gap-6 lg:grid lg:grid-cols-[1fr_3fr] lg:gap-x-8">
         <ProfileAvatar
           username={profile.username}
           frameId={frameId}
@@ -78,25 +79,42 @@ export function ProfileScreen({ profile, frameId, effectId, showDelete = false, 
           attributes={profile.attributes}
           className="min-w-0 lg:col-start-2 lg:row-start-2"
         />
-      </div>
+      </Reveal>
 
       {/* Featured Project (3) beside Current Quest (2) — the reference's
           60/40 split; a single column below `lg`. */}
-      <div className="grid gap-4 lg:grid-cols-[3fr_2fr]">
+      <Reveal className="grid gap-4 lg:grid-cols-[3fr_2fr]">
         <FeaturedProjectCard project={profile.featuredProject} />
         <CurrentQuestCard quest={profile.currentQuest} />
-      </div>
+      </Reveal>
 
-      <RecentAchievements
-        achievements={profile.recentAchievements}
-        moreCount={profile.additionalAchievements}
-      />
+      <Reveal>
+        <RecentAchievements
+          achievements={profile.recentAchievements}
+          moreCount={profile.additionalAchievements}
+        />
+      </Reveal>
 
 
       {/* TASKS 22.5: account deletion lives on the profile because that is the only
           screen unambiguously about one account. False for a guest, who has nothing
           to delete. */}
-      {showDelete && <DeleteAccount login={profile.username} />}
+      {showDelete ? (
+        <Reveal>
+          <DeleteAccount login={profile.username} />
+        </Reveal>
+      ) : null}
+
+      {showDelete ? (
+        <Reveal>
+          <section aria-labelledby="account-actions" className="flex flex-col gap-3">
+            <Text as="h2" variant="subheading" id="account-actions" className="text-text-primary">
+              Account
+            </Text>
+            <LogoutButton />
+          </section>
+        </Reveal>
+      ) : null}
 
       <Text variant="caption" className="text-text-muted">
         Character built from your public GitHub activity. XP is recomputed from that

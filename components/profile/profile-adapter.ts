@@ -22,10 +22,10 @@
  * ## Why the fallbacks are honest
  *
  * Every absent field becomes a stated absence rather than an invented value. A
- * guest previewing an account with no location shows "Location not provided", not
- * a placeholder city, and no featured repository renders as no project rather than
- * a card with an empty name. A number the domain does not have is zero, which is
- * what a sum over no rows is — not a mock.
+ * profile with no location shows "Location not provided", not a placeholder city,
+ * and no featured repository renders as no project rather than a card with an
+ * empty name. A number the domain does not have is zero, which is what a sum
+ * over no rows is — not a mock.
  */
 import type { AttributeKey } from "@/lib/attributes";
 import { ATTRIBUTE_LABEL } from "@/lib/attributes";

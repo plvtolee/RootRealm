@@ -47,49 +47,25 @@ test.describe("a URL that names nothing", () => {
       page.getByRole("button", { name: "Go to the start" }),
     ).toBeVisible();
     await expect(
-      page.getByRole("button", { name: "Look up a profile" }),
+      page.getByRole("button", { name: "Sign in" }),
     ).toBeVisible();
   });
 });
 
 test.describe("a visitor with no session", () => {
-  test("/profile explains what signing in is for, instead of showing an empty profile", async ({
-    page,
-  }) => {
+  test("/profile redirects to the universal login wall", async ({ page }) => {
     await page.goto("/profile");
 
-    // The gate resolves a session first, so the signed-out copy is not on screen
-    // until that settles. Waiting for it is what makes this a state assertion
-    // rather than a race against the loading branch.
-    await expect(
-      page.getByText("Sign in with GitHub to claim a profile."),
-    ).toBeVisible();
-
-    // The failure mode this guards against is a screen that renders its shell
-    // with nothing in it, which reads as "your account is empty" rather than
-    // "you are not signed in".
-    await expect(
-      page.getByRole("link", { name: "Sign in with GitHub" }),
-    ).toBeVisible();
+    await expect(page).toHaveURL(/\/login\?next=%2Fprofile$/);
+    await expect(page.getByRole("heading", { name: "Enter your realm." })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Continue with GitHub" })).toBeVisible();
   });
 
-  test("/shop says why a balance needs an account", async ({ page }) => {
+  test("protected routes do not render section-level sign-in prompts", async ({ page }) => {
     await page.goto("/shop");
 
-    expect(await page.locator("body").innerText()).toContain(
-      "belong to an account",
-    );
-  });
-
-  test("no screen shows a zero balance or an empty inventory to a guest", async ({
-    page,
-  }) => {
-    // A guest seeing "0 CodeCoins" would read as a spent-out account.
-    for (const route of ["/shop", "/customization", "/profile"]) {
-      await page.goto(route);
-      const body = await page.locator("body").innerText();
-      expect(body, route).not.toMatch(/\b0\s*CodeCoins\b/);
-    }
+    await expect(page).toHaveURL(/\/login\?next=%2Fshop$/);
+    await expect(page.getByText("Sign in with GitHub")).toHaveCount(0);
   });
 });
 

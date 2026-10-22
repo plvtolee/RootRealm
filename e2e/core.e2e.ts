@@ -2,41 +2,42 @@
  * RootRealm — Playwright core journey (TASKS 20.3).
  *
  * ```text
- * Guest → username search → profile → skill tree → node detail
+ * Landing → login wall → GitHub OAuth → real profile → skill tree
  * ```
  *
- * The one journey that needs no session: a guest types a GitHub username, gets a
- * real RootRealm profile built from the mock's activity, opens the skill tree and
- * inspects a node. Every number asserted here is produced by the real ingestion,
- * normalization, scoring and aggregation — the same code the product runs — so
- * the journey fails if any stage of that chain regresses, not merely if a label
- * changes.
+ * RootRealm has no public profile lookup. A character is built from the signed-in
+ * developer's own GitHub activity, so this journey proves the entry contract the
+ * product actually has: `/` is public, everything else redirects to `/login`, the
+ * one door is GitHub OAuth, and the profile behind it is produced by the real
+ * ingestion, normalization, scoring and aggregation code.
+ *
+ * The only substitution is GitHub itself (see `e2e/mock-github.mjs`). Every
+ * number asserted here comes from the mock's activity through the same code path
+ * a live deployment runs.
  */
 import { expect, test } from "@playwright/test";
 
-import { MOCK_LOGIN } from "./helpers";
+import { MOCK_LOGIN, signInWithMockGitHub } from "./helpers";
 
-test.describe("core journey — guest lookup to node detail", () => {
-  test("a guest searches a username and gets a real profile", async ({ page }) => {
-    await page.goto("/preview");
+test.describe("core journey — sign-in to a real profile", () => {
+  test("a signed-in developer gets a profile built from real activity", async ({ page }) => {
+    await signInWithMockGitHub(page);
+    await page.goto("/profile");
 
-    // The guest is on the public preview with no session and no login.
-    await expect(page.getByRole("heading", { name: "Profile preview" })).toBeVisible();
-    await expect(page.getByText("Enter a username to build a preview.")).toBeVisible();
+    // Identity: the page's single h1 is the GitHub login the session belongs to.
+    await expect(
+      page.getByRole("heading", { level: 1, name: MOCK_LOGIN }),
+    ).toBeVisible();
 
-    await page.getByLabel("GitHub username").fill(MOCK_LOGIN);
-    await page.getByRole("button", { name: "Preview" }).click();
+    // Progression: the level and the XP bar are the aggregate's numbers, not a
+    // static mock. The visible text is the accessible name of the progressbar.
+    await expect(page.locator("#profile-level")).toHaveText(/^Lv\. \d+$/);
+    await expect(page.locator("#profile-xp")).toHaveText(
+      /\d[\d,]* \/ \d[\d,]* XP/,
+    );
 
-    // The profile came back: identity, level, XP and the six attributes.
-    await expect(page.getByText(`@${MOCK_LOGIN}`, { exact: true })).toBeVisible();
-    await expect(page.getByText("E2E Developer")).toBeVisible();
-    await expect(page.getByText(/^Lv\. \d+$/)).toBeVisible();
-    // The headline XP total, which the scoring engine produced — not one of the
-    // per-event explanation amounts, which also end in "XP".
-    await expect(page.locator("#preview-xp")).toHaveText(/\d[\d,]* XP/);
-
-    // A guest lookup has not proved ownership, so the character is unverified.
-    await expect(page.getByText("Unverified")).toBeVisible();
+    // Ownership was established by OAuth, so the account is verified.
+    await expect(page.getByText("Verified account")).toBeAttached();
 
     // The six attribute roles are always rendered, even at zero.
     for (const attribute of [
@@ -49,44 +50,43 @@ test.describe("core journey — guest lookup to node detail", () => {
     ]) {
       await expect(page.getByText(attribute, { exact: true }).first()).toBeVisible();
     }
-
-    // Transparency is part of the contract (PRD §10): the preview says what it
-    // observed and what it cannot support, rather than showing a bare number.
-    await expect(
-      page.getByRole("heading", { name: "How this was calculated" }),
-    ).toBeVisible();
-    await expect(page.getByText("Observed scope")).toBeVisible();
   });
 
-  test("the preview offers the claim, and it is a real navigation", async ({ page }) => {
-    await page.goto("/preview");
-    await page.getByLabel("GitHub username").fill(MOCK_LOGIN);
-    await page.getByRole("button", { name: "Preview" }).click();
+  test("the login wall is the only door into the app", async ({ page }) => {
+    await page.goto("/login");
 
-    await expect(
-      page.getByRole("heading", { name: "Make this profile yours" }),
-    ).toBeVisible();
+    // The one action is a real navigation to the OAuth start, carrying the
+    // destination the login wall remembered. `/home` is the default.
+    const signIn = page.getByRole("link", { name: "Continue with GitHub" });
+    await expect(signIn).toHaveAttribute("href", "/api/auth/github?next=%2Fhome");
 
-    // An anchor, not a fetch: the OAuth flow is a full-page redirect, which is
-    // why the claim is reachable without JavaScript and by keyboard.
-    const claim = page.getByRole("link", { name: "Connect GitHub" });
-    await expect(claim).toHaveAttribute("href", "/api/auth/github");
+    // A protected route is not rendered at all for a visitor with no session.
+    await page.goto("/profile");
+    await expect(page).toHaveURL(/\/login\?next=%2Fprofile$/);
+    await expect(page.getByRole("heading", { name: "Enter your realm." })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Continue with GitHub" })).toBeVisible();
   });
 
-  test("an unknown username reports the failure instead of an empty profile", async ({
-    page,
+  test("an unknown GitHub account reports the failure instead of an empty profile", async ({
+    request,
   }) => {
-    await page.goto("/preview");
-    await page.getByLabel("GitHub username").fill("e2e-no-such-account");
-    await page.getByRole("button", { name: "Preview" }).click();
+    // The profile is asked for by the signed-in app, but the ingestion failure
+    // path is the same one every screen shares. The mock 404s and the endpoint
+    // answers with a user-safe reason rather than a zeroed profile that looks
+    // real — the honest outcome.
+    const response = await request.get(
+      "/api/github/profile-preview?username=e2e-no-such-account",
+    );
 
-    // The mock 404s, the client maps that to a readable state, and no profile
-    // renders — the honest outcome, not a zeroed profile that looks real.
-    await expect(page.getByText(`@${MOCK_LOGIN}`)).toHaveCount(0);
-    await expect(page.getByText(/not found|could not|does not|unknown/i).first()).toBeVisible();
+    expect(response.status()).toBeGreaterThanOrEqual(400);
+    expect(response.status()).toBeLessThan(500);
+    expect(JSON.stringify(await response.json())).toMatch(
+      /not found|could not|does not|unknown/i,
+    );
   });
 
   test("the skill tree renders its map and opens a node's detail", async ({ page }) => {
+    await signInWithMockGitHub(page);
     await page.goto("/skill-tree");
 
     await expect(page.getByRole("heading", { level: 1 })).toContainText(/skill/i);
@@ -115,6 +115,7 @@ test.describe("core journey — guest lookup to node detail", () => {
   test("the skill tree offers an equivalent list view for the same nodes", async ({
     page,
   }) => {
+    await signInWithMockGitHub(page);
     await page.goto("/skill-tree");
 
     await page.getByRole("button", { name: "List" }).click();

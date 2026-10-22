@@ -2,11 +2,11 @@
  * RootRealm — account creation and claiming (TASKS 9.2 and 9.3).
  *
  * ```text
- * verified GitHub identity → RootRealm user → guest profile becomes persistent
+ * verified GitHub identity → RootRealm user → a persistent character
  * ```
  *
  * TASKS 9.2 creates a RootRealm user once a GitHub identity is verified. TASKS
- * 9.3 lets a guest preview become that persistent account. Both are here because
+ * 9.3 turns that verified identity into a persistent account. Both are here because
  * they are the same decision seen from two sides: which RootRealm user, if any,
  * does this verified GitHub identity belong to?
  *
@@ -24,12 +24,12 @@
  * freed login claim another developer's account. The id is the stable fact, and
  * the login is only display.
  *
- * ## Why the guest preview and the claimed account are the same object here
+ * ## Why the verified identity and the claimed account are the same object here
  *
- * The PRD's guest journey builds a preview with no account; claiming turns it
- * persistent. Modelling the claim as "attach this verified identity to this
- * RootRealm user" keeps the preview and the account one shape, so nothing about
- * the preview has to change when it is claimed.
+ * The only way into the product is GitHub OAuth, so the identity GitHub returns
+ * is the account. Modelling the claim as "attach this verified identity to this
+ * RootRealm user" keeps identity and progress one shape: nothing about the
+ * character has to be rebuilt when the account is created.
  */
 
 import type { GitHubIdentity } from "./oauth";
@@ -65,6 +65,22 @@ export interface AccountStore {
   findByGithubId(githubId: number): Promise<Account | null>;
   /** Inserts or replaces. Returns the stored account. */
   save(account: Account): Promise<Account>;
+}
+
+/**
+ * Resolves the GitHub login owned by a signed session's RootRealm user id.
+ *
+ * Session ids are the authorization key; season consents and standings use the
+ * GitHub login as their domain key. Keeping this lookup explicit prevents those
+ * two identities from being passed interchangeably at a server boundary.
+ */
+export async function githubLoginForUserId(
+  userId: string | null,
+  store: Pick<AccountStore, "findById">,
+): Promise<string | null> {
+  if (userId === null) return null;
+
+  return (await store.findById(userId))?.login ?? null;
 }
 
 /**

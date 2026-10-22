@@ -65,3 +65,27 @@ export async function fundDevWallet(
     },
   ]);
 }
+
+/**
+ * Signs in through the real OAuth chain against the mock GitHub.
+ *
+ * ```text
+ * /login → Continue with GitHub → mock authorize → callback → /home
+ * ```
+ *
+ * The product admits a developer only through GitHub OAuth, so journeys that
+ * need a character start here rather than seeding a session: the cookie, the
+ * account and the GitHub identity are all produced by production code. The only
+ * substitution is GitHub itself (see `e2e/mock-github.mjs`).
+ *
+ * The wait is on the destination path, not on "no `auth_error`": the OAuth start
+ * URL is itself error-free, so a looser predicate would resolve before the
+ * redirect chain had run.
+ */
+export async function signInWithMockGitHub(
+  page: import("@playwright/test").Page,
+): Promise<void> {
+  await page.goto("/login");
+  await page.getByRole("link", { name: "Continue with GitHub" }).click();
+  await page.waitForURL((url) => url.pathname === "/home");
+}

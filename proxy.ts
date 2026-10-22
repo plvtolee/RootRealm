@@ -79,7 +79,7 @@ export function proxy(request: NextRequest) {
     "connect-src 'self'",
     "object-src 'none'",
     "base-uri 'self'",
-    // The only form on the site is the profile-lookup form, and it must not be
+    // The only form on the site posts to this origin, and it must not be
     // hijacked to post credentials somewhere else.
     "form-action 'self'",
     // Clickjacking defence, restated by X-Frame-Options for older browsers.
@@ -94,6 +94,12 @@ export function proxy(request: NextRequest) {
   // Read back by Next.js, which applies the nonce to the scripts it injects.
   requestHeaders.set("x-nonce", nonce);
   requestHeaders.set("content-security-policy", csp);
+  // The protected route-group layout uses this proxy-owned value to preserve
+  // the page the visitor requested when it sends them to the login wall.
+  requestHeaders.set(
+    "x-rootrealm-pathname",
+    `${request.nextUrl.pathname}${request.nextUrl.search}`,
+  );
 
   const response = NextResponse.next({ request: { headers: requestHeaders } });
   response.headers.set("content-security-policy", csp);

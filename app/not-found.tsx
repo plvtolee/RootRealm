@@ -18,9 +18,8 @@ import { Text } from "@/components/ui/text";
  * vocabulary as every other failure state.
  *
  * A client component only because the two destinations are navigations. Both are
- * the routes that work with no session and no arguments: `/profile` needs a
- * signed-in developer and `/preview` needs a username, so neither can be a safe
- * default on its own.
+ * public routes that work with no session and no arguments — the landing page
+ * and the login wall. A 404 must never send a signed-out visitor into the app.
  */
 export default function NotFound() {
   const router = useRouter();
@@ -40,8 +39,8 @@ export default function NotFound() {
         <Button variant="primary" onClick={() => router.push("/")}>
           Go to the start
         </Button>
-        <Button variant="secondary" onClick={() => router.push("/preview")}>
-          Look up a profile
+        <Button variant="secondary" onClick={() => router.push("/login")}>
+          Sign in
         </Button>
       </div>
     </div>

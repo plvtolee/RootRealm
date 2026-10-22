@@ -9,7 +9,7 @@
  *
  * `/profile` rendered a static Phase 2 mock, `/skill-tree` held its unlocks in
  * local component state seeded with `["origin"]`, and `/achievements` held filter
- * and animation state as if it had no data at all. Only `/preview` talked to
+ * and animation state as if it had no data at all. Only the live lookup talked to
  * GitHub. The screens were not *disagreeing* — nothing was ever connected to
  * anything — but the result looked exactly like three screens with three
  * different truths, which is worse: a disagreement invites the question "which one
@@ -75,10 +75,8 @@ export interface ProfileSnapshot {
   /**
    * Skill ids recorded as learned for this developer.
    *
-   * Empty until skill unlocks are persisted (TASKS 6.5's `skill_unlocks` rows).
-   * Empty is the honest value today: nothing has been unlocked, and the skill
-   * tree then shows every node as locked or eligible by evidence, which is the
-   * truth for a developer who has not spent a point.
+   * Loaded from the authenticated profile preview's `skill_unlocks` rows. Empty
+   * is the honest value for a developer who has not spent a point.
    */
   readonly learnedSkillIds: readonly string[];
 }
@@ -128,6 +126,7 @@ async function fetchSnapshot(login: string): Promise<ProfileSnapshot> {
     preview?: {
       profile?: AggregatedProfile;
       events?: readonly DeveloperEvent[];
+      learnedSkillIds?: readonly string[];
     } | null;
     failure?: { message?: string } | null;
   } | null;
@@ -145,7 +144,7 @@ async function fetchSnapshot(login: string): Promise<ProfileSnapshot> {
     login,
     profile: preview.profile,
     events: preview.events ?? [],
-    learnedSkillIds: [],
+    learnedSkillIds: preview.learnedSkillIds ?? [],
   };
 }
 
@@ -261,34 +260,4 @@ export function ProfileProvider({
  */
 export function useProfile(): ProfileStoreValue {
   return useContext(ProfileContext);
-}
-
-/** The login the current session belongs to, or null when signed out. */
-export function useSessionLogin(): { login: string | null; status: "loading" | "ready" } {
-  const [state, setState] = useState<{ login: string | null; status: "loading" | "ready" }>({
-    login: null,
-    status: "loading",
-  });
-
-  useEffect(() => {
-    let cancelled = false;
-
-    void fetch("/api/profile/me", { headers: { accept: "application/json" } })
-      .then((response) => response.json().catch(() => null))
-      .then((body: { login?: string | null } | null) => {
-        if (!cancelled) setState({ login: body?.login ?? null, status: "ready" });
-      })
-      .catch(() => {
-        // A failed identity lookup is "signed out", not an error: the visitor can
-        // still use the preview, and treating this as a failure would blank the
-        // page for something that is a normal state.
-        if (!cancelled) setState({ login: null, status: "ready" });
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  return state;
 }

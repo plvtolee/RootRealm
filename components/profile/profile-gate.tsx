@@ -5,10 +5,8 @@
  * <ProfileGate />
  * ```
  *
- * The client component that resolves *whose* character to show, loads it through
- * the shared store, and hands it to the presentational `ProfileScreen`. It exists
- * because the resolution is client work: the session cookie is HttpOnly, so only a
- * request can ask who it belongs to, and the answer decides what to fetch.
+ * The client component that reads the identity and profile snapshots supplied by
+ * the protected app layout, then hands the result to `ProfileScreen`.
  *
  * ## Why the states are explicit
  *
@@ -17,13 +15,13 @@
  * loading text — and each is a real state of the world rather than a placeholder:
  *
  * - **loading** — a request is in flight;
- * - **signed out** — no session, so there is no character to show. This says so
- *   and points at the preview, which works without an account;
+ * - **signed out** — handled by the protected server layout, which sends the
+ *   visitor to the login wall before this gate renders;
  * - **error** — the lookup failed, with the server's own user-safe wording;
  * - **ready** — the developer's real aggregate.
  *
  * Before this, `/profile` rendered `MOCK_PROFILE` unconditionally, which is why it
- * could disagree with `/preview`: nothing had ever connected them.
+ * could disagree with the live lookup: nothing had ever connected them.
  */
 "use client";
 
@@ -31,33 +29,13 @@ import { useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Text } from "@/components/ui/text";
+import { useSessionLogin } from "@/components/auth/session-provider";
 import { ProfileScreen } from "@/components/profile/profile-screen";
 import { toProfileScreenProps } from "@/components/profile/profile-adapter";
 import {
-  ProfileProvider,
   useProfile,
-  useSessionLogin,
   type ProfileStoreValue,
 } from "@/components/profile/profile-store";
-
-/**
- * A navigation link.
- *
- * Deliberately an `<a>`, not a `<Button>`: these navigate, and `Button` is always
- * a real `<button>` (AGENTS.md's accessibility invariants). Nesting an anchor
- * inside a button is invalid HTML and makes the control's name its entire content
- * to a screen reader.
- */
-function NavLink({ href, children }: { href: string; children: string }) {
-  return (
-    <a
-      href={href}
-      className="inline-flex min-h-(--control-height-md) items-center text-accent underline underline-offset-4 hover:opacity-80"
-    >
-      {children}
-    </a>
-  );
-}
 
 /** What a screen shows while a request is in flight. */
 function Loading() {
@@ -65,25 +43,6 @@ function Loading() {
     <Text as="p" variant="body" className="text-text-secondary">
       Reading your activity from GitHub…
     </Text>
-  );
-}
-
-/** What a screen shows when there is no session. */
-function SignedOut() {
-  return (
-    <div className="flex flex-col items-start gap-4">
-      <Text as="h1" variant="heading">
-        No character yet
-      </Text>
-      <Text as="p" variant="body" className="text-text-secondary">
-        Sign in with GitHub to claim a profile. Anyone can still look up a public
-        profile without an account.
-      </Text>
-      <div className="flex gap-6">
-        <NavLink href="/api/auth/github">Sign in with GitHub</NavLink>
-        <NavLink href="/preview">Look up a profile</NavLink>
-      </div>
-    </div>
   );
 }
 
@@ -124,11 +83,9 @@ function useEquippedCosmetics(login: string | null): {
   const [equipped, setEquipped] = useState<Record<string, string>>({});
 
   useEffect(() => {
-    // No synchronous `setState` here. The gate only ever mounts this hook with a
-    // real login — the signed-out case returns before reaching it — so the
-    // "wearing nothing" default is already the correct state for a null login and
-    // does not need to be written. Setting it would cascade a render before the
-    // paint the effect was meant to follow.
+    // No synchronous `setState` here. The protected layout stops signed-out
+    // requests before this component mounts, so the "wearing nothing" default is
+    // already correct until the cosmetics request settles.
     if (login === null) return;
 
     let cancelled = false;
@@ -150,30 +107,24 @@ function useEquippedCosmetics(login: string | null): {
   return { frameId: equipped.frame ?? null, effectId: equipped.effect ?? null };
 }
 
-/** The profile page: resolve the session, then provide the store for that login. */
+/** The profile page consumes the session and profile contexts from the app layout. */
 export default function ProfileGate() {
   const session = useSessionLogin();
 
   if (session.status === "loading") return <Loading />;
-  if (session.login === null) return <SignedOut />;
+  if (session.login === null) return <Loading />;
 
-  return (
-    <ProfileProvider login={session.login}>
-      <ProfileFor login={session.login} />
-    </ProfileProvider>
-  );
+  return <ProfileFor login={session.login} />;
 }
 
 /**
  * The screen, reading the store the provider owns.
  *
- * Split from {@link ProfileGate} so the `useProfile` call is always inside a
- * provider. A hook that read the context without one would return the idle store
- * forever, and the page would sit on "loading" with no way to fail.
+ * Split from {@link ProfileGate} so the profile context is read below the shared
+ * provider owned by the protected app layout.
  *
- * `login` is passed down rather than resolved again here: `useSessionLogin` issues
- * a request, and calling it twice would ask the server twice for an answer that
- * cannot have changed.
+ * `login` is passed down rather than resolved again here so cosmetics and the
+ * profile use the same server-authenticated identity.
  */
 function ProfileFor({ login }: { login: string }) {
   const store = useProfile();
@@ -192,9 +143,9 @@ function ProfileFor({ login }: { login: string }) {
       })}
       frameId={frameId}
       effectId={effectId}
-      // Only the signed-in developer is offered deletion. This screen is behind a
-      // session by construction — the gate renders `SignedOut` otherwise — so the
-      // control can never appear on someone else's profile.
+       // Only the signed-in developer is offered deletion. This screen is behind a
+       // session by construction — the protected layout stops signed-out requests
+       // — so the control can never appear on someone else's profile.
       showDelete
     />
   );
