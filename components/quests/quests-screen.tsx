@@ -3,9 +3,11 @@
 import { useMemo } from "react";
 
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { ProgressBar } from "@/components/ui/progress-bar";
 import { Text } from "@/components/ui/text";
+import { Reveal } from "@/components/motion/reveal";
 import { cn } from "@/lib/cn";
 import type { DeveloperEvent } from "@/lib/developer-event";
 import { QUEST_KIND_LABEL, computeQuestView, rewardLabel, type QuestView } from "@/lib/quests/view";
@@ -25,6 +27,12 @@ export type QuestsScreenProps = {
   completedKeys?: readonly string[];
   /** Injectable clock, so the screen is deterministic in a test. */
   now?: Date;
+  /** Claims a met quest through the authenticated server action. */
+  onClaim?: (questId: string) => void;
+  /** Quest currently being claimed, if any. */
+  claimingQuestId?: string | null;
+  /** User-safe claim failure copy. */
+  claimError?: string | null;
   className?: string;
 };
 
@@ -57,6 +65,9 @@ export function QuestsScreen({
   userId = "guest",
   completedKeys = [],
   now,
+  onClaim,
+  claimingQuestId = null,
+  claimError = null,
   className,
 }: QuestsScreenProps) {
   const at = useMemo(() => now ?? new Date(), [now]);
@@ -68,6 +79,7 @@ export function QuestsScreen({
 
   return (
     <div className={cn("flex flex-col gap-6", className)}>
+      <Reveal>
       <header className="flex flex-wrap items-center justify-between gap-3">
         <Text variant="heading" as="h1">
           Quests
@@ -81,38 +93,59 @@ export function QuestsScreen({
           </Badge>
         </div>
       </header>
+      </Reveal>
 
-      <Text variant="body" className="max-w-2xl text-text-secondary">
-        Quests track the same public activity the rest of RootRealm scores. Daily
-        and weekly windows close on UTC boundaries; goals count your whole
-        observed history.
-      </Text>
+      {claimError !== null && claimError !== undefined ? (
+        <Text variant="body" className="text-danger" role="alert">
+          {claimError}
+        </Text>
+      ) : null}
+
+      <Reveal>
+        <Text variant="body" className="max-w-2xl text-text-secondary">
+          Quests track the same public activity the rest of RootRealm scores. Daily
+          and weekly windows close on UTC boundaries; goals count your whole
+          observed history.
+        </Text>
+      </Reveal>
 
       {state.quests.length === 0 ? (
         <Text variant="body" className="text-text-secondary">
           No quests are published yet.
         </Text>
       ) : (
-        <div className="grid gap-4 xl:grid-cols-3">
+        <Reveal className="grid gap-4 xl:grid-cols-3">
           {state.quests.map((quest) => (
             <QuestCard
               key={quest.definition.id}
               quest={quest}
               windowLabel={windowLabel(quest)}
+              onClaim={onClaim}
+              claiming={claimingQuestId === quest.definition.id}
             />
           ))}
-        </div>
+        </Reveal>
       )}
     </div>
   );
 }
 
-function QuestCard({ quest, windowLabel }: { quest: QuestView; windowLabel: string }) {
+function QuestCard({
+  quest,
+  windowLabel,
+  onClaim,
+  claiming,
+}: {
+  quest: QuestView;
+  windowLabel: string;
+  onClaim?: (questId: string) => void;
+  claiming: boolean;
+}) {
   const { definition, progress } = quest;
   const tone = quest.completed ? "success" : quest.claimable ? "accent" : "neutral";
 
   return (
-    <Card className="flex h-full flex-col gap-4 bg-surface-secondary">
+    <Card className={cn("flex h-full flex-col gap-4 bg-surface-secondary", quest.completed && "motion-highlight-once")}>
       <div className="flex items-center justify-between gap-3">
         <Badge variant={tone} size="sm">
           {QUEST_KIND_LABEL[definition.kind]}
@@ -120,6 +153,11 @@ function QuestCard({ quest, windowLabel }: { quest: QuestView; windowLabel: stri
         <Text variant="caption" className="text-text-muted">
           {windowLabel}
         </Text>
+        {quest.claimable && onClaim !== undefined ? (
+          <Button size="sm" loading={claiming} onClick={() => onClaim(definition.id)}>
+            Claim reward
+          </Button>
+        ) : null}
       </div>
 
       <div className="flex flex-col gap-2">

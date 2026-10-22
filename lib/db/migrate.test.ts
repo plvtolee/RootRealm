@@ -51,7 +51,12 @@ describe("runMigrations (10.1)", () => {
     const report = await runMigrations({ migrator });
 
     expect(report.skipped).toEqual(["0001_core"]);
-    expect(report.applied).toEqual(["0002_progression", "0003_cosmetics", "0004_seasonal"]);
+    expect(report.applied).toEqual([
+      "0002_progression",
+      "0003_cosmetics",
+      "0004_seasonal",
+      "0005_quest_completions",
+    ]);
 
     const rendered = calls.filter((sql) => sql.includes("CREATE TABLE users"));
     expect(rendered).toEqual([]);

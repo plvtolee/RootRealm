@@ -44,6 +44,8 @@ export interface QuestCompletion {
   /** `quest:<userId>:<questId>:<periodKey>` — the idempotency key. */
   readonly id: string;
   readonly userId: string;
+  /** GitHub login used in the explanation ledger. */
+  readonly developerLogin?: string;
   readonly questId: string;
   readonly periodKey: string;
   /** When it was recorded, ISO-8601. */
@@ -101,6 +103,8 @@ export function completionKey(userId: string, questId: string, periodKey: string
 export function completeQuest(input: {
   readonly definition: QuestDefinition;
   readonly userId: string;
+  /** GitHub login used in the explanation ledger. */
+  readonly developerLogin?: string;
   readonly events: readonly DeveloperEvent[];
   readonly at: Date;
   readonly scoringVersionId: string;
@@ -146,7 +150,13 @@ export function completeQuest(input: {
     ok: true,
     result: {
       completion,
-      xpTransaction: xpFor(definition, completion, input.scoringVersionId),
+      xpTransaction: xpFor(
+        definition,
+        completion,
+        evidenceEventIds,
+        input.scoringVersionId,
+        input.developerLogin,
+      ),
       // TASKS 14.3: the coin reward comes from the earn rules and is keyed in
       // the ledger, so a re-delivered completion of the same period cannot pay
       // twice even if the completion record itself is replayed.
@@ -174,14 +184,19 @@ export function completeQuest(input: {
 function xpFor(
   definition: QuestDefinition,
   completion: QuestCompletion,
+  evidenceEventIds: readonly string[],
   scoringVersionId: string,
+  developerLogin?: string,
 ): XPTransaction | null {
   if (definition.xpReward === 0) return null;
 
   return {
     id: `xp:quest:${completion.userId}:${definition.id}:${completion.periodKey}`,
-    eventId: completion.id,
-    developerLogin: completion.userId,
+    // XP transactions keep the database's developer-event foreign key honest.
+    // The completion remains the transaction's idempotency key; one of the cited
+    // events is the supporting event row the transaction points at.
+    eventId: evidenceEventIds[0] as string,
+    developerLogin: developerLogin ?? completion.userId,
     xp: definition.xpReward,
     classification: "qualifying_push",
     reason: `Quest completed: ${definition.title}.`,

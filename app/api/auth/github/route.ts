@@ -11,12 +11,19 @@
  * comparison live in `lib/auth/oauth.ts`, where they are testable without a
  * browser.
  */
-import { buildAuthorizationUrl, createState, OAUTH_STATE_COOKIE, OAUTH_STATE_TTL_SECONDS } from "@/lib/auth/oauth";
+import {
+  buildAuthorizationUrl,
+  createState,
+  OAUTH_NEXT_COOKIE,
+  OAUTH_STATE_COOKIE,
+  OAUTH_STATE_TTL_SECONDS,
+} from "@/lib/auth/oauth";
 import { readAuthConfig } from "@/lib/auth/config";
+import { safeNextPath } from "@/lib/auth/next-path";
 
 export const dynamic = "force-dynamic";
 
-export async function GET(): Promise<Response> {
+export async function GET(request: Request): Promise<Response> {
   const config = readAuthConfig();
 
   if (config === null) {
@@ -29,6 +36,7 @@ export async function GET(): Promise<Response> {
   }
 
   const state = createState();
+  const next = safeNextPath(new URL(request.url).searchParams.get("next"));
   const authorizationUrl = buildAuthorizationUrl({
     clientId: config.clientId,
     redirectUri: config.redirectUri,
@@ -37,12 +45,15 @@ export async function GET(): Promise<Response> {
 
   const secure = config.isProduction ? "; Secure" : "";
 
-  return new Response(null, {
-    status: 302,
-    headers: {
-      location: authorizationUrl,
-      "set-cookie":
-        `${OAUTH_STATE_COOKIE}=${state}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${OAUTH_STATE_TTL_SECONDS}${secure}`,
-    },
-  });
+  const headers = new Headers({ location: authorizationUrl });
+  headers.append(
+    "set-cookie",
+    `${OAUTH_STATE_COOKIE}=${state}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${OAUTH_STATE_TTL_SECONDS}${secure}`,
+  );
+  headers.append(
+    "set-cookie",
+    `${OAUTH_NEXT_COOKIE}=${encodeURIComponent(next)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${OAUTH_STATE_TTL_SECONDS}${secure}`,
+  );
+
+  return new Response(null, { status: 302, headers });
 }

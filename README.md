@@ -143,7 +143,10 @@ Two things to know before you deploy:
 
 | route | what it is |
 | --- | --- |
-| `/` | landing page |
+| `/` | public RootRealm entrance and product overview |
+| `/login` | GitHub authentication wall for the application |
+| `/home` | authenticated updates hub with seasons, cosmetics, patch notes and announcements |
+| `/updates/[slug]` | full update or patch-note detail |
 | `/preview` | public profile lookup — works without an account |
 | `/profile` | your own character, with account deletion |
 | `/skill-tree` | the skill tree, gated on real evidence |
@@ -153,9 +156,24 @@ Two things to know before you deploy:
 | `/customization` | equip what you own |
 | `/leaderboard` | season standings |
 
+The application routes are protected by the shared app layout. A signed-out
+visitor is redirected to `/login` and returned to the requested internal route
+after GitHub OAuth completes. `/preview` and `/updates/[slug]` remain public
+exceptions: public profile lookup is part of the product contract, and updates
+are part of the public entrance experience.
+
 Approved design references live in `references/approved-ui/`
 (`skill-tree.png`, `node-detail.png`). `docs/VISUAL_REVIEW.md` compares the built
 screens against them and records what still differs.
+
+### Publishing Home updates
+
+The first updates hub is intentionally repo-managed. Add or edit a published
+entry in `lib/updates/content.ts`; the Home feed and `/updates/[slug]` detail
+pages read from that same list. Keep entries factual and only publish a season,
+cosmetic release or patch note after that change is actually available in the
+app. An editorial/admin workflow can replace this module later without changing
+the page contract.
 
 ### Screenshots
 
@@ -179,9 +197,9 @@ committed. The design references they are compared against are in
 
 ## Testing
 
-- **1,400+ unit and integration tests** over `lib/` and `tests/`
-- **74 end-to-end journeys** across six suites: core, claim, economy, leaderboard,
-  responsive audit and screen states
+- **1,469 unit and integration tests** over `lib/` and `tests/`
+- **138 configured end-to-end journeys** across the core, claim, economy,
+  leaderboard, responsive, security, semantics and screen-state suites
 
 The E2E suite runs against a mock GitHub (`e2e/mock-github.mjs`) through a
 development-only endpoint seam, and deliberately clears `DATABASE_URL` so a test
@@ -190,7 +208,7 @@ run can never write into a real database.
 ### Continuous integration
 
 `.github/workflows/ci.yml` runs on every push and pull request: the environment
-contract, lint, typecheck, unit tests, build, and the 100 Playwright journeys.
+contract, lint, typecheck, unit tests, build, and the Playwright journeys.
 
 Two jobs, split so a typecheck failure is reported in about a minute rather than
 after a browser download. The end-to-end job needs **no secrets** — Playwright
@@ -231,23 +249,23 @@ it. It answers 404 in a production build and the control is not rendered there.
 
 Stated plainly, because a README that lists only what works is advertising.
 
-**Progression is recomputed on every request.** XP, attributes, levels, unlocks
-and quest progress are derived from freshly-ingested GitHub activity each time a
-profile is opened. Nothing about progression is persisted. The models and tables
-exist for it; no write path does. Every visit costs GitHub API calls.
+**Public profile calculations are recomputed on every request.** A public preview
+still reads fresh GitHub activity and costs GitHub API calls. Signed-in skill
+unlocks, quest completions, XP transactions and achievement unlocks are now
+persisted through the progression stores; derived attributes, levels and current
+quest progress are still calculated from the observed evidence.
 
-**The sync engine has no caller.** `lib/sync/engine.ts` implements job lifecycle,
-retries and recovery decisions, and the tests cover it. No route or scheduler
-invokes it at runtime, so the recovery and retry logic has never actually run in
-production.
+**Sync is manual, not scheduled.** `POST /api/sync` runs the fetch → normalize →
+score → persist flow for the signed-in account. There is no cron, queue or worker,
+so a developer or future scheduler must request a sync.
 
 **Account deletion is a hard delete.** There is no `deleted_at`, no soft delete
 and no restore path. This was deliberate — a retention promise for a deletion
 request is a promise the product cannot keep — but it means an accidental deletion
 is final.
 
-**`logSyncJob` and `logRecoveryDecision` are library-only.** They are exported and
-tested, but with no orchestrator there is nothing to emit them.
+**There is no alerting configuration.** Sync and recovery events are emitted by the
+runtime service, but no monitoring provider subscribes to them yet.
 
 **Merge thresholds and rarity assignments are seeded, not derived.** Which PR
 count earns a milestone, and which achievements are common versus rare, are
@@ -265,12 +283,11 @@ that remain against the approved references: the skill tree has no minimap, and
 the node detail has no Related Nodes panel and no repository-level evidence, so a
 progress bar's basis is not shown next to it.
 
-**Accessibility is designed for, not audited.** The primitives carry roles, labels
-and focus handling, and reduced motion is honoured throughout, but no screen has
-been through a manual screen-reader pass or a formal audit.
+**Accessibility has automated coverage, but no live screen-reader sign-off.** The
+semantic, responsive, contrast and Lighthouse checks cover the markup and layout;
+a human still needs to confirm how the product sounds in a real screen reader.
 
-**Continuous integration exists, but nothing runs the accessibility audits.**
-CI covers lint, types, unit tests, build and the Playwright journeys. The
-sixteen Lighthouse audits that found two real defects were run by hand, and the
-`tests/contrast.test.ts` guard covers only the palette — a component that dims
-text with `opacity-*` will pass CI and fail the audit.
+**Continuous integration does not run Lighthouse.** CI covers lint, types, unit
+tests, build and the Playwright journeys. The Lighthouse audits remain a separate
+manual check, while the semantic and contrast regression tests run with the rest
+of the suite.

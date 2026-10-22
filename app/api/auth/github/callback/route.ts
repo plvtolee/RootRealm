@@ -13,12 +13,20 @@
  * them and speaks HTTP. The account store is the in-memory one until TASKS 10.1
  * provides a database, so a restart loses accounts — see `lib/auth/account.ts`.
  */
-import { exchangeCode, fetchIdentity, statesMatch, tokenFingerprint, OAUTH_STATE_COOKIE } from "@/lib/auth/oauth";
+import {
+  exchangeCode,
+  fetchIdentity,
+  OAUTH_NEXT_COOKIE,
+  OAUTH_STATE_COOKIE,
+  statesMatch,
+  tokenFingerprint,
+} from "@/lib/auth/oauth";
 import { claimAccount } from "@/lib/auth/account";
 import { issueSession, sessionCookieAttributes, SESSION_COOKIE } from "@/lib/auth/session";
 import { readAuthConfig } from "@/lib/auth/config";
 import { accountStore } from "@/lib/db/stores";
 import { logAccountClaim, serviceLogger } from "@/lib/ops/monitoring";
+import { DEFAULT_AUTH_NEXT, safeNextPath } from "@/lib/auth/next-path";
 
 export const dynamic = "force-dynamic";
 
@@ -42,14 +50,15 @@ export async function GET(request: Request): Promise<Response> {
   const state = url.searchParams.get("state");
 
   const cookieState = readCookie(request.headers.get("cookie"), OAUTH_STATE_COOKIE);
+  const next = readNext(request.headers.get("cookie"));
   if (!statesMatch(cookieState ?? "", state)) {
-    return redirectWithError("state_mismatch");
+    return redirectWithError("state_mismatch", next);
   }
 
   if (code === null) {
     // GitHub reports a denied authorization as `?error=access_denied` with no
     // code. That is a normal outcome, not a failure of ours.
-    return redirectWithError("authorization_denied");
+    return redirectWithError("authorization_denied", next);
   }
 
   const token = await exchangeCode({
@@ -60,12 +69,12 @@ export async function GET(request: Request): Promise<Response> {
   });
 
   if (!token.ok) {
-    return redirectWithError(token.reason);
+    return redirectWithError(token.reason, next);
   }
 
   const identity = await fetchIdentity(token.accessToken);
   if (identity === null) {
-    return redirectWithError("identity_unavailable");
+    return redirectWithError("identity_unavailable", next);
   }
 
   const claimed = await claimAccount({
@@ -91,7 +100,7 @@ export async function GET(request: Request): Promise<Response> {
     serviceLogger("auth"),
   );
 
-  const headers = new Headers({ location: "/" });
+  const headers = new Headers({ location: next });
   headers.append(
     "set-cookie",
     `${SESSION_COOKIE}=${session.value}; ${sessionCookieAttributes(request)}`,
@@ -100,6 +109,10 @@ export async function GET(request: Request): Promise<Response> {
   headers.append(
     "set-cookie",
     `${OAUTH_STATE_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`,
+  );
+  headers.append(
+    "set-cookie",
+    `${OAUTH_NEXT_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`,
   );
 
   return new Response(null, { status: 302, headers });
@@ -116,9 +129,27 @@ function readCookie(header: string | null, name: string): string | null {
 }
 
 /** A failure that is reported to the user, never as a raw error page. */
-function redirectWithError(reason: string): Response {
+function readNext(header: string | null): string {
+  const encoded = readCookie(header, OAUTH_NEXT_COOKIE);
+  if (encoded === null) return DEFAULT_AUTH_NEXT;
+
+  try {
+    return safeNextPath(decodeURIComponent(encoded));
+  } catch {
+    return DEFAULT_AUTH_NEXT;
+  }
+}
+
+function redirectWithError(reason: string, next: string = DEFAULT_AUTH_NEXT): Response {
+  const destination = safeNextPath(next);
+  const login = destination === DEFAULT_AUTH_NEXT
+    ? "/login"
+    : `/login?next=${encodeURIComponent(destination)}`;
+
   return new Response(null, {
     status: 302,
-    headers: { location: `/?auth_error=${encodeURIComponent(reason)}` },
+    headers: {
+      location: `${login}${login.includes("?") ? "&" : "?"}auth_error=${encodeURIComponent(reason)}`,
+    },
   });
 }

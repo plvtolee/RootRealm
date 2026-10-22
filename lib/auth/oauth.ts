@@ -119,6 +119,9 @@ export function buildAuthorizationUrl(input: AuthorizationUrlInput): string {
  */
 export const OAUTH_STATE_COOKIE = "rr_oauth_state";
 
+/** The short-lived cookie carrying the validated post-login destination. */
+export const OAUTH_NEXT_COOKIE = "rr_oauth_next";
+
 /** How long a started login may take to finish. */
 export const OAUTH_STATE_TTL_SECONDS = 60 * 10;
 

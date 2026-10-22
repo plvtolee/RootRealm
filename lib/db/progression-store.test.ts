@@ -4,6 +4,7 @@ import { createInMemoryProgressionStore } from "./progression-store";
 import type { DeveloperEvent } from "../developer-event";
 import type { LedgerEntry } from "../scoring/ledger";
 import type { AchievementUnlock } from "../achievements/unlock";
+import type { SkillUnlock } from "../skills/unlock";
 
 /**
  * TASKS 11.3 — the store's half of idempotency.
@@ -39,6 +40,17 @@ function unlock(overrides: Partial<AchievementUnlock> = {}): AchievementUnlock {
     unlockedAt: AT,
     scoringVersionId: "v1",
     evidenceEventIds: ["pr:1"],
+    ...overrides,
+  };
+}
+
+function skillUnlock(overrides: Partial<SkillUnlock> = {}): SkillUnlock {
+  return {
+    developerLogin: "octocat",
+    skillId: "builder-roots",
+    unlockedAt: AT,
+    scoringVersionId: "scoring-v1",
+    ruleId: "skill.builder-roots",
     ...overrides,
   };
 }
@@ -155,5 +167,34 @@ describe("saveEvents", () => {
     // Event identity is scoped to the occurrence, so a repeated observation of
     // the same id is the same fact, not a second one.
     expect(await store.saveEvents("octocat", [event("push:1")])).toBe(0);
+  });
+});
+
+describe("skill unlock persistence", () => {
+  it("round-trips learned ids for one developer", async () => {
+    const store = createInMemoryProgressionStore();
+
+    expect([...await store.learnedSkillIds("u1")]).toEqual([]);
+    expect(await store.recordSkillUnlock("u1", skillUnlock())).toBe(1);
+    expect([...await store.learnedSkillIds("u1")]).toEqual(["builder-roots"]);
+  });
+
+  it("is idempotent and scoped per developer", async () => {
+    const store = createInMemoryProgressionStore();
+
+    expect(await store.recordSkillUnlock("u1", skillUnlock())).toBe(1);
+    expect(await store.recordSkillUnlock("u1", skillUnlock())).toBe(0);
+    expect(await store.recordSkillUnlock("u2", skillUnlock())).toBe(1);
+    expect([...await store.learnedSkillIds("u1")]).toEqual(["builder-roots"]);
+    expect([...await store.learnedSkillIds("u2")]).toEqual(["builder-roots"]);
+  });
+
+  it("removes a learned id once and treats a repeat refund as a no-op", async () => {
+    const store = createInMemoryProgressionStore();
+    await store.recordSkillUnlock("u1", skillUnlock());
+
+    expect(await store.removeSkillUnlock("u1", "builder-roots")).toBe(1);
+    expect(await store.removeSkillUnlock("u1", "builder-roots")).toBe(0);
+    expect([...await store.learnedSkillIds("u1")]).toEqual([]);
   });
 });

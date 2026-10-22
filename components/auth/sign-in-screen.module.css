@@ -1,0 +1,126 @@
+.page {
+  display: flex;
+  min-height: 100vh;
+  flex-direction: column;
+  background: var(--color-bg);
+  color: var(--color-text-primary);
+}
+
+.topbar {
+  display: flex;
+  min-height: var(--layout-header-height);
+  flex: 0 0 var(--layout-header-height);
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-4);
+  border-bottom: var(--border-width-hairline) solid var(--color-border);
+  padding-inline: clamp(var(--spacing-6), 5.2vw, var(--spacing-16));
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-3);
+  color: var(--color-text-primary);
+  font-size: var(--text-body);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: var(--tracking-tight);
+}
+
+.brandMark { display: block; width: calc(var(--icon-size-lg) + var(--spacing-2)); height: calc(var(--icon-size-lg) + var(--spacing-2)); color: var(--color-accent); }
+.topNote { color: var(--color-text-secondary); font-size: var(--text-caption); }
+
+.main {
+  display: flex;
+  width: 100%;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  padding: var(--spacing-16) var(--spacing-6) calc(var(--spacing-16) + var(--spacing-3));
+}
+
+.auth { width: 100%; max-width: 26.25rem; margin-inline: auto; }
+
+.eyebrow {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  margin-bottom: var(--spacing-6);
+  color: var(--color-text-secondary);
+  font-size: var(--text-label);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+}
+
+.eyebrowLine { width: var(--spacing-6); height: var(--border-width-hairline); background: var(--color-accent); }
+
+.auth h1 {
+  margin: 0;
+  font-size: clamp(2.25rem, 5vw, 3rem);
+  line-height: 1.06;
+  letter-spacing: var(--tracking-tight);
+  font-weight: var(--font-weight-semibold);
+}
+
+.intro { max-width: 23rem; margin: var(--spacing-4) 0 var(--spacing-8); color: var(--color-text-secondary); }
+
+.githubButton {
+  display: flex;
+  width: 100%;
+  min-height: var(--control-height-lg);
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-3);
+  border: var(--border-width-hairline) solid var(--color-text-primary);
+  border-radius: var(--radius-md);
+  background: var(--color-text-primary);
+  color: var(--color-bg);
+  font-weight: var(--font-weight-semibold);
+  transition: background-color var(--motion-fast) var(--ease-standard), border-color var(--motion-fast) var(--ease-standard), transform var(--motion-fast) var(--ease-standard);
+}
+
+.githubButton svg { width: var(--icon-size-md); height: var(--icon-size-md); flex: 0 0 auto; }
+.githubButton:hover { border-color: var(--color-text-secondary); background: var(--color-text-secondary); transform: translateY(calc(var(--spacing-1) * -1)); }
+.githubButton:active { transform: translateY(0); }
+
+.status { min-height: var(--spacing-4); margin-top: var(--spacing-3); color: var(--color-text-secondary); }
+
+.providerNote {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-3);
+  margin-top: var(--spacing-4);
+  border-top: var(--border-width-hairline) solid var(--color-border);
+  padding-top: var(--spacing-4);
+  color: var(--color-text-secondary);
+}
+
+.providerNote svg { width: var(--icon-size-sm); height: var(--icon-size-sm); flex: 0 0 auto; margin-top: var(--spacing-1); color: var(--color-accent); }
+.fineprint { margin-top: var(--spacing-8); color: var(--color-text-muted); text-align: center; }
+.fineprint a { text-decoration: underline; text-decoration-color: var(--color-border-strong); text-underline-offset: var(--spacing-1); }
+.fineprint a:hover, .bottom a:hover { color: var(--color-text-primary); }
+
+.bottom {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--spacing-4);
+  padding: 0 clamp(var(--spacing-6), 5.2vw, var(--spacing-16)) var(--spacing-6);
+  color: var(--color-text-muted);
+}
+
+.bottomLinks { display: flex; gap: var(--spacing-4); }
+
+@media (max-width: 30rem) {
+  .topbar { min-height: calc(var(--layout-header-height) - var(--spacing-2)); flex-basis: calc(var(--layout-header-height) - var(--spacing-2)); padding-inline: var(--spacing-5); }
+  .brand { gap: var(--spacing-2); }
+  .brandMark { width: var(--icon-size-lg); height: var(--icon-size-lg); }
+  .topNote { font-size: var(--text-label); }
+  .main { padding: var(--spacing-12) var(--spacing-6) var(--spacing-16); }
+  .auth h1 { font-size: 2.375rem; }
+  .intro { margin-bottom: var(--spacing-6); }
+  .bottom { flex-direction: column; align-items: center; padding-inline: var(--spacing-5); text-align: center; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .githubButton { transition: none; }
+}

@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Text } from "@/components/ui/text";
+import { Reveal } from "@/components/motion/reveal";
 import { AvatarFrame } from "@/components/profile/avatar-frame";
 import {
   BANNER_WASH,
@@ -33,7 +34,7 @@ import {
 const REFUSAL_COPY: Record<string, string> = {
   not_owned: "It is not in your collection yet.",
   unknown_item: "That item is not in the catalog.",
-  unauthenticated: "Sign in with GitHub to change what you are wearing.",
+  unauthenticated: "Your authenticated session is required to change what you are wearing.",
   bad_request: "That change was not understood.",
 };
 
@@ -73,14 +74,6 @@ export type CustomizationScreenProps = {
    * in the shop is already owned here. Defaults to the starter loadout.
    */
   equipped?: EquippedCosmetics;
-  /**
-   * No trusted session.
-   *
-   * The preview still renders — a visitor can see the collection — but equip and
-   * unequip are disabled rather than optimistically applied to state nobody
-   * persists.
-   */
-  signedOut?: boolean;
   /** The previewed developer's login. Drives the avatar fallback. */
   login?: string;
   /** A GitHub avatar, when the account has one (TASKS 9.2). */
@@ -130,7 +123,6 @@ export type CustomizationScreenProps = {
 export function CustomizationScreen({
   inventory,
   equipped,
-  signedOut = false,
   login = "plvtolee",
   avatarUrl = null,
   className,
@@ -188,17 +180,14 @@ export function CustomizationScreen({
       return;
     }
 
-    if (!signedOut) {
-      post(
-        "/api/shop",
-        { itemId: option.definition.id },
-        `${option.definition.name} equipped.`,
-      );
-    }
+    post(
+      "/api/shop",
+      { itemId: option.definition.id },
+      `${option.definition.name} equipped.`,
+    );
   }
 
   function unequip(slot: CosmeticSlot): void {
-    if (signedOut) return;
     const section = view.slots.find((entry) => entry.slot === slot);
     post(
       "/api/shop/unequip",
@@ -209,10 +198,9 @@ export function CustomizationScreen({
     );
   }
 
-  const signedIn = !signedOut;
-
   return (
     <div className={cn("flex flex-col gap-6", className)}>
+      <Reveal>
       <header className="flex flex-wrap items-center justify-between gap-3">
         <Text variant="heading" as="h1">
           Customization
@@ -226,7 +214,9 @@ export function CustomizationScreen({
           </Badge>
         </div>
       </header>
+      </Reveal>
 
+      <Reveal>
       <nav aria-label="Cosmetic slots" className="flex flex-wrap gap-2">
         {view.slots.map((section) => (
           <button
@@ -248,8 +238,9 @@ export function CustomizationScreen({
           </button>
         ))}
       </nav>
+      </Reveal>
 
-      <div className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
+      <Reveal className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
         <Card className="border-border bg-surface-secondary p-4">
           <div className="mb-4 flex items-center justify-between gap-3">
             <Text variant="subheading" as="h2" className="text-text-primary">
@@ -265,7 +256,7 @@ export function CustomizationScreen({
               <OptionCard
                 key={option.definition.id}
                 option={option}
-                disabled={pending || !signedIn}
+                disabled={pending}
                 onSelect={() => select(option)}
                 onUnequip={() => unequip(active.slot)}
               />
@@ -274,8 +265,9 @@ export function CustomizationScreen({
         </Card>
 
         <div className="space-y-4">
-          <PreviewCard
-            sections={view.slots}
+              <PreviewCard
+                key={view.slots.map((section) => section.equipped?.id ?? "none").join("-")}
+                sections={view.slots}
             login={login}
             avatarUrl={avatarUrl}
             frameIntensity={frameIntensity}
@@ -300,7 +292,7 @@ export function CustomizationScreen({
               value={frameIntensity}
               onChange={(event) => setFrameIntensity(Number(event.currentTarget.value))}
               aria-valuetext={`${frameIntensity} percent`}
-              className="mt-3 w-full accent-accent"
+              className="motion-transition-fast mt-3 w-full accent-accent hover:scale-(--motion-hover-scale) motion-reduce:transform-none"
             />
             <label className="mt-4 flex items-center gap-3 text-label text-text-secondary">
               <input
@@ -336,8 +328,7 @@ export function CustomizationScreen({
               ))}
             </div>
             <div className="mt-4 flex gap-2">
-              {signedIn ? (
-                <Button
+              <Button
                   variant="secondary"
                   size="sm"
                   disabled={pending}
@@ -359,7 +350,6 @@ export function CustomizationScreen({
                 >
                   Clear all
                 </Button>
-              ) : null}
             </div>
             <div aria-live="polite" className="mt-4 min-h-(--shop-notice-min-height)">
               {notice ? (
@@ -370,7 +360,7 @@ export function CustomizationScreen({
             </div>
           </Card>
         </div>
-      </div>
+      </Reveal>
     </div>
   );
 }
@@ -476,7 +466,7 @@ function PreviewCard({
   const effect = definitionFor("effect");
 
   return (
-    <Card className="overflow-hidden border-border bg-surface-secondary">
+    <Card className="motion-state-enter overflow-hidden border-border bg-surface-secondary">
       <div
         className={cn(
           "flex h-(--customization-banner-height) items-end justify-between border-b border-border px-4 pb-3",

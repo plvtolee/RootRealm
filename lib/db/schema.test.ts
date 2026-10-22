@@ -29,6 +29,7 @@ describe("schema structure (10.2-10.5)", () => {
       "achievement_unlocks",
       "quests",
       "quest_progress",
+      "quest_completions",
       "cosmetic_items",
       "inventory_items",
       "currency_transactions",
@@ -110,6 +111,14 @@ describe("foreign keys and constraints (10.6)", () => {
   it("scopes quest progress to a period, so a daily quest can reset", () => {
     const questProgress = findTable("quest_progress") as Table;
     expect(questProgress.unique).toContainEqual({ columns: ["user_id", "quest_id", "period_key"] });
+  });
+
+  it("keys quest rewards by developer, quest and period", () => {
+    const completions = findTable("quest_completions") as Table;
+    expect(completions.unique).toContainEqual({ columns: ["user_id", "quest_id", "period_key"] });
+    expect(completions.columns.map((column) => column.name)).toEqual(
+      expect.arrayContaining(["evidence_event_ids", "scoring_version_id"]),
+    );
   });
 
   it("keys XP transactions by the idempotency key, so a repeat sync cannot double-award", () => {

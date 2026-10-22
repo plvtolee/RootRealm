@@ -192,4 +192,5 @@ export function resetStores(): void {
   const scope = globalThis as GlobalScope;
   delete scope[ACCOUNTS_KEY];
   delete scope[WALLETS_KEY];
+  delete scope[PROGRESSION_KEY];
 }

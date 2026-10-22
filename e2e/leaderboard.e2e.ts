@@ -44,22 +44,12 @@ async function ensureNotParticipating(
 }
 
 test.describe("leaderboard journey — season, eligibility and opt-in", () => {
-  test("a guest sees the season and its published rules, and is invited to sign in", async ({
-    page,
-  }) => {
+  test("a guest is sent to the shared login wall", async ({ page }) => {
     await page.goto("/leaderboard");
 
-    // A running season with a name and a window label (TASKS 16.1, 16.6).
-    await expect(page.getByText("Ranked season")).toBeVisible();
-    await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "How this season is scored" })).toBeVisible();
-
-    // Transparency: the evidence minimum and the opt-in requirement are stated
-    // to everyone, including developers who are not on the board.
-    await expect(page.getByText(/you must opt in/)).toBeVisible();
-
-    // The guest is offered the one action that changes that.
-    await expect(page.getByText(/Sign in with GitHub to see your standing/)).toBeVisible();
+    await expect(page).toHaveURL(/\/login\?next=%2Fleaderboard$/);
+    await expect(page.getByRole("heading", { name: "Enter your realm." })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Continue with GitHub" })).toBeVisible();
   });
 
   test("a signed-in developer can join the season and the control reflects it", async ({

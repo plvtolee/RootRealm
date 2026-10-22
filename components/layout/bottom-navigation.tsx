@@ -1,11 +1,11 @@
 "use client";
 
-import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 import { cn } from "@/lib/cn";
 
-import { NAV_ITEMS, isNavActive } from "./nav-items";
+import { NAV_ITEMS, isNavActive, primaryNavIndex } from "./nav-items";
+import { NavigationIndicator, NavigationLink } from "./navigation-link";
 
 export type BottomNavigationProps = {
   className?: string;
@@ -37,26 +37,41 @@ export function BottomNavigation({ className }: BottomNavigationProps) {
       aria-label="Primary navigation"
       className={cn("fixed inset-x-0 bottom-0 z-40 border-t border-border bg-surface py-1 lg:hidden", className)}
     >
-      <ul className="flex items-stretch">
-        {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
-          const active = isNavActive(pathname, href);
-          return (
-            <li key={href} className="flex min-w-0 flex-1">
-              <Link
-                href={href}
-                aria-current={active ? "page" : undefined}
-                className={cn(
-                  "flex h-(--control-height-md) min-w-0 flex-1 flex-col items-center justify-center gap-1 px-1 text-label transition-colors duration-(--motion-base) ease-standard motion-reduce:transition-none",
-                  active ? "text-accent" : "text-text-secondary hover:text-text-primary",
-                )}
+      <NavigationIndicator
+        activeIndex={primaryNavIndex(pathname)}
+        indicatorClassName="top-0 h-(--border-width-emphasis) bg-accent"
+      >
+        <ul className="flex items-stretch">
+          {NAV_ITEMS.map(({ href, label, icon: Icon }, index) => {
+            const active = isNavActive(pathname, href);
+            return (
+              <li
+                key={href}
+                className="flex min-w-0 flex-1"
+                data-navigation-index={index}
               >
-                <Icon className="size-(--icon-size-md) shrink-0" />
-                <span className="truncate">{label}</span>
-              </Link>
-            </li>
-          );
-        })}
-      </ul>
+                <NavigationLink
+                  href={href}
+                  aria-current={active ? "page" : undefined}
+                  className={cn(
+                    "group flex h-(--control-height-md) min-w-0 flex-1 flex-col items-center justify-center gap-1 px-1 text-label transition-colors duration-(--motion-base) ease-standard motion-reduce:transition-none",
+                    active
+                      ? "text-accent"
+                      : "text-text-secondary hover:text-text-primary focus-visible:text-accent active:text-accent",
+                  )}
+                >
+                  <Icon
+                    className="size-(--icon-size-md) shrink-0 transition-transform duration-(--motion-fast) ease-standard group-hover:scale-(--motion-hover-scale) group-focus-visible:scale-(--motion-hover-scale) group-active:scale-(--motion-press-scale) motion-reduce:transform-none motion-reduce:transition-none"
+                  />
+                  <span className="truncate transition-colors duration-(--motion-fast) ease-standard">
+                    {label}
+                  </span>
+                </NavigationLink>
+              </li>
+            );
+          })}
+        </ul>
+      </NavigationIndicator>
     </nav>
   );
 }

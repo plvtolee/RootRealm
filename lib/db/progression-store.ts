@@ -34,6 +34,8 @@ import type { DeveloperEvent } from "../developer-event";
 import type { RepositoryRecord } from "../github/repositories";
 import type { LedgerEntry } from "../scoring/ledger";
 import type { AchievementUnlock } from "../achievements/unlock";
+import type { QuestCompletion } from "../quests/completion";
+import type { SkillUnlock } from "../skills/unlock";
 
 /**
  * Durable progression.
@@ -77,6 +79,9 @@ export interface ProgressionStore {
   /** Achievement ids already earned by this developer. */
   earnedAchievementIds(userId: string): Promise<ReadonlySet<string>>;
 
+  /** Skill ids already learned by this developer. */
+  learnedSkillIds(userId: string): Promise<ReadonlySet<string>>;
+
   /** Writes awards. Returns how many were new; duplicates are skipped, not overwritten. */
   recordTransactions(
     userId: string,
@@ -89,6 +94,18 @@ export interface ProgressionStore {
     userId: string,
     unlocks: readonly AchievementUnlock[],
   ): Promise<number>;
+
+  /** Completion keys already recorded for this developer. */
+  completedQuestKeys(userId: string): Promise<ReadonlySet<string>>;
+
+  /** Writes one period-scoped quest completion. Returns zero for a duplicate. */
+  recordQuestCompletion(userId: string, completion: QuestCompletion, progress: number): Promise<number>;
+
+  /** Writes one skill unlock. Returns zero when the node was already learned. */
+  recordSkillUnlock(userId: string, unlock: SkillUnlock): Promise<number>;
+
+  /** Removes one skill unlock. Returns zero when it was not learned. */
+  removeSkillUnlock(userId: string, skillId: string): Promise<number>;
 
   /** Total XP awarded to date, for the profile. */
   totalXp(userId: string): Promise<number>;
@@ -111,6 +128,8 @@ export function createInMemoryProgressionStore(): ProgressionStore {
   const events = new Map<string, DeveloperEvent>();
   const keys = new Map<string, Set<string>>();
   const earned = new Map<string, Set<string>>();
+  const completedQuests = new Map<string, Set<string>>();
+  const learned = new Map<string, Set<string>>();
   const xp = new Map<string, number>();
 
   const setFor = (map: Map<string, Set<string>>, userId: string): Set<string> => {
@@ -157,6 +176,10 @@ export function createInMemoryProgressionStore(): ProgressionStore {
       return new Set(setFor(earned, userId));
     },
 
+    async learnedSkillIds(userId) {
+      return new Set(setFor(learned, userId));
+    },
+
     async recordTransactions(userId, _login, entries) {
       const held = setFor(keys, userId);
       let written = 0;
@@ -178,6 +201,30 @@ export function createInMemoryProgressionStore(): ProgressionStore {
         written += 1;
       }
       return written;
+    },
+
+    async completedQuestKeys(userId) {
+      return new Set(setFor(completedQuests, userId));
+    },
+
+    async recordQuestCompletion(userId, completion, _progress) {
+      void _progress;
+      const held = setFor(completedQuests, userId);
+      if (held.has(completion.id)) return 0;
+      held.add(completion.id);
+      return 1;
+    },
+
+    async recordSkillUnlock(userId, unlock) {
+      const held = setFor(learned, userId);
+      if (held.has(unlock.skillId)) return 0;
+      held.add(unlock.skillId);
+      return 1;
+    },
+
+    async removeSkillUnlock(userId, skillId) {
+      const held = setFor(learned, userId);
+      return held.delete(skillId) ? 1 : 0;
     },
 
     async totalXp(userId) {
@@ -310,6 +357,14 @@ export function createPostgresProgressionStore(db: ProgressionExecutor): Progres
       return new Set(result.rows.map((row) => String(row.achievement_id)));
     },
 
+    async learnedSkillIds(userId) {
+      const result = await db.query(
+        "SELECT skill_id FROM skill_unlocks WHERE user_id = $1 ORDER BY unlocked_at, id;",
+        [userId],
+      );
+      return new Set(result.rows.map((row) => String(row.skill_id)));
+    },
+
     async recordTransactions(userId, login, entries) {
       if (entries.length === 0) return 0;
 
@@ -377,6 +432,62 @@ export function createPostgresProgressionStore(db: ProgressionExecutor): Progres
         values,
       );
 
+      return rowCount(result);
+    },
+
+    async completedQuestKeys(userId) {
+      const result = await db.query(
+        "SELECT id FROM quest_completions WHERE user_id = $1;",
+        [userId],
+      );
+      return new Set(result.rows.map((row) => String(row.id)));
+    },
+
+    async recordQuestCompletion(userId, completion, progress) {
+      const result = await db.query(
+        `INSERT INTO quest_completions
+           (id, user_id, quest_id, period_key, progress, completed_at,
+            evidence_event_ids, scoring_version_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8)
+         ON CONFLICT (user_id, quest_id, period_key) DO NOTHING;`,
+        [
+          completion.id,
+          userId,
+          completion.questId,
+          completion.periodKey,
+          progress,
+          completion.completedAt,
+          JSON.stringify(completion.evidenceEventIds),
+          completion.scoringVersionId,
+        ],
+      );
+      return rowCount(result);
+    },
+
+    async recordSkillUnlock(userId, unlock) {
+      const result = await db.query(
+        `INSERT INTO skill_unlocks
+           (id, user_id, skill_id, evidence, unlocked_at)
+         VALUES ($1, $2, $3, $4::jsonb, $5)
+         ON CONFLICT (user_id, skill_id) DO NOTHING
+         RETURNING skill_id;`,
+        [
+          `${userId}:${unlock.skillId}`,
+          userId,
+          unlock.skillId,
+          JSON.stringify({ scoringVersionId: unlock.scoringVersionId, ruleId: unlock.ruleId }),
+          unlock.unlockedAt,
+        ],
+      );
+
+      return rowCount(result);
+    },
+
+    async removeSkillUnlock(userId, skillId) {
+      const result = await db.query(
+        "DELETE FROM skill_unlocks WHERE user_id = $1 AND skill_id = $2 RETURNING skill_id;",
+        [userId, skillId],
+      );
       return rowCount(result);
     },
 

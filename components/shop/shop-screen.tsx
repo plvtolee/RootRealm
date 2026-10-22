@@ -16,8 +16,8 @@ import {
   type GlyphProps,
 } from "@/components/ui/content-glyphs";
 import { Text } from "@/components/ui/text";
+import { Reveal } from "@/components/motion/reveal";
 import { AvatarFrame, type AvatarFrameMode } from "@/components/profile/avatar-frame";
-import { DevFundButton } from "@/components/dev/dev-fund-button";
 import { cn } from "@/lib/cn";
 import type { CosmeticRarity, CosmeticSlot } from "@/lib/cosmetics/definition";
 import { SLOT_LABEL } from "@/lib/cosmetics/definition";
@@ -87,21 +87,11 @@ export type ShopScreenProps = {
    * than fetching one: the balance and ownership it shows are the server's
    * answer, not a client's guess at it.
    */
-  readonly view: ShopViewState | null;
-  /** No trusted session: nothing here is for sale. */
-  readonly signedOut?: boolean;
+  readonly view: ShopViewState;
   /** The previewed developer's login, used for the avatar fallback. */
   readonly login?: string;
   /** A GitHub avatar, when the account has one (TASKS 9.2). */
   readonly avatarUrl?: string | null;
-  /**
-   * Render the development funding control in the signed-out state.
-   *
-   * Passed by the server page rather than read from `process.env` here, so the
-   * flag is decided in one place (the page) and the component has no opinion
-   * about environments.
-   */
-  readonly devHarness?: boolean;
   readonly className?: string;
 };
 
@@ -129,7 +119,7 @@ export type ShopScreenProps = {
  * screen renders the refusal the server sends, including the case where an item
  * looked affordable a moment ago and no longer is.
  */
-export function ShopScreen({ view, signedOut = false, devHarness = false, login = "plvtolee", avatarUrl = null, className }: ShopScreenProps) {
+export function ShopScreen({ view, login = "plvtolee", avatarUrl = null, className }: ShopScreenProps) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [slot, setSlot] = useState<CosmeticSlot>("frame");
@@ -184,31 +174,22 @@ export function ShopScreen({ view, signedOut = false, devHarness = false, login 
     return items[0] ?? view.items[0] ?? null;
   }, [view, items, selectedId, slot]);
 
-  if (signedOut || view === null || selected === null) {
+  if (selected === null) {
     return (
       <div className={cn("flex flex-col gap-6", className)}>
         <Text variant="heading" as="h1">
-          The Shop
+          Shop unavailable
         </Text>
-        <Card className="border-border bg-surface-secondary p-6">
-          <Text variant="subheading" as="h2" className="text-text-primary">
-            Sign in to open the shop
-          </Text>
-          <Text variant="body" className="mt-2 text-text-secondary">
-            CodeCoins and purchased cosmetics belong to an account, so the shop
-            needs a signed session before it can show a balance or sell anything.
-          </Text>
-          <div className="mt-4 flex flex-wrap items-center gap-3">
-            <Button onClick={() => router.push("/api/auth/github")}>Sign in with GitHub</Button>
-            {devHarness ? <DevFundButton label="Fund a development wallet" /> : null}
-          </div>
-        </Card>
+        <Text variant="body" className="text-text-secondary">
+          The catalogue could not be loaded. Try refreshing the page.
+        </Text>
       </div>
     );
   }
 
   return (
     <div className={cn("flex flex-col gap-8", className)}>
+      <Reveal>
       <header className="flex flex-col gap-6 border-b border-border pb-6 md:flex-row md:items-end md:justify-between">
         <div className="max-w-xl space-y-3">
           <Text variant="label" className="text-text-muted">
@@ -240,9 +221,13 @@ export function ShopScreen({ view, signedOut = false, devHarness = false, login 
           </div>
         </Card>
       </header>
+      </Reveal>
 
+      <Reveal>
       <section aria-label="Featured item" className="grid overflow-hidden rounded-lg border border-border bg-surface lg:grid-cols-[1.2fr_0.8fr]">
-        <PreviewPanel item={selected} login={login} avatarUrl={avatarUrl} />
+        <div key={selected.definition.id} className="motion-state-enter">
+          <PreviewPanel item={selected} login={login} avatarUrl={avatarUrl} />
+        </div>
 
         <div className="flex flex-col justify-center p-6 md:p-8">
           <div className="mb-6 flex flex-wrap items-center gap-2">
@@ -305,7 +290,9 @@ export function ShopScreen({ view, signedOut = false, devHarness = false, login 
           </div>
         </div>
       </section>
+      </Reveal>
 
+      <Reveal>
       <section aria-labelledby="catalog-heading" className="space-y-6">
         <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
           <div className="space-y-2">
@@ -347,22 +334,24 @@ export function ShopScreen({ view, signedOut = false, devHarness = false, login 
         </div>
 
         <div className="grid items-stretch gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {items.map((item) => (
-            <ShopItemCard
-              key={item.definition.id}
-              item={item}
-              selected={selected.definition.id === item.definition.id}
-              busy={busy}
-              onSelect={() => {
-                setSelectedId(item.definition.id);
-                setNotice(null);
-              }}
-              onEquip={() => void act("/api/shop", item.definition.id)}
-              onPurchase={() => void act("/api/shop/purchase", item.definition.id)}
-            />
+          {items.map((item, index) => (
+            <Reveal key={item.definition.id} style={{ animationDelay: `calc(var(--motion-fast) * ${Math.min(index, 5)})` }}>
+              <ShopItemCard
+                item={item}
+                selected={selected.definition.id === item.definition.id}
+                busy={busy}
+                onSelect={() => {
+                  setSelectedId(item.definition.id);
+                  setNotice(null);
+                }}
+                onEquip={() => void act("/api/shop", item.definition.id)}
+                onPurchase={() => void act("/api/shop/purchase", item.definition.id)}
+              />
+            </Reveal>
           ))}
         </div>
       </section>
+      </Reveal>
 
       <Text variant="caption" className="text-text-muted">
         Purchases and equips are recorded on the server. The wallet is held in

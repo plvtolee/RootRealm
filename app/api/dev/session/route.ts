@@ -18,7 +18,7 @@ import { issueSession, sessionCookieAttributes, SESSION_COOKIE } from "@/lib/aut
 import { readSessionSecret } from "@/lib/auth/config";
 import { currencyKey, type CurrencyTransaction } from "@/lib/currency/ledger";
 import { newWallet, type Wallet } from "@/lib/currency/store";
-import { accountStore, storageBackend, walletStore } from "@/lib/db/stores";
+import { accountStore, walletStore } from "@/lib/db/stores";
 
 export const dynamic = "force-dynamic";
 
@@ -53,17 +53,22 @@ export async function POST(request: Request): Promise<Response> {
   // harness has to create the user it is about to fund. The negative GitHub id
   // cannot collide with a real one (GitHub ids are positive), and the login is
   // marked so a seeded development account is never mistaken for a claimed one.
-  if (storageBackend() === "postgres") {
-    await accountStore().save({
-      id: userId,
-      login: `dev:${userId}`,
-      githubId: -Math.abs(hashUserId(userId)),
-      displayName: "Development user",
-      avatarUrl: null,
-      createdAt: at,
-      verified: false,
-    });
-  }
+  // The account must exist in both backends: `/api/profile/me` resolves the
+  // session through the account store, and the in-memory E2E/dev backend used to
+  // mint a cookie without creating the account it named. That made every
+  // development session look signed out to account-aware screens.
+  await accountStore().save({
+    id: userId,
+    // The E2E mock GitHub serves this valid login. Keeping it GitHub-shaped also
+    // lets account-aware screens exercise their real evidence path instead of
+    // failing username validation on a `dev:` marker.
+    login: "e2e-dev",
+    githubId: -Math.abs(hashUserId(userId)),
+    displayName: "Development user",
+    avatarUrl: null,
+    createdAt: at,
+    verified: false,
+  });
 
   await walletStore().save(newWallet(userId, at, [funding]) as Wallet);
 

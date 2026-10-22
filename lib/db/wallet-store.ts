@@ -50,8 +50,10 @@ import {
   type Inventory,
   type InventoryItem,
 } from "../cosmetics/inventory";
+import { grantFromQuestCompletion } from "../cosmetics/inventory";
 import { currencyKey, type CurrencyTransaction } from "../currency/ledger";
 import { purchaseCosmetic, type PurchaseOutcome } from "../currency/purchase";
+import type { CosmeticGrant } from "../quests/completion";
 import type { Wallet, WalletStore } from "../currency/store";
 
 import { allRows, readBoolean, readIso, readNumber, readText, type SqlExecutor } from "./sql";
@@ -363,6 +365,41 @@ export function createPostgresWalletStore(
     });
   }
 
+  async function grant(input: {
+    readonly userId: string;
+    readonly transaction: CurrencyTransaction | null;
+    readonly cosmeticGrant: CosmeticGrant | null;
+    readonly at: string;
+  }): Promise<void> {
+    await openTransaction(async (tx) => {
+      const wallet = await readOrCreate(tx, input.userId, input.at);
+
+      if (input.transaction !== null && !wallet.transactions.some((entry) => entry.id === input.transaction?.id)) {
+        await tx.query(
+          `INSERT INTO currency_transactions
+             (transaction_id, user_id, amount, reason, source_id, created_at)
+           VALUES ($1, $2, $3, $4, $5, $6)
+           ON CONFLICT (transaction_id) DO NOTHING;`,
+          [
+            input.transaction.id,
+            input.userId,
+            input.transaction.amount,
+            input.transaction.reason,
+            input.transaction.sourceId,
+            input.transaction.recordedAt,
+          ],
+        );
+      }
+
+      if (input.cosmeticGrant !== null) {
+        const granted = grantFromQuestCompletion(wallet.inventory, input.cosmeticGrant, input.at);
+        if (granted.granted) {
+          await writeInventoryItem(tx, input.userId, granted.inventory.items.at(-1)!, false);
+        }
+      }
+    });
+  }
+
   return {
     read: (userId) => readOrCreate(db, userId, new Date(0).toISOString()),
 
@@ -403,5 +440,6 @@ export function createPostgresWalletStore(
     purchase,
     equip,
     unequip,
+    grant,
   };
 }

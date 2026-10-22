@@ -84,7 +84,7 @@ export function ProfileIdentity({ profile, className }: ProfileIdentityProps) {
         </div>
 
         <Link
-          href="/profile/edit"
+          href="/customization"
           className="inline-flex min-h-(--control-height-md) items-center justify-center rounded-md border border-border bg-surface px-4 text-label text-text-primary transition-colors duration-(--motion-fast) ease-standard hover:border-border-strong hover:bg-state-hover motion-reduce:transition-none"
         >
           Edit Profile

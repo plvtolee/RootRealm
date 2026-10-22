@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { claimAccount, createInMemoryAccountStore } from "./account";
+import { claimAccount, createInMemoryAccountStore, githubLoginForUserId } from "./account";
 import type { GitHubIdentity } from "./oauth";
 
 const identity: GitHubIdentity = {
@@ -61,5 +61,13 @@ describe("claimAccount (9.2 and 9.3)", () => {
     });
 
     expect(a.account.id).not.toBe(b.account.id);
+  });
+
+  it("maps a session user id to its GitHub login without treating the login as the id", async () => {
+    const store = createInMemoryAccountStore();
+    await claimAccount({ identity, store, now: "2026-10-12T00:00:00.000Z", createId: () => "root-user-1" });
+
+    expect(await githubLoginForUserId("root-user-1", store)).toBe("octocat");
+    expect(await githubLoginForUserId("octocat", store)).toBeNull();
   });
 });

@@ -27,6 +27,7 @@
  */
 import { COSMETIC_DEFINITIONS } from "../cosmetics/catalog";
 import { ACHIEVEMENT_DEFINITIONS } from "../achievements/definition";
+import { SKILL_DEFINITIONS } from "../skills/catalog";
 import { SCORING_V1 } from "../scoring/types";
 import type { SqlExecutor } from "./sql";
 
@@ -119,26 +120,53 @@ async function seedScoringVersions(db: SqlExecutor): Promise<number> {
   return 1;
 }
 
+/** Writes the skill catalogue required by skill_unlocks' foreign key. */
+async function seedSkills(db: SqlExecutor): Promise<number> {
+  const tierNumber = { roots: 1, foundation: 2, intermediate: 3, advanced: 4, mastery: 5 } as const;
+
+  for (const skill of SKILL_DEFINITIONS) {
+    await db.query(
+      `INSERT INTO skill_nodes
+         (id, category, tier, title, description, prerequisites, evidence, xp_reward)
+       VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7::jsonb, $8)
+       ON CONFLICT (id) DO NOTHING;`,
+      [
+        skill.id,
+        skill.branch ?? "origin",
+        tierNumber[skill.tier],
+        skill.title,
+        skill.description,
+        JSON.stringify(skill.prerequisiteIds),
+        JSON.stringify(skill.requirement === null ? [] : [skill.requirement]),
+        0,
+      ],
+    );
+  }
+
+  return SKILL_DEFINITIONS.length;
+}
+
 /**
  * Writes every catalogue.
  *
  * Cosmetics and the scoring version are what a wallet and an XP transaction
  * actually need to exist; the remaining catalogues (skills, achievements, quests)
  * are written here too so the database is never missing a table a later phase
- * joins against. `skills`/`achievements`/`quests` are seeded by their own phases
- * once the code catalogues are wired to the database; until then they stay empty
- * and nothing references them.
+ * joins against. Skill rows are required now because `skill_unlocks` references
+ * them; quests remain owned by their later phase.
  */
 export async function seedCatalogues(db: SqlExecutor): Promise<SeedReport> {
   const cosmetics = await seedCosmetics(db);
   const scoringVersions = await seedScoringVersions(db);
 
   const achievements = await seedAchievements(db);
+  const skills = await seedSkills(db);
 
   const inserted = {
     cosmetic_items: cosmetics,
     scoring_versions: scoringVersions,
     achievements,
+    skill_nodes: skills,
   };
 
   return {

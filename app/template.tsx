@@ -1,5 +1,7 @@
 import type { ReactNode } from "react";
 
+import { Reveal } from "@/components/motion/reveal";
+
 /**
  * Page transition foundation (Task 1.4).
  *
@@ -8,12 +10,13 @@ import type { ReactNode } from "react";
  * changes and never when the shell re-renders.
  *
  * Notes:
- * - it is a server component. The transition is one CSS animation
- *   (`--animate-page-enter` in `styles/tokens/motion.css`), so route changes
- *   cost no JavaScript and no animation library
- * - the token carries the duration and easing; under `prefers-reduced-motion`
- *   the same class resolves to a fade without movement, so the information
- *   still appears (DESIGN_SYSTEM §12)
+ * - it remains a server component. `Reveal` is the narrow client boundary for
+ *   the viewport-safe trigger; the transition itself is still one CSS
+ *   animation (`--animate-page-slide` in `styles/tokens/motion.css`), so route
+ *   changes use no animation library
+ * - the token carries the duration and easing; primary navigation records the
+ *   slide direction before a route swap, and under `prefers-reduced-motion`
+ *   the same class resolves to a fade without movement (DESIGN_SYSTEM §12)
  * - the wrapper is a flex column that fills the shell's content region, so a
  *   screen can use `flex-1` inside it. It does not add spacing of its own: a
  *   screen owns its own vertical rhythm
@@ -22,5 +25,9 @@ import type { ReactNode } from "react";
  *   navigation) therefore belongs in the layout, not inside a page
  */
 export default function Template({ children }: { children: ReactNode }) {
-  return <div className="flex flex-1 flex-col animate-page-enter">{children}</div>;
+  return (
+    <Reveal variant="page" className="flex flex-1 flex-col">
+      {children}
+    </Reveal>
+  );
 }

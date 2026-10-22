@@ -46,7 +46,6 @@ const ROUTES = [
   "/",
   "/home",
   "/profile",
-  "/profile/edit",
   "/skill-tree",
   "/achievements",
   "/quests",

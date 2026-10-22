@@ -1,12 +1,12 @@
 "use client";
 
-import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 import { cn } from "@/lib/cn";
 
 import { Container } from "./container";
-import { NAV_ITEMS, isNavActive } from "./nav-items";
+import { NAV_ITEMS, isNavActive, primaryNavIndex } from "./nav-items";
+import { NavigationIndicator, NavigationLink } from "./navigation-link";
 
 export type TopNavigationProps = {
   className?: string;
@@ -19,33 +19,41 @@ export function TopNavigation({ className }: TopNavigationProps) {
   return (
     <header className={cn("sticky top-0 z-40 border-b border-border bg-bg", className)}>
       <Container className="flex h-(--control-height-md) items-center justify-between gap-4 lg:h-(--layout-header-height) lg:justify-start lg:gap-6">
-        <Link
+        <NavigationLink
           href="/"
           className="flex min-h-(--control-height-md) items-center whitespace-nowrap text-heading text-text-primary transition-colors duration-(--motion-base) ease-standard hover:text-accent motion-reduce:transition-none"
         >
           RootRealm
-        </Link>
+        </NavigationLink>
 
         <nav aria-label="Primary navigation" className="hidden h-full items-stretch lg:flex">
-          <ul className="flex items-stretch gap-2">
-            {NAV_ITEMS.map(({ href, label }) => {
-              const active = isNavActive(pathname, href);
-              return (
-                <li key={href} className="flex">
-                  <Link
-                    href={href}
-                    aria-current={active ? "page" : undefined}
-                    className={cn(
-                      "flex h-full items-center whitespace-nowrap px-3 transition-colors duration-(--motion-base) ease-standard motion-reduce:transition-none",
-                      active ? "border-b-emphasis border-accent text-accent" : "text-text-secondary hover:text-text-primary",
-                    )}
-                  >
-                    {label}
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
+          <NavigationIndicator
+            activeIndex={primaryNavIndex(pathname)}
+            className="h-full"
+            indicatorClassName="bottom-0 h-(--border-width-emphasis) bg-accent"
+          >
+            <ul className="flex h-full items-stretch gap-2">
+              {NAV_ITEMS.map(({ href, label }, index) => {
+                const active = isNavActive(pathname, href);
+                return (
+                  <li key={href} className="flex" data-navigation-index={index}>
+                    <NavigationLink
+                      href={href}
+                      aria-current={active ? "page" : undefined}
+                      className={cn(
+                        "group flex h-full items-center whitespace-nowrap px-3 transition-colors duration-(--motion-base) ease-standard motion-reduce:transition-none",
+                        active
+                          ? "text-accent"
+                          : "text-text-secondary hover:text-text-primary focus-visible:text-accent active:text-accent",
+                      )}
+                    >
+                      {label}
+                    </NavigationLink>
+                  </li>
+                );
+              })}
+            </ul>
+          </NavigationIndicator>
         </nav>
 
         <div className="ml-auto flex items-center gap-4">

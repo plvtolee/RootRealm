@@ -23,6 +23,8 @@
 import { statusForReason } from "@/lib/github/failure";
 import { errorStateFor } from "@/lib/github/error-states";
 import { buildProfilePreview } from "@/lib/profile/service";
+import { accountStore, progressionStore } from "@/lib/db/stores";
+import { userIdFromRequest } from "@/lib/shop/service";
 import { parseGitHubLogin, safeJson } from "@/lib/security/server";
 import { logIngestionFailure, logRateLimit, serviceLogger } from "@/lib/ops/monitoring";
 
@@ -83,9 +85,17 @@ export async function GET(request: Request): Promise<Response> {
 
   logRateLimit(result.preview.rateLimit, { operation: "profile-preview", login: parsed.login }, logger);
 
+  // The preview remains public, but learned ids are private account state. Only
+  // attach them when the trusted session resolves to the same GitHub login.
+  const userId = userIdFromRequest(request);
+  const account = userId === null ? null : await accountStore().findById(userId);
+  const learnedSkillIds = account?.login === parsed.login
+    ? [...(await progressionStore().learnedSkillIds(account.id))]
+    : [];
+
   return safeJson(
     {
-      preview: result.preview,
+      preview: { ...result.preview, learnedSkillIds },
       failure: null,
       rateLimit: result.preview.rateLimit,
     },

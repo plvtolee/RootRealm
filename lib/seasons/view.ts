@@ -90,7 +90,18 @@ export function computeLeaderboardView(input: {
   readonly viewerEvents?: readonly DeveloperEvent[];
   readonly safeguardsPass?: boolean;
 }): LeaderboardViewState {
-  const published = input.standings.filter((standing) =>
+  // The store keeps immutable snapshots, so a developer can have several
+  // published records for one season. The live ladder must show the newest one,
+  // not one row per page visit.
+  const latestByDeveloper = new Map<string, RankStanding>();
+  for (const standing of input.standings) {
+    const current = latestByDeveloper.get(standing.developerLogin);
+    if (current === undefined || standing.computedAt > current.computedAt) {
+      latestByDeveloper.set(standing.developerLogin, standing);
+    }
+  }
+
+  const published = [...latestByDeveloper.values()].filter((standing) =>
     participationFor(input.consents, input.season, standing.developerLogin).participating,
   );
 

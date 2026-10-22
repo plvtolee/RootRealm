@@ -20,7 +20,7 @@ import type { ComponentType, ReactNode } from "react";
  *
  * | label        | href            |
  * | ------------ | --------------- |
- * | Home         | `/`             |
+ * | Home         | `/home`         |
  * | Skill Tree   | `/skill-tree`   |
  * | Achievements | `/achievements` |
  * | Shop         | `/shop`         |
@@ -128,7 +128,7 @@ export type NavItem = {
  * current route.
  */
 export const NAV_ITEMS: readonly NavItem[] = [
-  { href: "/", label: "Home", icon: HomeIcon },
+  { href: "/home", label: "Home", icon: HomeIcon },
   { href: "/skill-tree", label: "Skill Tree", icon: SkillTreeIcon },
   { href: "/achievements", label: "Achievements", icon: AwardIcon },
   { href: "/shop", label: "Shop", icon: ShoppingBagIcon },
@@ -138,14 +138,23 @@ export const NAV_ITEMS: readonly NavItem[] = [
 /**
  * Whether a destination is the current page.
  *
- * `/` matches only itself (every path starts with `/`), and a nested route
- * such as `/profile/edit` keeps `/profile` selected — the active state has to
- * survive sub-routes added after Phase 1.
+ * `/home` matches only itself as the home destination, while nested routes
+ * keep their parent destination selected — the active state has to survive
+ * sub-routes added after Phase 1.
  */
 export function isNavActive(pathname: string, href: string): boolean {
-  if (href === "/") {
+  if (href === "/home") {
     return pathname === href;
   }
 
   return pathname === href || pathname.startsWith(`${href}/`);
+}
+
+/**
+ * The position of a route in the primary navigation. Secondary routes return
+ * null so callers can choose a neutral transition instead of guessing.
+ */
+export function primaryNavIndex(pathname: string): number | null {
+  const index = NAV_ITEMS.findIndex(({ href }) => isNavActive(pathname, href));
+  return index === -1 ? null : index;
 }

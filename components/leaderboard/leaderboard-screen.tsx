@@ -137,8 +137,8 @@ export function LeaderboardScreen({ view, canOptIn = false, className }: Leaderb
       {viewer === null ? (
         <Card className="border-border bg-surface-secondary p-4">
           <Text variant="body" className="text-text-secondary">
-            Sign in with GitHub to see your standing and to join this season&apos;s
-            ladder. Participation is opt-in either way.
+            Your standing will appear here once your account has enough eligible
+            evidence for this season. Participation remains opt-in.
           </Text>
         </Card>
       ) : (

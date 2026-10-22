@@ -28,7 +28,7 @@ import {
   participatingDevelopers,
   withdrawFromSeason,
 } from "./optin";
-import { rankStandingAt, rankStandings, snapshotOf } from "./rank";
+import { pointsForSeasonEvent, rankStandingAt, rankStandings, snapshotOf } from "./rank";
 
 /* -------------------------------------------------------------------------- */
 /* fixtures                                                                    */
@@ -168,6 +168,17 @@ describe("season model (16.1)", () => {
 /* -------------------------------------------------------------------------- */
 
 describe("rank points (16.3)", () => {
+  it("exposes the same per-event points used by safeguards", () => {
+    expect(pointsForSeasonEvent(merged(), IN_SEASON)).toBe(10);
+    expect(pointsForSeasonEvent(released(), IN_SEASON)).toBe(25);
+    expect(pointsForSeasonEvent({
+      ...merged(),
+      id: "push-1",
+      kind: "push",
+      evidence: { branch: "main", headSha: "head", beforeSha: "before" },
+    } as unknown as DeveloperEvent, IN_SEASON)).toBe(0);
+  });
+
   it("scores a season's activity", () => {
     const standing = rankStandingAt({
       developerLogin: "octocat",

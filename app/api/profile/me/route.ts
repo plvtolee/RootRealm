@@ -8,7 +8,7 @@
  * The screens that show a character (profile, skill tree, achievements) need to
  * know *whose* to load. Before this existed, a page had either hardcode a login or
  * ask the visitor to type one — which is how `/profile` came to render a static
- * mock while `/preview` showed a real character, and how the three could disagree.
+ * mock while the live lookup showed a real character, and how the three could disagree.
  *
  * ## Why the answer is a login and not a whole profile
  *
@@ -42,13 +42,13 @@ function readCookie(header: string | null, name: string): string | null {
   return null;
 }
 
-/** `GET /api/profile/me` → `{ login: string | null }`. */
+/** `GET /api/profile/me` → `{ login: string | null, userId: string | null }`. */
 export async function GET(request: Request): Promise<Response> {
   const secret = readSessionSecret();
 
   // No secret configured means no session can be trusted, which is the same
   // answer as no cookie: nobody is signed in.
-  if (secret === null) return safeJson({ login: null });
+  if (secret === null) return safeJson({ login: null, userId: null });
 
   let userId: string | null = null;
 
@@ -59,11 +59,11 @@ export async function GET(request: Request): Promise<Response> {
     // An absent, malformed, mis-signed or expired cookie are all one answer:
     // this request belongs to nobody. `SessionError` covers all four.
     if (!(error instanceof SessionError)) throw error;
-    return safeJson({ login: null });
+    return safeJson({ login: null, userId: null });
   }
 
   // A session for an account that is gone (a restored database, a deleted user)
   // is also nobody: the cookie is valid but the claim behind it no longer exists.
   const account = await accountStore().findById(userId);
-  return safeJson({ login: account?.login ?? null });
+  return safeJson({ login: account?.login ?? null, userId: account === null ? null : account.id });
 }

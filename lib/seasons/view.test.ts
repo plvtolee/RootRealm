@@ -76,6 +76,21 @@ describe("leaderboard view (16.6)", () => {
     ]);
   });
 
+  it("shows only the newest immutable snapshot per developer", () => {
+    const older = standing("amy", 10);
+    const newer = { ...standing("amy", 30), computedAt: "2026-05-16T12:00:00.000Z" };
+    const view = computeLeaderboardView({
+      season: SEASON,
+      standings: [older, newer],
+      consents: [consent("amy")],
+      at: AT,
+    });
+
+    expect(view.ladder).toEqual([
+      expect.objectContaining({ developerLogin: "amy", rank: 1, rankPoints: 30 }),
+    ]);
+  });
+
   it("never publishes a developer who did not opt in", () => {
     const view = computeLeaderboardView({
       season: SEASON,

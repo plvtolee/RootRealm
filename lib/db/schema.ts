@@ -403,6 +403,40 @@ export const PROGRESSION_TABLES: readonly Table[] = [
   },
 ];
 
+/** Quest completion records, added after the original quest progress cache. */
+export const QUEST_COMPLETION_TABLES: readonly Table[] = [
+  {
+    name: "quest_completions",
+    note: "Immutable, evidence-backed quest rewards keyed by developer and period.",
+    columns: [
+      { ...id(), check: "id LIKE 'quest:%'" },
+      {
+        name: "user_id",
+        type: "text",
+        notNull: true,
+        references: { table: "users", column: "id", onDelete: "cascade" },
+      },
+      {
+        name: "quest_id",
+        type: "text",
+        notNull: true,
+        references: { table: "quests", column: "id", onDelete: "cascade" },
+      },
+      { name: "period_key", type: "text", notNull: true },
+      { name: "progress", type: "integer", notNull: true },
+      { name: "completed_at", type: "timestamptz", notNull: true },
+      { name: "evidence_event_ids", type: "jsonb", notNull: true, default: "'[]'::jsonb" },
+      {
+        name: "scoring_version_id",
+        type: "text",
+        notNull: true,
+        references: { table: "scoring_versions", column: "id", onDelete: "restrict" },
+      },
+    ],
+    unique: [{ columns: ["user_id", "quest_id", "period_key"] }],
+  },
+];
+
 /**
  * TASKS 10.4 — the cosmetic tables.
  *
@@ -539,6 +573,7 @@ export const SEASONAL_TABLES: readonly Table[] = [
 export const ALL_TABLES: readonly Table[] = [
   ...CORE_TABLES,
   ...PROGRESSION_TABLES,
+  ...QUEST_COMPLETION_TABLES,
   ...COSMETIC_TABLES,
   ...SEASONAL_TABLES,
 ];
@@ -565,6 +600,11 @@ export const MIGRATIONS: readonly Migration[] = [
     id: "0004_seasonal",
     title: "Seasonal tables (TASKS 10.5)",
     tables: SEASONAL_TABLES.map((t) => t.name),
+  },
+  {
+    id: "0005_quest_completions",
+    title: "Evidence-backed quest completions",
+    tables: QUEST_COMPLETION_TABLES.map((t) => t.name),
   },
 ];
 

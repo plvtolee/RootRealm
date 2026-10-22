@@ -680,6 +680,54 @@ export interface FetchActivityOptions {
 }
 
 /**
+ * Fetches changed filenames for pull-request activity records.
+ *
+ * The activity feed does not contain file paths. A failed secondary request is
+ * represented as `null` so scoring can report unavailable evidence instead of
+ * treating it as an empty pull request.
+ */
+export async function fetchPullRequestTestFiles(
+  client: GitHubClient,
+  events: readonly ActivityRecord[],
+  options: FetchActivityOptions = {},
+): Promise<ReadonlyMap<string, readonly string[] | null>> {
+  const result = new Map<string, readonly string[] | null>();
+  const requests = events
+    // Regression-test scoring can only apply to merged pull requests, so do not
+    // spend GitHub requests on opened, reopened or unmerged PR events.
+    .filter((event) => event.type === "PullRequestEvent" && event.pullRequest?.merged === true)
+    .map(async (event) => {
+      const fullName = event.repositoryFullName;
+      const number = event.pullRequest?.number;
+      if (fullName === null || number === null || number === undefined) {
+        result.set(event.eventId, null);
+        return;
+      }
+
+      const separator = fullName.indexOf("/");
+      if (separator <= 0 || separator === fullName.length - 1) {
+        result.set(event.eventId, null);
+        return;
+      }
+
+      try {
+        const files = await client.listPullRequestFiles(
+          fullName.slice(0, separator),
+          fullName.slice(separator + 1),
+          number,
+          { signal: options.signal },
+        );
+        result.set(event.eventId, files.items.map((file) => file.filename));
+      } catch {
+        result.set(event.eventId, null);
+      }
+    });
+
+  await Promise.all(requests);
+  return result;
+}
+
+/**
  * Fetches a developer's recent public activity.
  *
  * Never throws for an expected failure — every one is returned as

@@ -2,18 +2,13 @@
 
 import { Text } from "@/components/ui/text";
 import { AchievementScreen } from "@/components/achievements/achievement-screen";
-import {
-  ProfileProvider,
-  useProfile,
-  useSessionLogin,
-} from "@/components/profile/profile-store";
+import { useProfile } from "@/components/profile/profile-store";
 
 /**
  * Achievements for the developer's own evidence (TASKS 7.1, 7.3).
  *
- * The screen already accepted `events` and `earnedIds`; nothing passed them, so
- * the whole catalogue rendered as locked regardless of what the developer had
- * actually done. This gate supplies both from the shared store.
+ * The screen already accepted `events` and `earnedIds`; this gate supplies both
+ * from the shared store established by the protected app layout.
  *
  * ## Why earned ids come from the aggregate and not from re-deriving here
  *
@@ -24,25 +19,7 @@ import {
  * it.
  */
 export default function AchievementGate() {
-  const session = useSessionLogin();
-
-  if (session.status === "loading") {
-    return (
-      <Text as="p" variant="body" className="text-text-secondary">
-        Reading your activity from GitHub…
-      </Text>
-    );
-  }
-
-  if (session.login === null) {
-    return <AchievementScreen />;
-  }
-
-  return (
-    <ProfileProvider login={session.login}>
-      <AchievementsForLogin />
-    </ProfileProvider>
-  );
+  return <AchievementsForLogin />;
 }
 
 function AchievementsForLogin() {

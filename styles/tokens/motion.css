@@ -33,11 +33,26 @@
   --motion-reveal: var(--rr-duration-600); /* unlock / achievement */
   --motion-ceremonial: var(--rr-duration-900); /* rare progression moment */
 
+  /* --- Shared motion geometry ------------------------------------------ */
+  /* These are named so components can choose a motion treatment without
+     repeating a distance or scale value in their own styles. */
+  --motion-page-offset: var(--spacing-2);
+  --motion-page-offset-inline: var(--spacing-6);
+  --motion-page-direction: 1;
+  --motion-reveal-offset: var(--spacing-2);
+  --motion-reveal-scale: 0.98;
+  --motion-hover-scale: 1.01;
+  --motion-press-scale: 0.985;
+
   /* --- Unlock motion ---------------------------------------------------- */
   /* Big, satisfying progression reveals. Defaults to the reveal token
      (the "unlock / achievement" duration); callers may override for a
      faster/slower pace. */
   --motion-unlock: var(--motion-reveal);
+}
+
+:root[data-motion-direction="backward"] {
+  --motion-page-direction: -1;
 }
 
 @theme static {
@@ -48,8 +63,8 @@
   --ease-exit: cubic-bezier(0.4, 0, 1, 1);
 
   /* --- Transition defaults --------------------------------------------- */
-  --default-transition-duration: var(--rr-duration-200);
-  --default-transition-timing-function: cubic-bezier(0.2, 0, 0, 1);
+  --default-transition-duration: var(--motion-base);
+  --default-transition-timing-function: var(--ease-standard);
 
   /* --- Animation -------------------------------------------------------- */
   /* The shell's page entrance (app/template.tsx), used as `animate-page-enter`.
@@ -57,7 +72,12 @@
      The keyframes are declared outside `@theme` below, so that the
      reduced-motion variant can reference its own keyframes without depending on
      which ones a usage scan decides to keep. */
-  --animate-page-enter: page-enter var(--motion-medium) var(--ease-entrance);
+  --animate-page-enter: page-enter var(--motion-medium) var(--ease-entrance) both;
+  --animate-page-slide: page-slide var(--motion-medium) var(--ease-entrance) both;
+  --animate-motion-reveal: motion-reveal var(--motion-medium) var(--ease-entrance) both;
+  --animate-motion-state: motion-state var(--motion-base) var(--ease-entrance) both;
+  --animate-motion-highlight: motion-highlight var(--motion-reveal) var(--ease-standard) both;
+  --animate-motion-sheen: motion-sheen var(--motion-ceremonial) linear infinite;
 }
 
 /* ---------------------------------------------------------------------------
@@ -72,12 +92,44 @@
 @keyframes page-enter {
   from {
     opacity: 0;
-    transform: translateY(var(--spacing-1));
+    transform: translate3d(0, var(--motion-page-offset), 0);
   }
 
   to {
     opacity: 1;
-    transform: translateY(0);
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+/* Primary navigation enters from the side the user is moving toward. The
+   direction is written by NavigationLink before the App Router swaps pages. */
+@keyframes page-slide {
+  from {
+    opacity: 0;
+    transform: translateX(
+      calc(var(--motion-page-direction) * var(--motion-page-offset-inline))
+    );
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* A reusable content reveal for shared surfaces. It is intentionally quieter
+   than progression motion: a small rise and scale establish arrival without
+   making normal content feel celebratory. */
+@keyframes motion-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(var(--motion-reveal-offset))
+      scale(var(--motion-reveal-scale));
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
   }
 }
 
@@ -89,6 +141,123 @@
 
   to {
     opacity: 1;
+  }
+}
+
+@keyframes motion-state {
+  from {
+    opacity: 0;
+    transform: translateY(var(--spacing-1));
+  }
+
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+/* Progressive enhancement for browsers with the View Transitions API. The
+   template owns the route motion, so the browser snapshots are deliberately
+   static: running a second root animation here would show two competing
+   versions of the same screen and could replay a stale direction. */
+@view-transition {
+  navigation: auto;
+}
+
+::view-transition {
+  pointer-events: none;
+}
+
+::view-transition-group(root) {
+  animation: none;
+}
+
+::view-transition-image-pair(root),
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+}
+
+@keyframes motion-highlight {
+  0% {
+    background-color: transparent;
+    box-shadow: none;
+  }
+
+  35% {
+    background-color: var(--color-state-selected);
+    box-shadow: 0 0 0 var(--spacing-1) var(--color-state-selected);
+  }
+
+  100% {
+    background-color: transparent;
+    box-shadow: none;
+  }
+}
+
+@keyframes motion-sheen {
+  0% {
+    opacity: 0.45;
+  }
+
+  50% {
+    opacity: 0.8;
+  }
+
+  100% {
+    opacity: 0.45;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Shared utility classes
+   ------------------------------------------------------------------------ */
+
+@layer utilities {
+  /* One semantic transition for low-noise interactive surfaces. Components
+     may use their narrower `transition-colors` form when that is clearer. */
+  .motion-transition {
+    transition-property: color, background-color, border-color, box-shadow,
+      opacity, transform;
+    transition-duration: var(--motion-base);
+    transition-timing-function: var(--ease-standard);
+  }
+
+  .motion-transition-fast {
+    transition-property: color, background-color, border-color, box-shadow,
+      opacity, transform;
+    transition-duration: var(--motion-fast);
+    transition-timing-function: var(--ease-standard);
+  }
+
+  /* Reveal classes are stateful so server-rendered content remains visible if
+     JavaScript is unavailable or while the client wrapper hydrates. */
+  .motion-reveal[data-motion-reveal="pending"][data-motion-hydrated="true"] {
+    opacity: 0;
+  }
+
+  .motion-reveal[data-motion-reveal="visible"] {
+    animation: var(--animate-motion-reveal);
+  }
+
+  .motion-page-enter[data-motion-reveal="visible"] {
+    animation: var(--animate-page-enter);
+  }
+
+  .motion-page-slide[data-motion-reveal="visible"] {
+    animation: var(--animate-page-slide);
+  }
+
+  .motion-state-enter {
+    animation: var(--animate-motion-state);
+  }
+
+  .motion-highlight-once {
+    animation: var(--animate-motion-highlight);
+  }
+
+  .motion-sheen {
+    animation: var(--animate-motion-sheen);
   }
 }
 
@@ -349,9 +518,36 @@
     --motion-reveal: var(--rr-duration-150);
     --motion-ceremonial: var(--rr-duration-150);
     --motion-unlock: var(--rr-duration-150);
+    --motion-page-offset: var(--spacing-0);
+    --motion-page-offset-inline: var(--spacing-0);
+    --motion-reveal-offset: var(--spacing-0);
+    --motion-reveal-scale: 1;
 
     /* The page still arrives, it just stops moving (DESIGN_SYSTEM §12:
        replace animated reveals with fades or instant state changes). */
-    --animate-page-enter: page-fade var(--motion-fast) var(--ease-standard);
+    --animate-page-enter: page-fade var(--motion-fast) var(--ease-standard) both;
+    --animate-page-slide: page-fade var(--motion-fast) var(--ease-standard) both;
+    --animate-motion-reveal: page-fade var(--motion-fast) var(--ease-standard) both;
+  }
+
+  .motion-transition,
+  .motion-transition-fast {
+    transition-duration: var(--motion-fast);
+  }
+
+  .motion-state-enter,
+  .motion-highlight-once,
+  .motion-sheen {
+    animation: none;
+  }
+
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation: none !important;
+  }
+
+  ::view-transition-group(root),
+  ::view-transition-image-pair(root) {
+    animation: none !important;
   }
 }

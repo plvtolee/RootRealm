@@ -44,6 +44,19 @@ Profile API
   ↓
 RootRealm UI
 
+Public entrance:
+
+`/` → landing narrative → `/login` → GitHub OAuth → `/home`
+
+Protected application:
+
+`app/(app)/layout.tsx` → account guard → shared session/profile providers →
+profile, skill tree, achievements, quests, shop, customization and leaderboard.
+
+The shared profile provider owns one in-memory snapshot for the protected app
+session. Screen navigation consumes that snapshot; it does not call
+`/api/profile/me` or re-ingest GitHub independently on every route.
+
 Separate systems:
 
 Cosmetics
@@ -75,7 +88,11 @@ Frontend / Application:
 
 UI / Motion:
 
-- CSS transitions
+- CSS transitions and tokenized route motion
+- `components/motion/reveal.tsx` for one-time viewport reveals and page entrances
+- `components/layout/navigation-link.tsx` for the shared moving navigation marker
+- the browser View Transitions API as a progressive enhancement (root snapshots
+  remain static because the App Router template owns the route animation)
 - SVG
 - GSAP where required
 

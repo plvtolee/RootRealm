@@ -3,11 +3,11 @@
 import { useMemo, useState, useRef, useEffect } from "react";
 
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { AwardGlyph, ShieldGlyph, SparkleGlyph, StarGlyph } from "@/components/ui/content-glyphs";
 import { ProgressBar } from "@/components/ui/progress-bar";
 import { Text } from "@/components/ui/text";
+import { Reveal } from "@/components/motion/reveal";
 import { cn } from "@/lib/cn";
 import { playAchievementReveal } from "@/lib/motion";
 import type { DeveloperEvent } from "@/lib/developer-event";
@@ -150,8 +150,6 @@ export function AchievementScreen({
 }) {
   const [selectedFilter, setSelectedFilter] = useState<(typeof ACHIEVEMENT_FILTERS)[number]>("All");
   const [sortMode, setSortMode] = useState<SortMode>("Catalog");
-  const [animating, setAnimating] = useState<ReadonlySet<string>>(new Set());
-  const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
 
   const state = useMemo(
     () => computeAchievementView(events, new Set(earnedIds)),
@@ -170,36 +168,9 @@ export function AchievementScreen({
     });
   }, [selectedFilter, sortMode, state]);
 
-  function handleDemoReveal() {
-    timersRef.current.forEach((t) => clearTimeout(t));
-    timersRef.current = [];
-    setAnimating(new Set());
-
-    visibleAchievements.forEach((view, index) => {
-      timersRef.current.push(
-        setTimeout(() => {
-          setAnimating((prev) => new Set([...prev, view.definition.id]));
-          // Clear after animation completes
-          setTimeout(() => {
-            setAnimating((prev) => {
-              const next = new Set(prev);
-              next.delete(view.definition.id);
-              return next;
-            });
-          }, 600);
-        }, index * 200)
-      );
-    });
-  }
-
-  // Cleanup timers on unmount or when visibleAchievements changes
-  useEffect(() => () => {
-    timersRef.current.forEach((t) => clearTimeout(t));
-    timersRef.current = [];
-  }, [visibleAchievements]);
-
   return (
     <div className="flex flex-col gap-8">
+      <Reveal>
       <header className="flex flex-col gap-6 border-b border-border pb-6 lg:flex-row lg:items-end lg:justify-between">
         <div className="max-w-2xl space-y-3">
           <Text variant="label" className="text-text-muted">COLLECTION / 01</Text>
@@ -217,7 +188,9 @@ export function AchievementScreen({
           </div>
         </div>
       </header>
+      </Reveal>
 
+      <Reveal>
       <section aria-labelledby="progress-heading" className="grid gap-4 lg:grid-cols-[1.1fr_1fr]">
         <Card padding="lg" className="flex flex-col justify-between gap-8">
           <div className="flex items-start justify-between gap-4">
@@ -255,39 +228,20 @@ export function AchievementScreen({
           ))}
         </Card>
       </section>
+      </Reveal>
 
+      <Reveal>
       <section aria-labelledby="collection-heading" className="space-y-6">
         <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
           <div className="space-y-2">
             <Text variant="heading" as="h2" id="collection-heading" className="text-text-primary">Collection</Text>
             <Text variant="caption" className="text-text-muted">Browse achievements by rarity and progress.</Text>
           </div>
-          <label className="flex min-h-(--control-height-md) items-center gap-3 self-start rounded-md border border-border bg-surface px-3 text-text-secondary md:self-auto">
-            <Text variant="label" as="span" className="shrink-0 text-text-muted">SORT</Text>
-            <select
-              aria-label="Sort"
-              value={sortMode}
-              onChange={(event) => setSortMode(event.target.value as SortMode)}
-              className="min-h-(--control-height-md) cursor-pointer bg-transparent pr-2 text-label text-text-primary outline-hidden"
-            >
-              <option value="Catalog">Catalog</option><option value="Name">Name</option><option value="Rarity">Rarity</option>
-            </select>
-          </label>
-          {process.env.NODE_ENV !== "production" ? (
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={handleDemoReveal}
-              disabled={animating.size > 0}
-              className="shrink-0"
-            >
-              Demo Reveal
-            </Button>
-          ) : null}
         </div>
 
-        <div className="flex gap-2 overflow-x-auto pb-1" role="group" aria-label="Filter achievements by rarity">
-          {ACHIEVEMENT_FILTERS.map((filter) => {
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div className="flex gap-2 overflow-x-auto pb-1" role="group" aria-label="Filter achievements by rarity">
+            {ACHIEVEMENT_FILTERS.map((filter) => {
             const active = selectedFilter === filter;
             const count = filter === "All" ? state.totalCount : state.rarityCounts[filter.toLowerCase() as AchievementRarity];
             return (
@@ -304,20 +258,28 @@ export function AchievementScreen({
                 {filter}<span className={cn("text-caption", active ? "text-text-secondary" : "text-text-muted")}>{String(count).padStart(2, "0")}</span>
               </button>
             );
-          })}
+            })}
+          </div>
+          <label className="flex min-h-(--control-height-md) w-fit shrink-0 items-center gap-3 rounded-md border border-border bg-surface px-3 text-text-secondary">
+            <Text variant="label" as="span" className="shrink-0 text-text-muted">SORT</Text>
+            <select
+              aria-label="Sort achievements"
+              value={sortMode}
+              onChange={(event) => setSortMode(event.target.value as SortMode)}
+              className="min-h-(--control-height-md) cursor-pointer bg-transparent pr-2 text-label text-text-primary outline-hidden"
+            >
+              <option value="Catalog">Catalog</option><option value="Name">Name</option><option value="Rarity">Rarity</option>
+            </select>
+          </label>
         </div>
 
         {visibleAchievements.length ? (
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {visibleAchievements.map((view, index) => {
-              const isAnimating = animating.has(view.definition.id);
               return (
-                <AchievementCard
-                  key={`${view.definition.id}-${isAnimating ? "r" : "s"}`}
-                  view={view}
-                  index={index}
-                  revealing={isAnimating}
-                />
+                <Reveal key={view.definition.id} style={{ animationDelay: `calc(var(--motion-fast) * ${Math.min(index, 5)})` }}>
+                  <AchievementCard view={view} index={index} />
+                </Reveal>
               );
             })}
           </div>
@@ -327,6 +289,7 @@ export function AchievementScreen({
           </Card>
         )}
       </section>
+      </Reveal>
     </div>
   );
 }

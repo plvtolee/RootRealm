@@ -200,3 +200,9 @@ export function eventCountsForSeason(event: DeveloperEvent, season: Season): boo
   const kind = kindFor(event);
   return kind !== null && season.points[kind] !== undefined;
 }
+
+/** The season points contributed by one event, or zero when it is not countable. */
+export function pointsForSeasonEvent(event: DeveloperEvent, season: Season): number {
+  const kind = kindFor(event);
+  return kind === null ? 0 : season.points[kind] ?? 0;
+}

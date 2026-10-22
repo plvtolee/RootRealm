@@ -35,7 +35,7 @@
  * honest; the database check means a bug in the service cannot double-award
  * anyone. Either alone would be a weaker guarantee.
  */
-import { fetchActivity } from "../github/activity";
+import { fetchActivity, fetchPullRequestTestFiles } from "../github/activity";
 import { fetchPublicProfile, createProfileClient } from "../github/profile";
 import { fetchRepositories } from "../github/repositories";
 import { normalizeActivity } from "../developer-event";
@@ -144,6 +144,12 @@ export async function runSync(input: {
     return refuse(job, repositories.failure, at, input.login, logger);
   }
 
+  const pullRequestTestFiles = await fetchPullRequestTestFiles(
+    client,
+    activity.observation.events,
+    { signal },
+  );
+
   job = completePhase(job, "fetch");
 
   /* --- normalize --------------------------------------------------- */
@@ -156,6 +162,7 @@ export async function runSync(input: {
         .map((repository) => repository.repositoryId)
         .filter((id): id is number => id !== null),
     ),
+    pullRequestTestFiles,
   });
 
   // `dedupeEvents` returns a result, not a list: the duplicates it collapsed and

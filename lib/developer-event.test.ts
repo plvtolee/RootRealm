@@ -193,6 +193,19 @@ describe("normalizeActivity — canonical kinds", () => {
     });
   });
 
+  it("carries fetched pull-request filenames into regression-test evidence", () => {
+    const result = normalize([pullRequest("merged")], context({
+      pullRequestTestFiles: new Map([
+        ["pr-merged", ["src/auth_test.go", "README.md"]],
+      ]),
+    }));
+
+    expect(only(result).evidence).toMatchObject({
+      testFiles: ["src/auth_test.go", "README.md"],
+    });
+    expect(only(result).limitations).not.toContain("test_files_unavailable");
+  });
+
   it("names a push as a push, never a commit", () => {
     const result = normalize([push()]);
 

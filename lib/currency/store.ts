@@ -37,7 +37,8 @@ import {
   type EquipOutcome,
   type EquippedCosmetics,
 } from "../cosmetics/equip";
-import { initialInventory, type Inventory } from "../cosmetics/inventory";
+import { grantFromQuestCompletion, initialInventory, type Inventory } from "../cosmetics/inventory";
+import type { CosmeticGrant } from "../quests/completion";
 
 import { balanceOf, type CurrencyTransaction } from "./ledger";
 import { purchaseCosmetic, type PurchaseOutcome } from "./purchase";
@@ -68,6 +69,13 @@ export interface WalletStore {
   equip(input: { readonly userId: string; readonly itemId: string }): Promise<EquipOutcome>;
   /** Takes an item off. The item stays owned. */
   unequip(input: { readonly userId: string; readonly slot: CosmeticSlot }): Promise<EquippedCosmetics>;
+  /** Applies idempotent completion rewards to the wallet. */
+  grant(input: {
+    readonly userId: string;
+    readonly transaction: CurrencyTransaction | null;
+    readonly cosmeticGrant: CosmeticGrant | null;
+    readonly at: string;
+  }): Promise<void>;
   /** Replaces the whole wallet. Used by seeding and tests. */
   save(wallet: Wallet): Promise<Wallet>;
 }
@@ -150,6 +158,20 @@ export function createInMemoryWalletStore(seed: readonly Wallet[] = []): WalletS
       const equipped = unequipCosmetic(wallet.equipped, slot);
       byUser.set(userId, { ...wallet, equipped });
       return equipped;
+    },
+
+    async grant({ userId, transaction, cosmeticGrant, at }) {
+      const wallet = current(userId, new Date(0).toISOString());
+      const transactions =
+        transaction === null || wallet.transactions.some((entry) => entry.id === transaction.id)
+          ? wallet.transactions
+          : [...wallet.transactions, transaction];
+      const inventory =
+        cosmeticGrant === null
+          ? wallet.inventory
+          : grantFromQuestCompletion(wallet.inventory, cosmeticGrant, at).inventory;
+
+      byUser.set(userId, { ...wallet, transactions, inventory });
     },
   };
 }

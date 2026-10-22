@@ -1,10 +1,12 @@
+"use client";
+
 import type { ReactNode } from "react";
+import { usePathname } from "next/navigation";
 
 import { cn } from "@/lib/cn";
 
-import { BottomNavigation } from "./bottom-navigation";
+import { AppShellChrome } from "./app-shell-chrome";
 import { Container } from "./container";
-import { TopNavigation } from "./top-navigation";
 
 export type AppShellProps = {
   children: ReactNode;
@@ -29,8 +31,9 @@ export type AppShellProps = {
  * ```
  *
  * Notes:
- * - it is rendered once by the root layout, so it is server-rendered and never
- *   remounts on navigation. Only the page inside it animates (app/template.tsx)
+ * - it is rendered once by the root layout and keeps route-sensitive public
+ *   entry spacing in sync during client navigation. Only the page inside it
+ *   animates (app/template.tsx)
  * - it owns six things and nothing else: the global background, the skip link,
  *   the desktop header navigation (Task 1.6), the `<main>` landmark, the content
  *   container with the page rhythm, and the bottom navigation (Task 1.5) —
@@ -40,14 +43,27 @@ export type AppShellProps = {
  *   components/layout/bottom-navigation.tsx)
  * - it knows nothing about the product. Screens and data arrive in later tasks
  */
-export function AppShell({ children, contained = true, className }: AppShellProps) {
+export function AppShell({
+  children,
+  contained = true,
+  className,
+}: AppShellProps) {
+  const pathname = usePathname();
+  const fullBleed = pathname === "/" || pathname === "/login";
+
   /*
     `pb-16` (64px) reserves the strip the fixed bottom bar occupies — the bar
     itself is ~53px tall — so the end of the page is never hidden underneath
     it. From `lg` the bar is gone and the space returns to the content.
   */
   return (
-    <div className={cn("relative flex min-h-dvh flex-col pb-16 lg:pb-0", className)}>
+    <div
+      className={cn(
+        "relative flex min-h-dvh flex-col overflow-x-clip",
+        !fullBleed && "pb-16 lg:pb-0",
+        className,
+      )}
+    >
       {/*
         Keyboard users reach the content straight away. It is translated above
         the viewport — not `sr-only` — so it can slide into place as a normal
@@ -82,7 +98,7 @@ export function AppShell({ children, contained = true, className }: AppShellProp
         takes over; only one of the two is ever exposed (see the note in
         components/layout/top-navigation.tsx).
       */}
-      <TopNavigation />
+       <AppShellChrome />
 
       {/*
         `tabIndex={-1}` lets the skip link move focus here, which is what makes
@@ -90,17 +106,23 @@ export function AppShell({ children, contained = true, className }: AppShellProp
         this is a landmark, not a control. Vertical rhythm lives here so every
         screen starts with the same breathing room.
       */}
-      <main
-        id="main-content"
-        tabIndex={-1}
-        className="relative flex flex-1 flex-col py-6 outline-hidden md:py-8 lg:py-12"
-      >
-        {contained ? (
-          <Container className="flex flex-1 flex-col">{children}</Container>
-        ) : (
-          children
-        )}
-      </main>
+      {fullBleed ? (
+        <div id="main-content" tabIndex={-1} className="relative flex flex-1 flex-col outline-hidden">
+          {children}
+        </div>
+      ) : (
+        <main
+          id="main-content"
+          tabIndex={-1}
+          className="relative flex flex-1 flex-col py-6 outline-hidden md:py-8 lg:py-12"
+        >
+          {contained ? (
+            <Container className="flex flex-1 flex-col">{children}</Container>
+          ) : (
+            children
+          )}
+        </main>
+      )}
 
       {/*
         Primary navigation (TASKS §1.5, DESIGN_SYSTEM §22): fixed to the
@@ -111,7 +133,6 @@ export function AppShell({ children, contained = true, className }: AppShellProp
         `pb-16`. It is placed after `<main>` so the DOM order matches the
         reading order (content first, the bar at the visual bottom).
       */}
-      <BottomNavigation />
     </div>
   );
 }

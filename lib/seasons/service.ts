@@ -11,12 +11,19 @@
  * consent that belongs to them.
  */
 import { userIdFromCookieHeader } from "../shop/service";
+import { githubLoginForUserId } from "../auth/account";
+import { accountStore } from "../db/stores";
 
 import { SEASONS, seasonAt } from "./definition";
 import { optInToSeason, withdrawFromSeason } from "./optin";
 import { seasonStore, type SeasonStore } from "./store";
 import { computeLeaderboardView, type LeaderboardViewState } from "./view";
 import { assertServerOnly } from "../github/server-only";
+import { buildProfilePreview } from "../profile/service";
+import { countedActivity, runSafeguards } from "./antifarm";
+import { eligibilityFor } from "./eligibility";
+import { participationFor } from "./optin";
+import { pointsForSeasonEvent, rankStandingAt, type RankStanding } from "./rank";
 
 /** The shared store, held on `globalThis` like the wallet's (see `store.ts`). */
 export const seasons: SeasonStore = seasonStore();
@@ -62,6 +69,61 @@ export async function leaderboardStateFor(input: {
 }
 
 /**
+ * Computes and publishes the signed-in viewer's current standing when eligible.
+ *
+ * Publishing is deliberately a server operation: the browser cannot submit
+ * fabricated events or a rank total. The standing is recomputed from the same
+ * public GitHub evidence used by the profile preview, checked against consent
+ * and anti-farming rules, then appended to the season store.
+ */
+export async function publishViewerStanding(input: {
+  readonly viewerLogin: string | null;
+  readonly at: Date;
+}): Promise<RankStanding | null> {
+  assertServerOnly("publishViewerStanding");
+
+  if (input.viewerLogin === null) return null;
+
+  const season = currentSeason(input.at);
+  if (season === null) return null;
+
+  const consents = await seasons.consents();
+  const participation = participationFor(consents, season, input.viewerLogin);
+  if (!participation.participating) return null;
+
+  const preview = await buildProfilePreview(input.viewerLogin);
+  if (!preview.ok) return null;
+
+  const standing = rankStandingAt({
+    developerLogin: input.viewerLogin,
+    events: preview.preview.events,
+    at: input.at,
+    seasons: [season],
+    season,
+  });
+  if (standing === null) return null;
+
+  const activity = countedActivity(
+    preview.preview.events,
+    season,
+    (event) => pointsForSeasonEvent(event, season),
+  );
+  const safeguards = runSafeguards(activity, input.at);
+  const eligibility = eligibilityFor({
+    season,
+    developerLogin: input.viewerLogin,
+    events: preview.preview.events,
+    participating: true,
+    safeguardsPass: safeguards.passed,
+  });
+
+  if (!eligibility.eligible) return null;
+
+  await seasons.publish(standing);
+  return standing;
+}
+
+/**
  * Records or withdraws the viewer's consent for the current season.
  *
  * Returns null when there is no current season, so the caller can say "there is
@@ -95,5 +157,19 @@ export async function setViewerParticipation(input: {
   return season.id;
 }
 
-/** The signed-in viewer's GitHub login, from the session cookie. */
+/**
+ * The signed-in viewer's GitHub login, from the session cookie.
+ *
+ * The cookie contains a RootRealm user id because that is the authorization
+ * identity. Season records are keyed by GitHub login, so the account lookup is
+ * required before the leaderboard boundary can read or write them.
+ */
+export async function githubLoginFromCookieHeader(header: string | null): Promise<string | null> {
+  const userId = userIdFromCookieHeader(header);
+  if (userId === null) return null;
+
+  return githubLoginForUserId(userId, accountStore());
+}
+
+/** The signed-in viewer's raw RootRealm user id, from the session cookie. */
 export { userIdFromCookieHeader };

@@ -29,8 +29,8 @@ export default function Loading() {
 
       {/* Three bars at the rhythm of a real screen: title, meta, rule. */}
       <div aria-hidden="true" className="flex flex-col gap-3">
-        <div className="h-(--control-height-sm) w-48 rounded-md bg-surface-secondary motion-safe:animate-pulse" />
-        <div className="h-3 w-32 rounded-md bg-surface-secondary motion-safe:animate-pulse" />
+        <div className="motion-sheen h-(--control-height-sm) w-48 rounded-md bg-surface-secondary" />
+        <div className="motion-sheen h-3 w-32 rounded-md bg-surface-secondary" />
         <div className="h-px w-full bg-surface-secondary" />
       </div>
     </div>

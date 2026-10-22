@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { isNavActive, NAV_ITEMS } from "@/components/layout/nav-items";
+import {
+  isNavActive,
+  NAV_ITEMS,
+  primaryNavIndex,
+} from "@/components/layout/nav-items";
 
 /**
  * The information architecture is a design decision, so it is asserted rather
@@ -10,7 +14,7 @@ import { isNavActive, NAV_ITEMS } from "@/components/layout/nav-items";
  * 17 audit (17.1).
  */
 const SPECIFIED = [
-  { href: "/", label: "Home" },
+  { href: "/home", label: "Home" },
   { href: "/skill-tree", label: "Skill Tree" },
   { href: "/achievements", label: "Achievements" },
   { href: "/shop", label: "Shop" },
@@ -51,12 +55,12 @@ describe("primary navigation (17.1)", () => {
 
 describe("active state (17.1)", () => {
   it("marks only the exact home route as home", () => {
-    expect(isNavActive("/", "/")).toBe(true);
-    expect(isNavActive("/shop", "/")).toBe(false);
+    expect(isNavActive("/home", "/home")).toBe(true);
+    expect(isNavActive("/shop", "/home")).toBe(false);
   });
 
   it("keeps a destination active across its sub-routes", () => {
-    expect(isNavActive("/profile/edit", "/profile")).toBe(true);
+    expect(isNavActive("/customization", "/profile")).toBe(false);
     expect(isNavActive("/skill-tree/node", "/skill-tree")).toBe(true);
   });
 
@@ -70,5 +74,17 @@ describe("active state (17.1)", () => {
 
       expect(active).toHaveLength(1);
     }
+  });
+});
+
+describe("shared navigation indicator state", () => {
+  it("returns the active item's position for primary routes", () => {
+    expect(primaryNavIndex("/home")).toBe(0);
+    expect(primaryNavIndex("/achievements")).toBe(2);
+    expect(primaryNavIndex("/customization")).toBeNull();
+  });
+
+  it("returns no position for secondary routes", () => {
+    expect(primaryNavIndex("/leaderboard")).toBeNull();
   });
 });

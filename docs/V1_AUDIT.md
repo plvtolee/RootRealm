@@ -75,9 +75,10 @@ means a bug in that first check still cannot double-award.
 no worker. Putting a timer in the product before there is something for it to do
 would be infrastructure for its own sake; this is recorded rather than built.
 
-**Attributes, skills and quests are still not persisted.** The engine's outcome is
-transactions and achievement unlocks; the rest are derived at read time. A second
-write path for already-derived data would be a new design decision.
+**Attributes remain derived; skill unlocks and quest completions are now persisted.**
+The engine's attribute totals and levels are still computed from the evidence and
+ledger at read time, while the user-selected skill unlocks and evidence-backed
+quest reward records have dedicated idempotent write paths.
 
 ### Not covered: a screen-reader pass
 

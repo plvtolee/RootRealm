@@ -27,6 +27,7 @@ import { cn } from "@/lib/cn";
 import { Card } from "@/components/ui/card";
 import { ProgressBar } from "@/components/ui/progress-bar";
 import { Text } from "@/components/ui/text";
+import { Reveal } from "@/components/motion/reveal";
 
 import { SKILL_NODE_PRESENTATION_BY_ID } from "./skill-node-presentation";
 import { SkillBranchRail } from "./skill-branch-rail";
@@ -64,6 +65,9 @@ export function SkillTreeScreen({
   const [activeBranch, setActiveBranch] = useState<AttributeKey | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>("map");
   const [unlockEvent, setUnlockEvent] = useState<UnlockEvent | null>(null);
+  const [pendingMutation, setPendingMutation] = useState<string | null>(null);
+  const [mutationError, setMutationError] = useState<string | null>(null);
+  const persisted = learnedIdsProp !== undefined;
 
   const state = useMemo<SkillTreeState>(
     () => computeSkillTreeView(learnedIds, events, { attributeTotals }),
@@ -81,7 +85,14 @@ export function SkillTreeScreen({
     return new Set(selectedView.missingPrerequisiteIds);
   }, [selectedView]);
 
-  function handleLearn(id: string) {
+  async function handleLearn(id: string) {
+    if (pendingMutation !== null) return;
+
+    if (persisted) {
+      await mutatePersisted(id, "learn");
+      return;
+    }
+
     const progress = evaluateAllProgress(SKILL_DEFINITIONS, events, {
       learnedIds: new Set(learnedIds),
     }).find((entry) => entry.skillId === id);
@@ -123,12 +134,72 @@ export function SkillTreeScreen({
     }
   }
 
-  function handleRefund(id: string) {
+  async function handleRefund(id: string) {
+    if (pendingMutation !== null) return;
+
+    if (persisted) {
+      await mutatePersisted(id, "refund");
+      return;
+    }
+
     setLearnedIds(refund(id, new Set(learnedIds)));
+  }
+
+  async function mutatePersisted(id: string, action: "learn" | "refund") {
+    setPendingMutation(id);
+    setMutationError(null);
+
+    try {
+      const response = await fetch("/api/skills", {
+        method: "POST",
+        headers: { "content-type": "application/json", accept: "application/json" },
+        body: JSON.stringify({ skillId: id, action }),
+      });
+      const body = (await response.json().catch(() => null)) as {
+        learnedSkillIds?: unknown;
+        message?: unknown;
+      } | null;
+
+      if (!response.ok || !Array.isArray(body?.learnedSkillIds)) {
+        throw new Error(
+          typeof body?.message === "string" ? body.message : "That skill could not be saved.",
+        );
+      }
+
+      const next = body.learnedSkillIds.filter((value): value is string => typeof value === "string");
+      const wasLearned = learnedIds.includes(id);
+      setLearnedIds(next);
+
+      if (
+        action === "learn" &&
+        !wasLearned &&
+        viewMode === "map" &&
+        !window.matchMedia("(prefers-reduced-motion: reduce)").matches
+      ) {
+        const view = state.nodes.get(id);
+        const fromId = view?.node.prerequisiteIds.find((prerequisiteId) =>
+          learnedIds.includes(prerequisiteId),
+        );
+        if (fromId) {
+          setUnlockEvent((current) => ({
+            nodeId: id,
+            fromId,
+            revision: (current?.revision ?? 0) + 1,
+          }));
+        }
+      } else {
+        setUnlockEvent(null);
+      }
+    } catch (error) {
+      setMutationError(error instanceof Error ? error.message : "That skill could not be saved.");
+    } finally {
+      setPendingMutation(null);
+    }
   }
 
   return (
     <div className="flex flex-col gap-4">
+      <Reveal>
       <header className="flex flex-col gap-3">
         <div className="flex flex-wrap items-center gap-3">
           <Text variant="heading" as="h1">
@@ -145,6 +216,11 @@ export function SkillTreeScreen({
           showValue
           size="sm"
         />
+        {mutationError ? (
+          <Text variant="caption" className="text-danger" role="alert">
+            {mutationError}
+          </Text>
+        ) : null}
         <div role="group" aria-label="Choose the tree view" className="flex gap-2">
           {(["map", "list"] as const).map((mode) => (
             <button
@@ -169,15 +245,18 @@ export function SkillTreeScreen({
           ))}
         </div>
       </header>
+      </Reveal>
 
-      <div className="grid gap-4 lg:grid-cols-[15rem_1fr] xl:grid-cols-[15rem_1fr_22rem]">
-        <SkillBranchRail
-          state={state}
-          activeBranch={activeBranch}
-          onSelectBranch={setActiveBranch}
-        />
+      <Reveal className="grid gap-4 lg:grid-cols-[15rem_1fr] xl:grid-cols-[15rem_1fr_22rem]">
+        <Reveal>
+          <SkillBranchRail
+            state={state}
+            activeBranch={activeBranch}
+            onSelectBranch={setActiveBranch}
+          />
+        </Reveal>
 
-        <div className="flex min-w-0 flex-col gap-4">
+        <div key={viewMode} className="motion-state-enter flex min-w-0 flex-col gap-4">
           {viewMode === "map" ? (
             <SkillTreeCanvas
               state={state}
@@ -211,7 +290,7 @@ export function SkillTreeScreen({
             presentation={presentation}
           />
         </div>
-      </div>
+      </Reveal>
     </div>
   );
 }

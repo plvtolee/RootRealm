@@ -102,7 +102,7 @@ export const CONTROL_VARIANT: Record<ControlVariant, string> = {
  * layer and by `motion-reduce`.
  */
 export const INTERACTION_TRANSITION =
-  "transition-colors duration-(--motion-fast) ease-standard motion-reduce:transition-none";
+  "motion-transition-fast hover:scale-(--motion-hover-scale) active:scale-(--motion-press-scale) motion-reduce:transform-none motion-reduce:transition-none";
 
 /** Pointer at rest, blocked while disabled. */
 export const CONTROL_CURSOR = "cursor-pointer disabled:cursor-not-allowed";

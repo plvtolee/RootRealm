@@ -25,7 +25,7 @@
  *   `verified: false` — the honest state for a public lookup.
  */
 
-import { fetchActivity } from "../github/activity";
+import { fetchActivity, fetchPullRequestTestFiles } from "../github/activity";
 import { fetchPublicProfile, createProfileClient, type PublicProfile } from "../github/profile";
 import { fetchRepositories, type RepositoryRecord } from "../github/repositories";
 import type { FailureReason } from "../github/failure";
@@ -114,6 +114,12 @@ export async function buildProfilePreview(
     return { ok: false, failure: failureOf(activity.failure, activity.rateLimit) };
   }
 
+  const pullRequestTestFiles = await fetchPullRequestTestFiles(
+    client,
+    activity.observation.events,
+    { signal },
+  );
+
   const normalized = normalizeActivity(activity.observation.events, {
     developerLogin: username,
     developerId: profile.ok ? profile.profile.githubId : null,
@@ -122,6 +128,7 @@ export async function buildProfilePreview(
         .map((repository) => repository.repositoryId)
         .filter((id): id is number => id !== null),
     ),
+    pullRequestTestFiles,
   });
 
   const deduplicated = dedupeEvents(normalized.events);

@@ -332,6 +332,12 @@ export interface NormalizationContext {
    * mark every event `inferred`.
    */
   confirmedRepositoryIds: ReadonlySet<number> | null;
+  /**
+   * Changed filenames fetched from the pull-request files endpoint, keyed by
+   * the source event id. A present empty array means the fetch succeeded and no
+   * files matched; an absent/null value means the evidence was unavailable.
+   */
+  pullRequestTestFiles?: ReadonlyMap<string, readonly string[] | null>;
 }
 
 /** Input events that produced no canonical event, grouped by source type. */
@@ -534,12 +540,10 @@ function toDeveloperEvent(
         merged: record.pullRequest?.merged ?? null,
         headRef: record.pullRequest?.headRef ?? null,
         baseRef: record.pullRequest?.baseRef ?? null,
-        // Always `null` here: no ingestion path supplies changed filenames yet.
-        // TASKS 5.8's ingestion task replaces this. Declining with a stated
-        // reason is the correct behaviour until then — the rule cannot tell a
-        // test from a README without file paths, and guessing is what §1's
-        // "evidence-backed" forbids.
-        testFiles: null,
+        testFiles: (() => {
+          const fetched = context.pullRequestTestFiles?.get(record.eventId);
+          return fetched === undefined || fetched === null ? null : [...fetched];
+        })(),
       };
 
       pullRequestLimitations(evidence, limitations);

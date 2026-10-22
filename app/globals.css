@@ -15,6 +15,7 @@
   html {
     background-color: var(--color-bg);
     color-scheme: dark;
+    scroll-behavior: smooth;
   }
 
   body {
@@ -23,6 +24,18 @@
     font-family: var(--font-sans);
     font-size: var(--text-body);
     line-height: var(--text-body--line-height);
+  }
+
+  @supports (overflow: clip) {
+    body {
+      overflow-x: clip;
+    }
+  }
+
+  /* The route template owns navigation motion. Keep the browser's snapshot
+     overlay from intercepting a rapid second click while it is being swapped. */
+  ::view-transition {
+    pointer-events: none;
   }
 
   /* -------------------------------------------------------------------------
@@ -77,5 +90,27 @@
     outline: var(--border-width-emphasis) solid var(--color-focus);
     outline-offset: var(--spacing-1);
   }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+}
+
+/* Public landing and universal login own their presentation. The app chrome is
+   mounted by AppShellChrome only for authenticated application routes. */
+body:has(.authPage) a[href="#main-content"] {
+  display: none;
+}
+
+body:has(.authPage) main#main-content {
+  padding: 0;
+}
+
+body:has(.authPage) main#main-content > div {
+  width: 100%;
+  max-width: none;
 }
 
